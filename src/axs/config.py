@@ -1,9 +1,9 @@
 """ Configuration class for accessing JSON-based configuration files. """
 import json
 import abc
+import os
+from functools import lru_cache
 from typing import Union, Dict, Iterator, Any
-
-from vllm import SamplingParams
 
 from axs.prompt import Prompt
 
@@ -31,7 +31,8 @@ class EnvConfig(ConfigBase):
 
     @property
     def max_iter(self) -> int:
-        """ Maximum number of iterations for environment executinon. Default: 1000. """
+        """ Maximum number of iterations for environment executinon.
+        Default: 1000. """
         return self._config.get("max_iter", 1000)
 
     @property
@@ -69,9 +70,9 @@ class LLMConfig(ConfigBase):
         return self._config.get("model_kwargs", {})
 
     @property
-    def sampling_params(self) -> SamplingParams:
+    def sampling_params(self) -> Dict[str, Any]:
         """ vLLM SamplingParams. """
-        return SamplingParams(self._config.get("sampling_params", {}))
+        return self._config.get("sampling_params", {})
 
 
 class AXSConfig(ConfigBase):
@@ -79,14 +80,60 @@ class AXSConfig(ConfigBase):
 
     @property
     def n_max(self) -> int:
-        """ The maximum number of iterations for explanation generation. Default: 5. """
+        """ The maximum number of iterations for explanation generation.
+        Default: 5. """
         return self._config.get("n_max", 5)
+
+    @property
+    def delta(self) -> float:
+        """ The minimum distance between explanations for convergence.
+        Default: 0.01. """
+        return self._config.get("delta", 0.01)
+
+    @property
+    def system_prompt(self) -> str:
+        """ The system prompt for the AXSAgent to use.
+        Either a string or a file path. """
+        value = self._config.get("system_prompt", "")
+        if os.path.exists(value):
+            with open(value, "r", encoding="utf-8") as f:
+                return f.read()
+        else:
+            return value
 
     @property
     def user_prompts(self) -> Iterator[Prompt]:
         """ The prompts the users asks the agent. """
         return map(lambda x: Prompt(**x),
                    self._config.get("user_prompts", []))
+
+    @property
+    @lru_cache(maxsize=64)
+    def query_template(self) -> str:
+        """ The query template for the AXSAgent to use.
+        The template should be a valid string with placeholders for the
+        str.format() method and may be specified in the config file or
+        as a separate file with a valid path to it. """
+        value = self._config.get("query_template", "")
+        if os.path.exists(value):
+            with open(value, "r", encoding="utf-8") as f:
+                return f.read()
+        else:
+            return value
+
+    @property
+    @lru_cache(maxsize=64)
+    def explanation_template(self) -> str:
+        """ The explanation template for the AXSAgent to use.
+        The template should be a valid string with placeholders for the
+        str.format() method and may be specified in the config file or
+        as a separate file with a valid path to it. """
+        value = self._config.get("explanation_template", "")
+        if os.path.exists(value):
+            with open(value, "r", encoding="utf-8") as f:
+                return f.read()
+        else:
+            return value
 
 
 class Config(ConfigBase):

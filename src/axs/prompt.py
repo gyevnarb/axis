@@ -17,6 +17,6 @@ class Prompt:
         self.template = template
         self.time = time
 
-    def generate(self, **context) -> str:
-        """ Generate the prompt from the template and context. """
+    def fill(self, **context) -> str:
+        """ Complete the prompt from the template and context. """
         return self.template.format(**context)

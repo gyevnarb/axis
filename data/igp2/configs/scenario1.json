@@ -8,9 +8,13 @@
     },
     "axs": {
         "n_max": 5,
+        "delta": 0.01,
         "macro_action": {
             "name": "igp2"
         },
+        "system_prompt": "data/igp2/prompts/system.txt",
+        "query_template": "data/igp2/prompts/query.txt",
+        "explanation_template": "data/igp2/prompts/explanation.txt",
         "user_prompts": [
             {
                 "time": 80,
