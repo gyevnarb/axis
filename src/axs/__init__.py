@@ -1,76 +1,82 @@
 """ The axs package is package that allows the user to generate explanation for any gymnasium environment with an agentic workflow. """
-import typer
+import logging
 from typing import Annotated
 
-from vllm import LLM
-from vllm import SamplingParams
+import typer
+import gymnasium as gym
+import igp2 as ip
+from rich.logging import RichHandler
 
-from axs import prompt
-from axs.verbalize import Verbalizer
-from axs.macro_action import MacroAction
-from axs.memory import SemanticMemory, EpisodicMemory
-from axs.simulator import Simulator
+from axs.config import Config
+from axs.agent import AXSAgent
 
 
+logger = logging.getLogger(__name__)
 app = typer.Typer()
 
+def init_logging():
+    """ Initialize logging. """
+    logging.basicConfig(
+        level="NOTSET",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)]
+    )
 
-@app.callback()
+
+@app.command()
 def main(
     user_query : Annotated[
         str,
         typer.Argument(help="The query to be explained.")
     ],
-    model : Annotated[
+    config_file : Annotated[
         str,
-        typer.Option(help="LLM model name as specified on HuggingFace.")
-    ] = "llama-1B",
-    n_max: Annotated[
-        int,
-        typer.Option(help="The maximum number of iterations for explanation generation.")
-    ] = 5,
-    delta: Annotated[
-        float,
-        typer.Option(help="Convergence threshold for minimum distance between consecutive explanations.")
-    ] = 0.01,
-    sampling_params: Annotated[
-        dict,
-        typer.Option(help="Sampling parameters for the LLM.")
-    ] = {}
-) -> None:
-    """ Call the typer app. """
-    llm = LLM(model)
-    simulator = Simulator("gofi-v1")
-    verbalizer = Verbalizer()
-    semantic_memory = SemanticMemory()
-    episodic_memory = EpisodicMemory()
+        typer.Option(help="The path to the configuration file.")
+    ] = "data/config.json") -> None:
+    """ Execute the AXS agent according to the configuration file. """
 
-    messages = [
-        {"role": "system", "content": "TODO: Add system message."}
-    ]
+    config_file = "data/igp2/configs/scenario1.json"
+    config = Config(config_file)
+    env = gym.make(config.env.name,
+                   config=config.env.params,
+                   render_mode=config.env.render_mode)
+    observation, info = env.reset(seed=config.env.seed)
 
-    states = semantic_memory.retrieve("states")
-    actions = semantic_memory.retrieve("actions")
-    macro_actions = MacroAction.wrap(actions)
+    axs_agent = AXSAgent(config)
+    ego_agent = None  # TODO: Add environment agent(s) here
 
-    txt_states = verbalizer.convert(states)
-    txt_actions = verbalizer.convert(macro_actions)
+    for n in range(config.env.n_episodes):
+        logger.info(f"Running episode {n}...")
 
-    query_prompt = prompt.query_prompt(user_query, txt_states, txt_actions)
-    messages.append(query_prompt)
+        axs_agent.reset()
 
-    n = 0
-    explanation, prev_explanation = None, None
-    sampling_params = SamplingParams(**sampling_params)
-    while n < n_max and distance(explanation, prev_explanation) > delta:
-        output = llm.chat(messages)
-        simulation_query = 
-        prev_explanation = explanation
-        n += 1
+        # Execute external environment as normal
+        for t in range(config.env.max_iter):
+            action = None  # ego_agent.next_action(observation)
 
+            # Learning and explanation phase
+            axs_agent.semantic_memory.learn(
+                observations=observation, actions=action, infos=info)
+            for prompt in config.axs.user_prompts:
+                if t > 0 and prompt.time == t - 1:
+                    user_query = prompt.generate()
+                    axs_agent.explain(user_query)
 
+            # Perform environment step
+            observation, reward, terminated, truncated, info = env.step(action)
+            if terminated or truncated:
+                logger.info("Episode terminated.")
+                observation, info = env.reset(seed=config.env.seed)
+                break
+
+    env.close()
+
+def run():
+    """ Entry-point for CLI. """
+    init_logging()
     app()
 
 
 if __name__ == "__main__":
-    app()
+    run()

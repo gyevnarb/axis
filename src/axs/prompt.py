@@ -1,11 +1,22 @@
 """ This module contains the prompt generator functions for the LLM. """
 
 
-def query_prompt(context) -> str:
-    """ Prompt the LLM for a query to the simulator."""
-    return "What is the query?"
+class Prompt:
+    """ A class to generate prompts from templates and context.
+    The template should be specified with placeholders for the context variables
+    such that they can be formatted using the `str.format` method."""
 
+    def __init__(self, template: str, time: int = None):
+        """ Initialize the Prompt with the template with an
+        optional time step for when it becomes valid.
 
-def explanation_prompt(context) -> str:
-    """ Prompt the LLM for an explanation."""
-    return "What is the explanation?"
+        Args:
+            template (str): The template string with placeholders for context variables.
+            time (int): The time step when the prompt becomes valid
+        """
+        self.template = template
+        self.time = time
+
+    def generate(self, **context) -> str:
+        """ Generate the prompt from the template and context. """
+        return self.template.format(**context)

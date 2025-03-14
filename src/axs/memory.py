@@ -1,12 +1,15 @@
 """ Memory module for storing facts about the environment and iterative experience. """
 import abc
-from typing import Any, Union
+from typing import Any, Union, List, Iterable
 
 
 class Memory(abc.ABC):
     """ Base class for memory components. """
-    def __init__(self):
-        self._mem = {}
+    def __init__(self, memory: Iterable = None):
+        if memory is not None:
+            self._mem = memory
+        else:
+            self._mem = {}
 
     @abc.abstractmethod
     def retrieve(self, key: Union[int, str]) -> Any:
@@ -14,13 +17,18 @@ class Memory(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def learn(self, experience: Any, key: Union[int, str] = None) -> None:
-        """ Commit experience to memory with lookup key. """
+    def learn(self, *args, **kwargs: Any) -> None:
+        """ Commit experience to memory passed as (keyword) args. """
         raise NotImplementedError
 
     def reset(self) -> None:
         """ Remove all data from memory. """
         self._mem = {}
+
+    @property
+    def memory(self) -> Iterable:
+        """ Return the memory object. """
+        return self._mem
 
 
 class SemanticMemory(Memory):
@@ -36,24 +44,32 @@ class SemanticMemory(Memory):
             raise KeyError(f"Key: {key} not found in semantic memory.")
         return self._mem[key]
 
-    def learn(self, experience: Any, key: str = None) -> None:
-        """ Commit experience to memory with lookup key.
-        If key already exists, then append to existing memory.
+    def learn(self, *args, **kwargs: Any) -> None:
+        """ Commit experiences to memory with keys given as keyword arguments,
+        or the default key for positional arguments.
 
-        Args:
-            key (str): The key to associate with the experience.
-            experience (Any): The experience to store in memory.
+        Keywords Args:
+            experience (Any): The experiences to store in memory.
         """
-        if key is None:
-            key = "key" + str(len(self._mem))
-
-        if key in self._mem:
-            if isinstance(self._mem[key], list):
-                self._mem[key].append(experience)
+        for value in args:
+            if "default" not in self._mem:
+                self._mem["default"] = [value]
             else:
-                self._mem[key] = [self._mem[key], experience]
-        else:
-            self._mem[key] = experience
+                self._mem["default"].append(value)
+
+        for key, value in kwargs.items():
+            if key in self._mem:
+                if isinstance(self._mem[key], list):
+                    self._mem[key].append(value)
+                else:
+                    self._mem[key] = [self._mem[key], value]
+            else:
+                self._mem[key] = value
+
+    @property
+    def keys(self) -> List[str]:
+        """ Return the keys in semantic memory. """
+        return list(self._mem.keys())
 
 
 class EpisodicMemory(Memory):
@@ -63,25 +79,20 @@ class EpisodicMemory(Memory):
         super().__init__()
         self._mem = []
 
-    def retrieve(self, key: int) -> Any:
+    def retrieve(self, idx: int) -> Any:
         """ Retrieve experience from memory with lookup index.
         Raises IndexError if key is out of bounds.
 
         Args:
             key (int): The index to lookup in memory.
         """
-        return self._mem[key]
+        return self._mem[idx]
 
-    def learn(self, experience: Any, key: int = None) -> None:
-        """ Append or insert at index the experience to memory.
+    def learn(self, *args, **kwargs: Any) -> None:
+        """ Append the experience to memory. Kwargs are ignored.
 
-        Args:
+        Keywords Args:
             experience (Any): The experience to store in memory.
-            key (int): The index to insert the experience at.
         """
-        if key is None:
-            self._mem.append(experience)
-        else:
-            if key < 0 or key > len(self._mem):
-                raise IndexError(f"Index: {key} out of bounds for episodic memory.")
-            self._mem.insert(key, experience)
+        for value in args:
+            self._mem.append(value)

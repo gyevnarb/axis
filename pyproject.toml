@@ -13,6 +13,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "gymnasium>=1.1.1",
+    "huggingface-hub>=0.29.3",
     "typer>=0.15.2",
     "vllm>=0.7.3",
 ]
@@ -30,15 +31,23 @@ classifiers = [
 license = "MIT"
 
 [project.scripts]
-axs = "axs:main"
+axs = "axs:run"
 
 [project.optional-dependencies]
 gpt = [
     "openai>=1.66.2",
 ]
 igp2 = [
+    "igp2",
     "gofi",
+]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "minigrid>=3.0.0",
 ]
 
 [tool.uv.sources]
 gofi = { git = "https://github.com/gyevnarb/gofi" }
+igp2 = { git = "https://github.com/uoe-agents/IGP2" }
