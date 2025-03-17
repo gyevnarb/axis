@@ -1,18 +1,26 @@
 {
     "llm": {
-        "model": "meta-llama/Llama-3.2-1B-Instruct",
-        "model_kwargs": {
-            "seed": 28
-        },
-        "sampling_params": {}
+        "inference_mode": "localhost",
+        "model": "meta-llama/Llama-3.2-3B-Instruct",
+        "model_kwargs": {},
+        "sampling_params": {
+            "seed": 28,
+            "max_tokens": 500,
+            "temperature": 0.8,
+            "top_p":0.95
+        }
     },
     "axs": {
         "n_max": 5,
         "delta": 0.01,
         "macro_action": {
-            "name": "igp2"
+            "name": "IGP2MacroAction",
+            "params": {
+                "scenario_map": "",
+                "eps": 0.1
+            }
         },
-        "system_prompt": "data/igp2/prompts/system.txt",
+        "system_template": "data/igp2/prompts/system.txt",
         "query_template": "data/igp2/prompts/query.txt",
         "explanation_template": "data/igp2/prompts/explanation.txt",
         "user_prompts": [
@@ -27,14 +35,15 @@
         "max_iter": 1000,
         "n_epsiodes": 1,
         "seed": 28,
-        "render_mode": "human",
+        "render_mode": "plot",
         "params": {
             "scenario": {
                 "map_path": "data/igp2/maps/scenario1.xodr",
                 "max_speed": 10.0,
                 "fps": 20,
                 "seed": 21,
-                "max_steps": 250
+                "max_steps": 250,
+                "separate_ego": true
             },
             "agents": [
                 {
@@ -79,7 +88,7 @@
                     },
                     "mcts": {
                         "t_update": 2.0,
-                        "n_simulations": 30,
+                        "n_simulations": 15,
                         "store_results": "all",
                         "trajectory_agents": false,
                         "reward_factors": {

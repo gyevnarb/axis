@@ -1,1 +1,1 @@
-You synthesize helpful explanations in multi-round sequence of dialog
+You write helpful explanations based on a multi-round sequence of dialog over {n_max} rounds. End your responses with '<|endoftext|>'.

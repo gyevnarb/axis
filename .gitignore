@@ -14,3 +14,7 @@ wheels/
 
 # UV files
 uv.lock
+
+# Other files
+output/
+playground.*

@@ -79,14 +79,14 @@ class EpisodicMemory(Memory):
         super().__init__()
         self._mem = []
 
-    def retrieve(self, idx: int) -> Any:
+    def retrieve(self, key: int) -> Any:
         """ Retrieve experience from memory with lookup index.
         Raises IndexError if key is out of bounds.
 
         Args:
             key (int): The index to lookup in memory.
         """
-        return self._mem[idx]
+        return self._mem[key]
 
     def learn(self, *args, **kwargs: Any) -> None:
         """ Append the experience to memory. Kwargs are ignored.

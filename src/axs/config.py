@@ -3,9 +3,7 @@ import json
 import abc
 import os
 from functools import lru_cache
-from typing import Union, Dict, Iterator, Any
-
-from axs.prompt import Prompt
+from typing import Union, Dict, List, Any
 
 
 class ConfigBase(abc.ABC):
@@ -60,9 +58,18 @@ class LLMConfig(ConfigBase):
     """ Configuration class for LLM model parameters. """
 
     @property
+    def inference_mode(self) -> str:
+        """ Inference mode for the LLM model. Default: 'localhost' """
+        value = self._config.get("inference_mode", "online")
+        if value not in ["online", "offline", "localhost"]:
+            raise ValueError(f"Invalid LLM inference mode: {value}; "
+                             f"must be 'online', 'offline', or 'localhost'.")
+        return value
+
+    @property
     def model(self) -> str:
-        """ LLM model name. """
-        return self._config["model"]
+        """ LLM model name. Default: meta-llama/Llama-3.2-3B-Instruct"""
+        return self._config.get("model", "meta-llama/Llama-3.2-3B-Instruct")
 
     @property
     def model_kwargs(self) -> Dict[str, Any]:
@@ -75,6 +82,20 @@ class LLMConfig(ConfigBase):
         return self._config.get("sampling_params", {})
 
 
+class MacroActionConfig(ConfigBase):
+    """ Configuration class for MacroAction creation. """
+
+    @property
+    def name(self) -> str:
+        """ The name of the macro action. """
+        return self._config["name"]
+
+    @property
+    def params(self) -> Dict[str, Any]:
+        """ Additional parameters for the macro action. """
+        return self._config.get("params", {})
+
+
 class AXSConfig(ConfigBase):
     """ Configuration class for the AXS agent parameters. """
 
@@ -82,30 +103,44 @@ class AXSConfig(ConfigBase):
     def n_max(self) -> int:
         """ The maximum number of iterations for explanation generation.
         Default: 5. """
-        return self._config.get("n_max", 5)
+        value = self._config.get("n_max", 5)
+        if value < 1:
+            raise ValueError(f"Invalid value for n_max: {value}; must be >= 1.")
+        return value
 
     @property
     def delta(self) -> float:
         """ The minimum distance between explanations for convergence.
         Default: 0.01. """
-        return self._config.get("delta", 0.01)
+        value = self._config.get("delta", 0.01)
+        if value <= 0:
+            raise ValueError(f"Invalid value for delta: {value}; must be > 0.")
+        return value
 
     @property
-    def system_prompt(self) -> str:
-        """ The system prompt for the AXSAgent to use.
-        Either a string or a file path. """
-        value = self._config.get("system_prompt", "")
+    def macro_action(self) -> MacroActionConfig:
+        """ The macro action configuration for the AXSAgent. """
+        return MacroActionConfig(self._config["macro_action"])
+
+    @property
+    def user_prompts(self) -> List[str]:
+        """ The prompts the users asks the agent. """
+        return self._config.get("user_prompts", [])
+
+    @property
+    def system_template(self) -> str:
+        """ The system prompt template for the AXSAgent to use.
+        The template should be a valid string with placeholders for the
+        str.format() method and may be specified in the config file or
+        as a separate file with a valid path to it. """
+        default_value = ("You write helpful explanations based on a multi-round "
+                         "sequence of dialog over {n_max} rounds.")
+        value = self._config.get("system_prompt", default_value)
         if os.path.exists(value):
             with open(value, "r", encoding="utf-8") as f:
                 return f.read()
         else:
             return value
-
-    @property
-    def user_prompts(self) -> Iterator[Prompt]:
-        """ The prompts the users asks the agent. """
-        return map(lambda x: Prompt(**x),
-                   self._config.get("user_prompts", []))
 
     @property
     @lru_cache(maxsize=64)

@@ -1,15 +1,14 @@
 """This module contains the main agent class for the AXS framework."""
 
 import logging
-from typing import Any, Dict
+import pickle
 
 import gymnasium as gym
-from vllm import LLM
-from vllm import SamplingParams
 
 from axs.config import Config
 from axs.prompt import Prompt
-from axs.macro_action import MacroActionFactory
+from axs.llm import LLMWrapper
+from axs.macroaction import MacroActionFactory
 from axs.memory import SemanticMemory, EpisodicMemory
 from axs.simulator import Simulator
 from axs.verbalize import Verbalizer
@@ -19,21 +18,26 @@ logger = logging.getLogger(__name__)
 
 
 class AXSAgent:
-    """The main agent class for the AXS framework."""
+    """The main agent class for the AXS framework.
+
+    The agent may be used with both offline inference through vLLM
+    or online inference through the OpenAI API.
+    """
 
     def __init__(self, config: Config, simulator_env: gym.Env = None):
         """Initialize the AXS agent with the parameters.
 
         Args:
-            model (str): The LLM model name to be loaded through vLLM.
-            initial_observation (Any): The initial observation from the environment.
-            initial_info (Dict[str, Any]): The initial information dict from the environment.
+            config (Config): The configuration object for the agent.
             simulator_env (gym.Env): Optional environment to be used for simulation.
                                      If not given, a new internal environment will be created.
         """
         self.config = config
-        self.n_max = config.axs.n_max
-        self.delta = config.axs.delta
+
+        # Prompting components
+        self._system_prompt = Prompt(config.axs.system_template)
+        self._query_prompt = Prompt(config.axs.query_template)
+        self._explanation_prompt = Prompt(config.axs.explanation_template)
 
         # Memory components
         self._semantic_memory = SemanticMemory(
@@ -43,22 +47,29 @@ class AXSAgent:
 
         # Procedural components
         self._simulator = Simulator(config.env, simulator_env)  # Internal simulator
-        self._llm = LLM(config.llm.model, **config.llm.model_kwargs)
-        self._sampling_params = SamplingParams(**config.llm.sampling_params)
+        self._llm = LLMWrapper(config.llm)
 
         # Utility components
-        self._macro_action = MacroActionFactory.create(config)
+        self._macro_type = MacroActionFactory.macro_library[
+            config.axs.macro_action.name
+        ]
         self._verbalizer = Verbalizer()
-        self._query_prompt = Prompt(config.axs.query_template)
-        self._explanation_prompt = Prompt(config.axs.explanation_template)
 
     def explain(self, user_prompt: str) -> str:
         """Explain behaviour based on the user's prompt."""
-        messages = [{"role": "system", "content": self.config.axs.system_prompt}]
+        messages = [
+            {
+                "role": "developer",
+                "content": self._system_prompt.fill(n_max=self.config.axs.n_max),
+            }
+        ]
 
         observations = self._semantic_memory.retrieve("observations")
         actions = self._semantic_memory.retrieve("actions")
-        macro_actions = self._macro_action.wrap(actions)
+        infos = self._semantic_memory.retrieve("infos")
+        macro_actions = self._macro_type.wrap(
+            self.config.axs.macro_action, actions, observations, infos
+        )
 
         txt_obs = self._verbalizer.convert(observations)
         txt_acts = self._verbalizer.convert(macro_actions)
@@ -71,12 +82,13 @@ class AXSAgent:
         n = 0
         explanation, prev_explanation = None, None
         while (
-            n < self.n_max
-            and distance(explanation, prev_explanation) > self.delta
+            n < self.config.axs.n_max
+            and distance(explanation, prev_explanation) > self.config.axs.delta
         ):
             # Simulator interrogation
             query_output = self._llm.chat(messages)
             simulation_query = query_output.outputs[0].content
+            self._simulator.set_state(start_state)
             sim_states, sim_actions, rewards = self._simulator.query(simulation_query)
             self._episodic_memory.learn(
                 {"states": sim_states, "actions": sim_actions, "rewards": rewards}
@@ -101,6 +113,26 @@ class AXSAgent:
         self._semantic_memory.reset()
         self._episodic_memory.reset()
 
+    def save_state(self, path: str) -> None:
+        """Save the agent's state to a file except the LLM."""
+        statedict = {
+            "semantic_memory": self._semantic_memory,
+            "episodic_memory": self._episodic_memory,
+            "simulator": self._simulator,
+            "verbalizer": self._verbalizer,
+            "macro_action": self._macro_action,
+        }
+
+        with open(path, "wb") as file:
+            pickle.dump(statedict, file)
+
+    def load_state(self, path: str) -> None:
+        """Load the agent's state from a file except for the LLM."""
+        with open(path, "rb") as file:
+            statedict = pickle.load(file)
+        for key, value in statedict.items():
+            setattr(self, "_" + key, value)
+
     @property
     def semantic_memory(self) -> SemanticMemory:
         """The agent's semantic memory."""
@@ -112,7 +144,7 @@ class AXSAgent:
         return self._episodic_memory
 
     @property
-    def llm(self) -> LLM:
+    def llm(self) -> LLMWrapper:
         """The agent's LLM model."""
         return self._llm
 
@@ -123,5 +155,5 @@ class AXSAgent:
 
     @property
     def verbalizer(self):
-        """ The agent's verbalizer. """
+        """The agent's verbalizer."""
         return self._verbalizer
