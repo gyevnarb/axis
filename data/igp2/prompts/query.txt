@@ -1,0 +1,19 @@
+I want you to explain why a vehicle took a certain action at a given time in a particular scenario.
+
+You may ask me questions chosen from four types of queries with arguments, as listed below:
+1.	add(location, goal): What would happen if a new vehicle was present at <location> with goal <goal>?
+2.	remove(vehicle): What would happen if <vehicle> was removed from the road?
+3.	whatif(vehicle, actions, time): What would happen if <vehicle> took <actions> from <time>?
+4.	what(vehicle, time): What will <vehicle> be doing at <time>?
+
+The arguments must take the following types:
+- location: A 2D coordinate;
+- goal: A 2D coordinate;
+- vehicle: An integer corresponding to the ID of a vehicle;
+- actions: One of {macro_names};
+- time: An integer corresponding to a timestep.
+
+You are given the following context about the observations and actions of the vehicles in the scenario:
+{context}
+
+Give your answer as a single query from the four types of queries, specifying concrete values for the arguments.

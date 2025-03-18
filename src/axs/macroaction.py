@@ -32,6 +32,7 @@ class ActionSegment:
 class MacroAction(ABC):
     """Abstract base class for macro actions."""
 
+    _macro_library: Dict[str, "type[MacroAction]"] = {}
     macro_names: List[str] = []
 
     def __init__(self, name: str, action_segments: List[ActionSegment]):
@@ -60,6 +61,41 @@ class MacroAction(ABC):
     def __repr__(self):
         """String representation of the macro action. Used in verbalization."""
         raise RuntimeError("MacroAction __repr__ must be overriden.")
+
+    @classmethod
+    def register(cls, name: str, macro_type: type["MacroAction"]):
+        """Register a macro action type with the factory.
+
+        Args:
+            name (str): The name of the macro action.
+            macro_type (type[MacroAction]): The type of the macro action.
+        """
+        if not issubclass(macro_type, cls):
+            raise ValueError(
+                f"Macro action {macro_type} is not a subclass of MacroAction."
+            )
+        if name in cls._macro_library:
+            raise ValueError(
+                f"Macro action {name} already registered in the factory "
+                f"with {cls._macro_library.keys()}."
+            )
+        cls._macro_library[name] = macro_type
+
+    @classmethod
+    def get(cls, name: str) -> "type[MacroAction]":
+        """Get the macro action type from the factory.
+
+        Args:
+            name (str): The name of the macro action.
+
+        Returns:
+            type[MacroAction]: The type of the macro action.
+        """
+        if name not in cls._macro_library:
+            raise ValueError(
+                f"Macro action {name} not found in the factory with {cls._macro_library.keys()}."
+            )
+        return cls._macro_library[name]
 
     @classmethod
     @abstractmethod
@@ -96,29 +132,3 @@ class MacroAction(ABC):
     def end_t(self):
         """The end time of the macro action."""
         return self.action_segments[-1].times[-1]
-
-
-class MacroActionFactory:
-    """Factory class for creating macro action wrappers
-    based on a configuration file."""
-
-    macro_library = {}
-
-    @classmethod
-    def register(cls, name: str, macro_type: type[MacroAction]):
-        """Register a macro action type with the factory.
-
-        Args:
-            name (str): The name of the macro action.
-            macro_type (type[MacroAction]): The type of the macro action.
-        """
-        if not issubclass(macro_type, MacroAction):
-            raise ValueError(
-                f"Macro action {macro_type} is not a subclass of MacroAction."
-            )
-        if name in cls.macro_library:
-            raise ValueError(
-                f"Macro action {name} already registered in the factory "
-                f"with {cls.macro_library.keys()}."
-            )
-        cls.macro_library[name] = macro_type

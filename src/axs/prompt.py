@@ -1,4 +1,6 @@
 """ This module contains the prompt generator functions for the LLM. """
+from string import Formatter
+from typing import List
 
 
 class Prompt:
@@ -19,4 +21,13 @@ class Prompt:
 
     def fill(self, **context) -> str:
         """ Complete the prompt from the template and context. """
+        for k in context:
+            if k not in self.placeholders:
+                raise ValueError(f"Placeholder {k} not specified in context.")
         return self.template.format(**context)
+
+    @property
+    def placeholders(self) -> List[str]:
+        """ Return a list of placeholders in the template. """
+        fmt = Formatter()
+        return [p[1] for p in fmt.parse(self.template) if p[1] is not None]

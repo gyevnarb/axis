@@ -1,14 +1,17 @@
-""" This module provides a wrapper class around gymansium-style environments. """
-import gymnasium as gym
+"""This module provides a wrapper class around gymansium-style environments."""
 
+import gymnasium as gym
+import pettingzoo
+
+from axs import SupportedEnv
 from axs.config import EnvConfig
 
 
 class Simulator:
-    """ Wrapper class around gymansium-style environments. """
+    """Wrapper class around gymansium-style environments."""
 
-    def __init__(self, config: EnvConfig, env: gym.Env = None):
-        """ Initialize the simulator with the environment config.
+    def __init__(self, config: EnvConfig, env: SupportedEnv = None):
+        """Initialize the simulator with the environment config.
 
         Args:
             config (Dict[str, Any]): The configuration for the environment.
@@ -17,11 +20,12 @@ class Simulator:
         """
         if env is not None:
             self.env = env
-        else:
-            self.env = gym.make(
-                config.name,
-                config=config.params,
-                render_mode=None)
+        elif config.name in gym.registry:
+            self.env = gym.make(config.name, render_mode=None, **config.params)
+        elif config.env_type:
+            self.env = {"parallel": pettingzoo.ParallelEnv, "aec": pettingzoo.AECEnv}[
+                config.env_type
+            ](**config.params)
 
     def run(self, query):
         return None, None, None

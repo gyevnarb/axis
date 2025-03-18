@@ -3,7 +3,7 @@ import json
 import abc
 import os
 from functools import lru_cache
-from typing import Union, Dict, List, Any
+from typing import Union, Dict, List, Any, Optional
 
 
 class ConfigBase(abc.ABC):
@@ -26,6 +26,12 @@ class EnvConfig(ConfigBase):
     def name(self) -> str:
         """ Environment name. """
         return self._config["name"]
+
+    @property
+    def env_type(self) -> Optional[str]:
+        """ Optional environment type used for pettingzoo environments.
+        Either 'parallel' or 'aec'. """
+        return self._config.get("env_type", None)
 
     @property
     def max_iter(self) -> int:
@@ -67,6 +73,11 @@ class LLMConfig(ConfigBase):
         return value
 
     @property
+    def base_url(self) -> Optional[str]:
+        """ Base URL for online/localhost LLM model. """
+        return self._config.get("base_url", None)
+
+    @property
     def model(self) -> str:
         """ LLM model name. Default: meta-llama/Llama-3.2-3B-Instruct"""
         return self._config.get("model", "meta-llama/Llama-3.2-3B-Instruct")
@@ -93,6 +104,20 @@ class MacroActionConfig(ConfigBase):
     @property
     def params(self) -> Dict[str, Any]:
         """ Additional parameters for the macro action. """
+        return self._config.get("params", {})
+
+
+class VerbalizerConfig(ConfigBase):
+    """ Configuration class for the verbalizer. """
+
+    @property
+    def name(self) -> str:
+        """ The name of the verbalizer. """
+        return self._config["name"]
+
+    @property
+    def params(self) -> Dict[str, Any]:
+        """ Additional parameters for the verbalizer. """
         return self._config.get("params", {})
 
 
@@ -123,7 +148,12 @@ class AXSConfig(ConfigBase):
         return MacroActionConfig(self._config["macro_action"])
 
     @property
-    def user_prompts(self) -> List[str]:
+    def verbalizer(self) -> VerbalizerConfig:
+        """ The verbalizer configuration for the AXSAgent. """
+        return VerbalizerConfig(self._config["verbalizer"])
+
+    @property
+    def user_prompts(self) -> List[Dict[str, Any]]:
         """ The prompts the users asks the agent. """
         return self._config.get("user_prompts", [])
 
