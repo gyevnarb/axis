@@ -28,8 +28,10 @@ class Verbalizer(ABC):
             raise TypeError(error_msg)
 
         if name in cls._verbalizer_library:
-            error_msg = (f"Verbalizer {name} already registered in the factory "
-                         f"with {cls._verbalizer_library.keys()} keys.")
+            error_msg = (
+                f"Verbalizer {name} already registered in the factory "
+                f"with {cls._verbalizer_library.keys()} keys."
+            )
             raise ValueError(error_msg)
         cls._verbalizer_library[name] = verbalizer_type
 
@@ -42,71 +44,86 @@ class Verbalizer(ABC):
 
         """
         if name not in cls._verbalizer_library:
-            error_msg = (f"Verbalizer {name} not found in the factory "
-                         f"with {cls._verbalizer_library.keys()}.")
+            error_msg = (
+                f"Verbalizer {name} not found in the factory "
+                f"with {cls._verbalizer_library.keys()}."
+            )
             raise ValueError(error_msg)
         return cls._verbalizer_library[name]
 
     @abstractmethod
+    @staticmethod
     def convert(
-        self,
         env: SupportedEnv,
         observations: list[Any],
-        actions: list[dict[int, Any]],
+        macro_actions: list[dict[int, Any]],
         infos: list[dict[str, Any]],
+        **kwargs,
     ) -> str:
         """Convert all environment data.
 
-        Args:
-            env (SupportedEnv): The environment to verbalize.
-            observations (List[Any]): The observations to verbalize.
-            actions (List[Dict[int, Any]]): Dictionary of agent IDs to their actions.
-            infos (List[Dict[str, Any]]): The information dictionaries to verbalize.
-
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def convert_environment(self, env: SupportedEnv, **kwargs) -> str:  # noqa: ANN003
-        """Verbalize the static elements of the environment.
-
-        Keyword arguments are used for additional options.
+        This method is used in AXSAgent to verbalize the context information.
+        The string returned will be used as the context in queries to the LLM
+        as is, so it should be formatted accordingly.
 
         Args:
             env (SupportedEnv): The environment to verbalize.
-
-        Keyword Args:
+            observations (list[Any]): The observations to verbalize.
+            macro_actions (list[dict[int, Any]]): dictionary of agent IDs to
+                    corresponding macro actions.
+            infos (list[dict[str, Any]]): The information dictionaries to verbalize.
             kwargs: Additional options for the verbalizer.
 
         """
         raise NotImplementedError
 
     @abstractmethod
-    def convert_observations(self, observations: list[Any]) -> str:
+    @staticmethod
+    def convert_environment(env: SupportedEnv, **kwargs) -> str:
+        """Verbalize the static elements of the environment.
+
+        Keyword arguments are used for additional options.
+
+        Args:
+            env (SupportedEnv): The environment to verbalize.
+            kwargs: Additional options for the verbalizer.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    @staticmethod
+    def convert_observations(observations: list[Any], **kwargs) -> str:
         """Verbalize a sequence of observations of the environment.
 
         Args:
-            observations (List[Any]): The observations to verbalize.
+            observations (list[Any]): The observations to verbalize.
+            kwargs: Additional options for the verbalizer.
 
         """
         raise NotImplementedError
 
     @abstractmethod
-    def convert_actions(self, actions: list[dict[int, Any]]) -> str:
-        """Verbalize the actions of all agents taken in the environment.
+    @staticmethod
+    def convert_macro_actions(macro_actions: dict[int, list[Any]], **kwargs) -> str:
+        """Verbalize the macro actions of all agents taken in the environment.
 
         Args:
-            actions (List[Dict[int, Any]]): Dictionary of agent IDs to their actions.
+            macro_actions (dict[int, list[Any]]): Dictionary of agent IDs to
+                    corresponding macro actions.
+            kwargs: Additional options for the verbalizer.
 
         """
         raise NotImplementedError
 
     @abstractmethod
-    def convert_infos(self, infos: list[dict[str, Any]]) -> str:
+    @staticmethod
+    def convert_infos(infos: list[dict[str, Any]], **kwargs) -> str:
         """Verbalize a sequence of information dictionaries of the environment.
 
         Args:
-            infos (List[Dict[str, Any]]): The information dictionaries to verbalize.
+            infos (list[str, dict[Any]]): List of information dictionaries to verbalize.
+            kwargs: Additional options for the verbalizer.
 
         """
         raise NotImplementedError

@@ -1,23 +1,23 @@
 """Macro action wrapper for IGP2 agent."""
 
-from copy import copy
-from typing import List, Dict, Any, Tuple, Generator
 from collections import defaultdict
+from copy import copy
+from typing import Any, ClassVar
 
+import igp2 as ip
 import numpy as np
 from numpy import ma
-import igp2 as ip
 
-from axs.macroaction.base import MacroAction, ActionSegment
-from axs.config import MacroActionConfig
+import axs
 
 
-class IGP2MacroAction(MacroAction):
+class IGP2MacroAction(axs.MacroAction):
     """Macro action wrapper for IGP2 agent.
+
     The wrapper takes the agent state information and converts into text.
     """
 
-    macro_names = [
+    macro_names: ClassVar[list[str]] = [
         "SlowDown",
         "Accelerate",
         "Stop",
@@ -31,7 +31,7 @@ class IGP2MacroAction(MacroAction):
     ]
 
     def __repr__(self) -> str:
-        """String representation of the macro action. Used in verbalization."""
+        """Create representation of the macro action. Used in verbalization."""
         if self.action_segments:
             return (
                 f"{self.macro_name}[{self.start_t}-{self.end_t}]"
@@ -41,9 +41,14 @@ class IGP2MacroAction(MacroAction):
 
     @classmethod
     def wrap(
-        cls, config: MacroActionConfig, actions, observations, infos=None
-    ) -> Dict[int, List["IGP2MacroAction"]]:
+        cls,
+        config: axs.MacroActionConfig,
+        actions: list[np.ndarray],  # noqa: ARG003
+        observations: list[np.ndarray],  # noqa: ARG003
+        infos: list[str, dict[Any]] | None = None,
+    ) -> dict[int, list["IGP2MacroAction"]]:
         """Segment the trajectory into different actions and sorted with time.
+
         Also stores results in place and overrides previously stored actions.
 
         Args:
@@ -54,6 +59,7 @@ class IGP2MacroAction(MacroAction):
                     observation sequence.
             infos (List[Dict[int, ip.AgentState]]): Optional list of
                     agent states from the environment.
+
         """
         trajectories = defaultdict(list)
         for frame in infos:
@@ -69,22 +75,24 @@ class IGP2MacroAction(MacroAction):
                 matched_actions = cls._match_actions(config, trajectory, inx)
                 action_sequences.append(matched_actions)
             action_segmentations = cls._segment_actions(
-                config, trajectory, action_sequences
+                config, trajectory, action_sequences,
             )
             ret[agent_id] = cls._group_actions(action_segmentations)
         return ret
 
     @classmethod
-    def unwrap(cls, macro_actions: List["MacroAction"]) -> Generator[Any, None, None]:
+    def unwrap(cls, macro_actions: list["IGP2MacroAction"]) -> list[np.ndarray]:
         """Unwrap the macro actions into low-level actions. Returns a generator."""
+        ret = []
         for macro_action in macro_actions:
             for segment in macro_action.action_segments:
-                yield from segment.actions
+                ret.extend(segment.actions)
+        return ret
 
     @classmethod
     def _group_actions(
-        cls, action_segmentations: List[ActionSegment]
-    ) -> List["IGP2MacroAction"]:
+        cls, action_segmentations: list[axs.ActionSegment],
+    ) -> list["IGP2MacroAction"]:
         """Group action segments to macro actions by IGP2 maneuver."""
         ret, group = [], []
         prev_man = action_segmentations[0].name[-1]
@@ -100,20 +108,19 @@ class IGP2MacroAction(MacroAction):
 
     @staticmethod
     def _segment_actions(
-        config: MacroActionConfig,
+        config: axs.MacroActionConfig,
         trajectory: ip.StateTrajectory,
-        action_sequences: List[Tuple[Tuple[str, ...], np.ndarray]],
-    ) -> List[ActionSegment]:
-        """Group the action sequences into segments based,
-        potentially fixing erroneous turning actions.
+        action_sequences: list[tuple[tuple[str, ...], np.ndarray]],
+    ) -> list[axs.ActionSegment]:
+        """Group the action sequences into segments, potentially fixing turning actions.
 
         Args:
             config (MacroActionConfig): The configuration for the macro action.
             trajectory (ip.StateTrajectory): The trajectory of the agent.
             action_sequences (List[Tuple[Tuple[str, ...], np.ndarray]]):
                     The action sequences of the agent.
+
         """
-        # Fix other turning actions appearing due to variable angular velocity.
         eps = config.params["eps"]
         idx = [
             a[-1] in ["TurnLeft", "TurnRight", "GoStraightJunction"]
@@ -142,30 +149,31 @@ class IGP2MacroAction(MacroAction):
                 and previous_action_names != action_names
             ):
                 action_segmentations.append(
-                    ActionSegment(times, actions, previous_action_names)
+                    axs.ActionSegment(times, actions, previous_action_names),
                 )
                 actions, times = [], []
             times.append(inx)
             actions.append(action)
             previous_action_names = action_names
-        action_segmentations.append(ActionSegment(times, actions, action_names))
+        action_segmentations.append(axs.ActionSegment(times, actions, action_names))
 
         return action_segmentations
 
     @staticmethod
     def _match_actions(
-        config: MacroActionConfig, trajectory: ip.StateTrajectory, inx: int
-    ) -> Tuple[Tuple[str, ...], np.ndarray]:
+        config: axs.MacroActionConfig, trajectory: ip.StateTrajectory, inx: int,
+    ) -> tuple[tuple[str, ...], np.ndarray]:
         """Segment the trajectory into different actions and sorted with time.
 
         Args:
-            config (MacroActionConfig): The configuration for the macro action.
-            trajectory (ip.StateTrajectory): An agent trajectory to segment into macro actions.
+            config (MacroActionConfig): Configuration for the macro action.
+            trajectory (ip.StateTrajectory): Trajectory to segment into macro actions.
             inx (int): The index of the trajectory to segment.
 
         Returns:
-            Tuple[str, ...]: A list of macro action names for the agent at the given index.
-            np.ndarray: The raw action (acceleration and steering) of the agent at the given index.
+            Tuple[str, ...]: A list of macro action names for the agent at given index.
+            np.ndarray: Raw action (acceleration-steering) of the agent at given index.
+
         """
         eps = config.params["eps"]
         scenario_map = config.params["scenario_map"]
@@ -206,19 +214,22 @@ class IGP2MacroAction(MacroAction):
             elif "FollowLane" in state.maneuver:
                 action_names.append("GoStraight")
         raw_action = np.array(
-            [trajectory.acceleration[inx], trajectory.angular_velocity[inx]]
+            [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
         )
         return tuple(action_names), raw_action
 
     @staticmethod
-    def _fix_initial_state(trajectory: ip.StateTrajectory):
-        """The initial frame is often missing macro and maneuver information
+    def _fix_initial_state(trajectory: ip.StateTrajectory) -> None:
+        """Fix missing initial maneuver and macro name.
+
+        The initial frame is often missing macro and maneuver information
         due to the planning flow of IGP2. This function fills in the missing
         information using the second state.
 
         Args:
-            trajectory: The StateTrajectory whose first state
-                        is missing macro action or maneuver information.
+            trajectory: The StateTrajectory whose first state is missing macro action or
+                maneuver information.
+
         """
         if (
             len(trajectory.states) > 1

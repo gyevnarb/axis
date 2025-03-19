@@ -2,7 +2,9 @@
 
 import logging
 import pickle
+from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from axs import SupportedEnv
 from axs.config import Config
@@ -24,13 +26,15 @@ class AXSAgent:
     """
 
     def __init__(
-        self, config: Config, simulator_env: SupportedEnv = None,
+        self,
+        config: Config,
+        simulator_env: SupportedEnv | None = None,
     ) -> "AXSAgent":
         """Initialize the AXS agent with the parameters.
 
         Args:
             config (Config): The configuration object for the agent.
-            simulator_env (gym.Env): Optional environment to be used for simulation.
+            simulator_env (SupportedEnv): Optional environment to be used for simulation.
                             If not given, a new internal environment will be created.
 
         """
@@ -62,6 +66,8 @@ class AXSAgent:
             user_prompt (str): The user's prompt to the agent.
 
         """
+        logger.info("Explaining behaviour based on user prompt: %s", user_prompt)
+
         messages = [
             {
                 "role": "developer",
@@ -72,21 +78,32 @@ class AXSAgent:
         observations = self._semantic_memory.retrieve("observations")
         actions = self._semantic_memory.retrieve("actions")
         infos = self._semantic_memory.retrieve("infos")
+
         macro_actions = self._macro_action.wrap(
             self.config.axs.macro_action,
             actions,
             observations,
             infos,
         )
+        if not isinstance(macro_actions, dict) and not all(
+            isinstance(k, int) for k in macro_actions
+        ):
+            error_msg = (f"Macro actions must be a dictionary with "
+                         f"int agent ids as keys. Got: {macro_actions}")
+            raise ValueError(error_msg)
 
-        txt_env = self._verbalizer.convert_environment(self._simulator.env.unwrapped)
-        txt_obs = self._verbalizer.convert_observations(observations)
-        txt_acts = self._verbalizer.convert_actions(macro_actions)
+        context = self._verbalizer.convert(
+            self._simulator.env.unwrapped,
+            observations,
+            macro_actions,
+            infos,
+            self.config.verbalizer.params,
+        )
 
         query_prompt = self._query_prompt.fill(
+            question=user_prompt,
             macro_names=self._macro_action.macro_names,
-            states=txt_obs,
-            actions=txt_acts,
+            context=context,
         )
         messages.append(query_prompt)
 

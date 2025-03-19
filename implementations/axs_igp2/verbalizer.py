@@ -1,7 +1,7 @@
 """Verbalize IGP2 simulation data."""
 
 import logging
-import re
+from collections import defaultdict
 from typing import Any
 
 import igp2 as ip
@@ -9,14 +9,16 @@ import numpy as np
 from igp2.opendrive.elements.geometry import ramer_douglas
 
 import axs
+from implementations.axs_igp2 import util
+from implementations.axs_igp2.macroaction import IGP2MacroAction
 
 logger = logging.getLogger(__name__)
 
 
-ROAD_LAYOUT_PRETEXT = """The following is metadata to parse the elements of the road layout.
+ROAD_LAYOUT_PRETEXT = """Below metadata to parse the elements of the road layout.
 
 Coordinate system:
-  We are using a planar 2D coordinate system.
+  We are using a 2D Cartesian coordinate system.
   Coordinates are in units of meters and written as (x, y).
   Angles are in radians in the range [-pi, pi].
 
@@ -37,20 +39,166 @@ Intersections:
 class IGP2Verbalizer(axs.Verbalizer):
     """Verbalize the environment, observations, and state for IGP2."""
 
-    def convert_environment(self, env: ip.simplesim.SimulationEnv, **kwargs) -> str:
+    @staticmethod
+    def convert(
+        env: ip.simplesim.SimulationEnv,
+        observations: list[np.ndarray],  # noqa: ARG004
+        macro_actions: dict[int, list[IGP2MacroAction]],
+        infos: list[dict[str, Any]],
+        **kwargs,
+    ) -> str:
+        """Verbalize the IGP2 scenario.
+
+        Args:
+            env (ip.simplesim.SimulationEnv): The IGP2 environment.
+            observations (list): The observations of the agents. Not used.
+            macro_actions (list): The macro actions of the agents.
+            infos (list): The information of the agents. Not used.
+            kwargs: Optional keyword arguments.
+                - add_roads: Whether to add road descriptions.
+                - add_macro_actions: Whether to add macro action descriptions.
+                - add_observations: Whether to add observation descriptions.
+                - add_infos: Whether to add agent information.
+                - f_subsample (int): Frequency of subsampling observations.
+                        Use this to decrease the complexity of the verbalization.
+                - rounding (int): Number of decimal places to round the values to.
+                - control_signals (list[str]): List of control signals to include.
+                        Possible values: ["times", "timesteps", "path", "velocity",
+                            "acceleration", "heading", "angular_velocity"].
+                        Default is all control signals except time.
+                - add_lanes: Whether to add lane descriptions (True).
+                - add_intersections: Whether to add intersection descriptions (True).
+                - add_intersection_links: Whether to add intersection lane link (False).
+                - resolution: The resolution of the road midline (0.01).
+                - add_metadata: Whether to add metadata before
+                            the road layout description (False).
+
+        """
+        context = ""
+        if kwargs.get("add_roads", False):
+            context += IGP2Verbalizer.convert_environment(env, kwargs) + "\n\n"
+
+        actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
+        infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
+        if set(actions_dict.keys()) != set(infos_dict.keys()):
+            error_msg = "Agent IDs in actions and infos do not match."
+            raise ValueError(error_msg)
+
+        for agent_id in actions_dict:
+            context += f"Vehicle {agent_id}:\n"
+            if kwargs.get("add_infos", True):
+                context += "  Observations:\n"
+                for signal in infos_dict[agent_id]:
+                    context += f"    {signal}"
+
+            if kwargs.get("add_macro_actions", True):
+                context += "  Actions:\n"
+                for segment in actions_dict[agent_id]:
+                    context += f"    {segment}\n"
+
+            context += "\n"
+
+        return context[:-1]  # Remove trailing newline
+
+    @staticmethod
+    def convert_infos(infos: list[dict[str, Any]], **kwargs) -> str:
+        """Verbalize a frame of the simulation state.
+
+        Args:
+            infos (list[str, dict[Any]]): Sequence of info dictionaries for each agent.
+            kwargs: Optional keyword arguments.
+                - f_subsample (int): Frequency of subsampling observations.
+                        Use this to decrease the complexity of the verbalization.
+                - rounding (int): Number of decimal places to round the values to.
+                - control_signals (list[str]): List of control signals to include.
+                        Possible values: ["times", "timesteps", "path", "velocity",
+                            "acceleration", "heading", "angular_velocity"].
+                        Default is all control signals except time.
+
+        """
+        ret = "Observations:\n"
+        infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
+        for agent_id, control_signals in infos_dict.items():
+            ret += f"  Vehicle {agent_id}:\n"
+            for signal in control_signals:
+                ret += f"    {signal}\n"
+            ret += "\n"
+        return ret[:-1]
+
+    @staticmethod
+    def _convert_infos(
+        infos: dict[int, list[IGP2MacroAction]], **kwargs,
+    ) -> list[str]:
+        trajectories = defaultdict(list)
+        for frame in infos:
+            for agent_id, state in frame.items():
+                trajectories[agent_id].append(state)
+        trajectories = {k: ip.StateTrajectory(None, v) for k, v in trajectories.items()}
+
+        ret = {}
+
+        f_subsample = kwargs.get("f_subsample", 1)
+        rounding = kwargs.get("rounding", 2)
+        control_signals = kwargs.get(
+            "control_signals",
+            ["timesteps", "path", "velocity", "acceleration", "angular_velocity"],
+        )
+        for agent_id, trajectory in trajectories.items():
+            sampled_trajectory = trajectory
+            if f_subsample > 1:
+                sampled_trajectory = util.subsample_trajectory(trajectory, f_subsample)
+
+            ret[agent_id] = [
+                IGP2Verbalizer._verbalize_control_signal(
+                    signal,
+                    rounding,
+                    sampled_trajectory,
+                )
+                for signal in control_signals
+            ]
+
+        return ret
+
+    @staticmethod
+    def convert_observations(observations: list[Any], **kwargs) -> str:  # noqa: ARG004
+        """Verbalize the observations of the agents. Not used in IGP2."""
+        logger.debug("IGP2 does not use Verbalizer.convert_observations.")
+        return ""
+
+    @staticmethod
+    def convert_macro_actions(
+        macro_actions: dict[int, list[IGP2MacroAction]],
+        **kwargs,  # noqa: ARG004
+    ) -> str:
+        """Verbalize the macro actions of the agents."""
+        ret = "Actions:\n"
+        segments_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
+        for agent_id, segments_str in segments_dict.items():
+            ret += f"Vehicle {agent_id}: {segments_str}\n"
+        return ret
+
+    @staticmethod
+    def _convert_macro_actions(
+        macro_actions: dict[int, list[IGP2MacroAction]],
+    ) -> dict[int, str]:
+        ret = {}
+        for agent_id, segmentations in macro_actions.items():
+            ret[agent_id] = ", ".join(map(repr, segmentations))
+        return ret
+
+    @staticmethod
+    def convert_environment(env: ip.simplesim.SimulationEnv, **kwargs) -> str:
         """Verbalize the road layout.
 
         Args:
             env (ip.simplesim.SimulationEnv): The igp2 environment to verbalize.
-
-        Keyword Args:
-            add_lanes: Whether to add lane descriptions ([True]/False).
-            add_intersections: Whether to add intersection descriptions ([True]/False).
-            add_intersection_links: Whether to add
-                        intersection lane links (True/[False]).
-            resolution: The resolution of the road midline (default=0.01).
-            add_metadata: Whether to add metadata before
-                        the road layout description ([False]/True).
+            kwargs: Optional keyword arguments.
+                - add_lanes: Whether to add lane descriptions (True).
+                - add_intersections: Whether to add intersection descriptions (True).
+                - add_intersection_links: Whether to add intersection lane link (False).
+                - resolution: The resolution of the road midline (0.01).
+                - add_metadata: Whether to add metadata before
+                            the road layout description (False).
 
         Returns:
             A string describing the road layout.
@@ -74,6 +222,28 @@ class IGP2Verbalizer(axs.Verbalizer):
         ret += "\n\n"
 
         # Describe roads
+        IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, kwargs)
+
+        # Describe intersections
+        if kwargs.get("add_intersections", True):
+            for jid, junction in scenario_map.junctions.items():
+                ret += f"Intersection {jid} connections:\n"
+                for conn in junction.connections:
+                    if kwargs.get("add_intersection_links", False):
+                        for lane_link in conn.lane_links:
+                            ret += f"  {conn.incoming_road.id}.{lane_link.from_id}"
+                            ret += f"->{conn.connecting_road.id}.{lane_link.to_id}\n"
+                    else:
+                        ret += f"  {conn.incoming_road.id}->{conn.connecting_road.id}\n"
+
+        if ret[-1] == "\n":
+            ret = ret[:-1]
+        return ret
+
+    @staticmethod
+    def _add_verbalized_roads(
+        ret: str, scenario_map: ip.Map, kwargs: dict[str, Any],
+    ) -> None:
         for rid, road in scenario_map.roads.items():
             if not road.drivable:
                 continue
@@ -82,7 +252,7 @@ class IGP2Verbalizer(axs.Verbalizer):
             ret += f"  Length: {road.length} m\n"
 
             midline = ramer_douglas(
-                np.array(road.midline.coords), dist=kwargs.get("resolution", 0.02)
+                np.array(road.midline.coords), dist=kwargs.get("resolution", 0.02),
             )
             midline = [(x, y) for x, y in np.round(midline, 2)]
             ret += f"  Midline coordinates: {midline}\n"
@@ -110,219 +280,31 @@ class IGP2Verbalizer(axs.Verbalizer):
                         ret += f"    Lane {rid}.{lane.id}.\n"
             ret += "\n"
 
-        # Describe intersections
-        if kwargs.get("add_intersections", True):
-            for jid, junction in scenario_map.junctions.items():
-                ret += f"Intersection {jid} connections:\n"
-                for conn in junction.connections:
-                    if kwargs.get("add_intersection_links", False):
-                        for lane_link in conn.lane_links:
-                            ret += (
-                                f"  {conn.incoming_road.id}.{lane_link.from_id}"
-                            )
-                            ret += (
-                                f"->{conn.connecting_road.id}.{lane_link.to_id}\n"
-                            )
-                    else:
-                        ret += f"  {conn.incoming_road.id}->{conn.connecting_road.id}\n"
-
-        if ret[-1] == "\n":
-            ret = ret[:-1]
-        return ret
-
-    # def convert_observations(self, )
-
-    # def convert(self,
-    #             pos_args: List[Any],
-    #             named_args: Dict[str, Any],
-    #             **kwargs) -> str:
-    #         # config: Dict,
-    #         # scenario_map: ip.Map,
-    #         # observations: Dict[int, Tuple[ip.StateTrajectory, ip.AgentState, List[ActionSegment]]],
-    #         # **kwargs) -> str:
-    #     """ Utility function to verbalize the entire scenario.
-
-    #     Args:
-    #         config: The scenario configuration dictionary.
-    #         scenario_map: The road layout of the scenario.
-    #         observations: The ego agent's observations of the scenario.
-
-    #     Keyword Args:
-    #         add_rules: Whether to add the scenario rules ([True]/False).
-    #         add_road_layout: Whether to add the road layout description ([True]/False).
-    #         add_agents: Whether to add the agent descriptions ([True]/False).
-    #         add_metadata: Whether to add metadata before descriptions ([False]/True).
-    #         add_lanes: Whether to add lane descriptions ([True]/False).
-    #         add_intersections: Whether to add intersection descriptions ([True]/False).
-    #         add_intersection_links: Whether to add intersection lane links (True/[False]).
-    #         add_t_query: Whether to include the time of the query (True/[False]).
-    #         add_factual: Whether to include factual action if present ([True]/False).
-    #         resolution: The resolution of the road midline (default=0.01).
-    #         control_signals: List of control signals to include in the verbalization.
-    #             Possible values: ["time", "timesteps", "position", "speed",
-    #                             "acceleration", "heading", "steering"].
-    #             Default is all control signals except time.
-    #         f_subsample: Frequency of subsampling observations. Use this to decrease
-    #             the complexity of the verbalization. ([1]/int).
-
-    #     Returns:
-    #         A string describing the scenario configuration, road layout, and simulation state.
-    #     """
-    #     ret = ""
-    #     if kwargs.get("add_rules", True):
-    #         ret += rules(config) + "\n\n"
-    #     if kwargs.get("add_road_layout", True):
-    #         ret += road_layout(scenario_map, **kwargs) + "\n\n"
-    #     if kwargs.get("add_agents", True):
-    #         ret += agents(observations, **kwargs) + "\n\n"
-
-    #     return ret
-
-    # def rules(config: Dict) -> str:
-    #     """ Verbalize the scenario rules.
-
-    #     Args:
-    #         config: The scenario configuration dictionary.
-    #     """
-    #     ret =   "The following are road rules and regulations:\n"
-    #     ret += f"  Maximum speed limit: {config['scenario']['max_speed']} m/s\n"
-    #     ret +=  "  Driving side: right-hand traffic"
-    #     return ret
-
-    # def agents(observations:
-    #         Dict[int, Tuple[ip.StateTrajectory, ip.AgentState, List[ActionSegment]]],
-    #         **kwargs) -> str:
-    #     """ Verbalize a frame of the simulation state.
-
-    #     Args:
-    #         observations: The ego agent's observations of the scenario.
-
-    #     Keyword Args:
-    #         f_subsample: Frequency of subsampling observations. Use this to decrease
-    #             the complexity of the verbalization. ([1]/int).
-    #         rounding: Number of decimal places to round the values to ([2]/int).
-    #         control_signals: List of control signals to include in the verbalization.
-    #             Possible values: ["time", "timesteps", "position", "speed",
-    #                             "acceleration", "heading", "steering"].
-    #             Default is all control signals except time.
-
-    #     Returns:
-    #         A string describing the frame of the simulation state.
-    #     """
-    #     def verbalize_control_signal(signal_, trajectory_, segmentations_):
-    #         if signal_ == "time":
-    #             return f"  Time: {util.ndarray2str(trajectory_.times, rounding)}\n"
-    #         elif signal_ == "timesteps":
-    #             timesteps = np.array([s.time for s in trajectory_.states])
-    #             return f"  Timesteps: {util.ndarray2str(timesteps)}\n"
-    #         elif signal_ == "position":
-    #             return f"  Position: {util.ndarray2str(trajectory_.path, rounding)}\n"
-    #         elif signal_ == "speed":
-    #             return f"  Speed: {util.ndarray2str(trajectory_.velocity, rounding)}\n"
-    #         elif signal_ == "acceleration":
-    #             return f"  Acceleration: {util.ndarray2str(trajectory_.acceleration, rounding)}\n"
-    #         elif signal_ == "heading":
-    #             return f"  Heading: {util.ndarray2str(trajectory_.heading, rounding)}\n"
-    #         elif signal_ == "steering":
-    #             return f"  Steering: {util.ndarray2str(trajectory_.angular_velocity, rounding)}\n"
-    #         elif signal_ == "segmentations":
-    #             segments_str = [f"{sg.times[0]}-{sg.times[-1]}: {sg.actions}" for sg in segmentations_]
-    #             segments_str = ", ".join(segments_str)
-    #             return f"  Action segments: {segments_str}\n"
-    #         elif signal_ == "maneuver":
-    #             mans = [s.maneuver for s in trajectory_.states]
-    #             return f"  Maneuver: {mans}\n"
-    #         elif signal_ == "macro":
-    #             macros = [s.macro_action for s in trajectory_.states]
-    #             return f"  Macro action: {macros}\n"
-
-    #     n_agents = len(observations)
-    #     ret = f"The scenario has {n_agents} agents. Agent 0 is the autonomous vehicle called the ego agent.\nThe ego agent observed the following control signals for each agent:\n"
-
-    #     f_subsample = kwargs.get("f_subsample", 1)
-    #     rounding = kwargs.get("rounding", 2)
-    #     control_signals = kwargs.get("control_signals",
-    #                                 ["timesteps", "position", "speed", "acceleration", "heading"])
-    #     for agent_id, (trajectory, _, segmentations) in observations.items():
-    #         ret += f"Agent {agent_id}:\n" if agent_id != 0 else "Ego vehicle:\n"
-
-    #         if f_subsample > 1:
-    #             trajectory = util.subsample_trajectory(trajectory, f_subsample)
-
-    #         for signal in control_signals:
-    #             ret += verbalize_control_signal(signal, trajectory, segmentations)
-    #         ret += "\n"
-
-    #     return ret[:-1]  # Remove the last newline
-
-    # def query(query_obj: Query, **kwargs) -> str:
-    #     """ Verbalize a query for prompting.
-
-    #     Args:
-    #         query_obj: The query object to verbalize.
-
-    #     Keyword Args:
-    #         ego_ref: To refer to the ego vehicle as "ego vehicle" or "agent 0" ([True]/False).
-    #         add_t_query: Whether to include the time of the query (True/[False]).
-    #         add_factual: Whether to include factual action if present ([True]/False).
-
-    #     Returns:
-    #         A string describing the  user query.
-    #     """
-
-    #     if query_obj.agent_id == 0:
-    #         subject = "the ego vehicle" if kwargs.get("ego_ref", True) else "agent 0"
-    #     else:
-    #         subject = f"agent {query_obj.agent_id}"
-
-    #     rex = re.compile(r'(?<=[a-z])(?=[A-Z])')
-    #     words = [w.lower() for w in rex.split(query_obj.action)]
-    #     if words[-1] == "junction":
-    #         words = words[:-1]
-    #     action = " ".join(words).lower()
-
-    #     ret = ""
-    #     if query_obj.type in [QueryType.WHY, QueryType.WHY_NOT]:
-    #         if query_obj.tense == "past":
-    #             ret += f"Why did {subject} {'not ' if query_obj.negative else ''}{action}"
-    #         elif query_obj.tense == "present":
-    #             action = util.to_gerund(words)
-    #             ret += f"Why is {subject} {'not ' if query_obj.negative else ''}{action}"
-    #         else:
-    #             ret += f"Why will {subject} {'not ' if query_obj.negative else ''}{action}"
-
-    #     elif query_obj.type == QueryType.WHAT_IF:  # What if question
-    #         if query_obj.tense == "past":
-    #             action = util.to_past(words, participle=True)
-    #             ret += f"What if {subject} had {'not ' if query_obj.negative else ''}{action}"
-    #         elif query_obj.tense == "present":
-    #             if not query_obj.negative:
-    #                 action = util.to_past(words)
-    #             ret += f"What if {subject} {'did not ' if query_obj.negative else ''}{action}"
-    #         else:
-    #             if not query_obj.negative:
-    #                 action = util.to_3rd_person(words)
-    #             ret += f"What if {subject} {'does not ' if query_obj.negative else ''}{action}"
-
-    #     else:  # What question
-    #         if query_obj.tense == "past":
-    #             ret += f"What did {subject} do"
-    #         elif query_obj.tense == "present":
-    #             ret += f"What is {subject} doing"
-    #         else:
-    #             ret += f"What will {subject} do"
-
-    #     if kwargs.get("include_factual", False) and query_obj.factual:
-    #         factual = rex.split(query_obj.factual)
-    #         factual[0] = util.to_gerund(factual[0])
-    #         factual = " ".join(factual).lower()
-    #         ret += f" instead of {factual}"
-
-    #     if kwargs.get("include_t_query", False):
-    #         ret += f" at timestep {query_obj.t_query}"
-
-    #     return ret + "?"
-
-    # def causes(cause) -> str:
-    #     """ Verbalize a collection of CEMA causes. """
-    #     raise NotImplementedError
+    @staticmethod
+    def _verbalize_control_signal(
+        signal: str,
+        precision: int,
+        trajectory: ip.StateTrajectory,
+    ) -> str:
+        if signal == "timesteps":
+            timesteps = np.array([s.time for s in trajectory.states])
+            return f"Timesteps: {util.ndarray2str(timesteps)}\n"
+        if signal == "maneuver":
+            mans = [s.maneuver for s in trajectory.states]
+            return f"Maneuver: {mans}\n"
+        if signal == "macro":
+            macros = [s.macro_action for s in trajectory.states]
+            return f"Macro action: {macros}\n"
+        if hasattr(trajectory, signal):
+            name = {
+                "times": "Time",
+                "path": "Position",
+                "velocity": "Speed",
+                "acceleration": "Acceleration",
+                "heading": "Heading",
+                "angular_velocity": "Steering",
+            }[signal]
+            txt_signal = util.ndarray2str(getattr(trajectory, signal), precision)
+            return f"{name}: {txt_signal}\n"
+        error_msg = f"Unknown control signal: {signal}"
+        raise ValueError(error_msg)

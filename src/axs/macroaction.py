@@ -1,9 +1,8 @@
-"""This module contains the MacroAction class used for wrapping
-low-level actions to higher level abstractions."""
+"""Contains functions for wrapping low-level actions to higher level abstractions."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
+from typing import Any, ClassVar
 
 from axs.config import MacroActionConfig
 
@@ -13,122 +12,152 @@ class ActionSegment:
     """A segment of the same repeated actions with corresponding times.
 
     Attributes:
-        times (List[int]): The timesteps of the actions.
-        actions (List[Any]): The actions taken during the timesteps.
+        times (list[int]): The timesteps of the actions.
+        actions (list[Any]): The actions taken during the timesteps.
+        name (Tuple[str]): The name of the action segment.
+
     """
 
-    times: List[int]
-    actions: List[Any]
-    name: Tuple[str, ...]
+    times: list[int]
+    actions: list[Any]
+    name: tuple[str, ...]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Check if the lengths of times and actions are equal."""
         if len(self.times) != len(self.actions):
-            raise ValueError(
-                f"Length of times {self.times} and actions {self.actions} must be equal."
+            error_msg = (
+                f"Length of times {self.times} and "
+                f"actions {self.actions} must be equal."
             )
+            raise ValueError(error_msg)
 
 
 class MacroAction(ABC):
-    """Abstract base class for macro actions."""
+    """Abstract base class for macro actions.
 
-    _macro_library: Dict[str, "type[MacroAction]"] = {}
-    macro_names: List[str] = []
+    Attributes:
+        macro_names (list[str]): The names of the macro actions.
 
-    def __init__(self, name: str, action_segments: List[ActionSegment]):
+    """
+
+    _macro_library: ClassVar[dict[str, "type[MacroAction]"]] = {}
+    macro_names: ClassVar[list[str]] = []
+
+    def __init__(
+        self, name: str, action_segments: list[ActionSegment],
+    ) -> "MacroAction":
         """Initialize the macro action with an empty list of actions.
+
         This method also checks whether the macro library has been defined.
 
         Args:
             name (str): The name of the macro action.
-            action_segments (List[ActionSegment]): The action segments of the macro action.
+            action_segments (list[ActionSegment]): Action segments of the macro action.
+
         """
         if not self.macro_names:
-            raise ValueError(f"Macro library of {type(self)} is empty.")
+            error_msg = f"Macro library of {type(self)} is empty."
+            raise ValueError(error_msg)
         if name not in self.macro_names:
-            raise ValueError(
+            error_msg = (
                 f"Macro action {name} not found in the factory with {self.macro_names}."
             )
+            raise ValueError(error_msg)
         self.macro_name = name
 
         if any(not isinstance(seg, ActionSegment) for seg in action_segments):
-            raise ValueError(
+            error_msg = (
                 f"Action segments {action_segments} must be of type ActionSegment."
             )
+            raise ValueError(error_msg)
         self.action_segments = action_segments
         self.__repr__()  # Call repr to check if it is implemented
 
-    def __repr__(self):
-        """String representation of the macro action. Used in verbalization."""
-        raise RuntimeError("MacroAction __repr__ must be overriden.")
+    def __repr__(self) -> str:
+        """Return representation of the macro action. Used in verbalization."""
+        error_msg = "MacroAction __repr__ must be overriden."
+        raise RuntimeError(error_msg)
 
     @classmethod
-    def register(cls, name: str, macro_type: type["MacroAction"]):
+    def register(cls, name: str, macro_type: type["MacroAction"]) -> None:
         """Register a macro action type with the factory.
 
         Args:
             name (str): The name of the macro action.
             macro_type (type[MacroAction]): The type of the macro action.
+
         """
         if not issubclass(macro_type, cls):
-            raise ValueError(
-                f"Macro action {macro_type} is not a subclass of MacroAction."
-            )
+            error_msg = f"Macro action {macro_type} is not a subclass of MacroAction."
+            raise TypeError(error_msg)
         if name in cls._macro_library:
-            raise ValueError(
+            error_msg = (
                 f"Macro action {name} already registered in the factory "
                 f"with {cls._macro_library.keys()}."
             )
+            raise ValueError(error_msg)
         cls._macro_library[name] = macro_type
 
     @classmethod
     def get(cls, name: str) -> "type[MacroAction]":
-        """Get the macro action type from the factory.
+        """Get the macro action type from the registered macro actions.
 
         Args:
             name (str): The name of the macro action.
 
-        Returns:
-            type[MacroAction]: The type of the macro action.
         """
         if name not in cls._macro_library:
-            raise ValueError(
-                f"Macro action {name} not found in the factory with {cls._macro_library.keys()}."
+            error_msg = (
+                f"Macro action {name} not found in the "
+                f"factory with {cls._macro_library.keys()}."
             )
+            raise ValueError(error_msg)
         return cls._macro_library[name]
 
     @classmethod
     @abstractmethod
     def wrap(
-        cls, config: MacroActionConfig, actions, observations, infos=None
-    ) -> Dict[int, List["MacroAction"]]:
-        """Wrap the low-level actions, observations, or other
-        information into macro actions for each agent present in the data.
-        The actions within a macro action should be grouped into ActionSegments.
+        cls,
+        config: MacroActionConfig,
+        actions: list[Any],
+        observations: list[Any],
+        infos: list[dict[str, Any]] | None = None,
+    ) -> dict[int, list["MacroAction"]]:
+        """Wrap low-level actions, observations, or other infos into macro actions.
+
+        Wrapping is done for each agent present in the data.
+        For simple action spaces, this function may just return the actions as they are.
+        The actions within a macro action are grouped into ActionSegments.
 
         Args:
-            config (MacroActionConfig): The configuration for the macro action.
-            actions: The low-level trajectory of actions of the agent to wrap.
-            observation: The environment observation sequence.
-            infos: Optional list of info dictionaries from the environment.
+            config (MacroActionConfig): Configuration for the macro action.
+            actions (list[Any]): Low-level trajectory of actions of the agent to wrap.
+            observations (list[Any]): Environment observation sequence.
+            infos (list[dict[str, Any]] | None): list of info dictionaries from the env.
 
         Returns:
-            Dict[int,List[MacroAction]]: A dictionary of agent ids to macro actions.
+            Dict[int, list[MacroAction]]: A dictionary of agent ids to macro actions.
+
         """
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def unwrap(cls, macro_actions: List["MacroAction"]) -> List[Any]:
-        """Unwrap the macro actions into low-level actions."""
+    def unwrap(cls, macro_actions: list["MacroAction"]) -> list[Any]:
+        """Unwrap the macro actions into low-level actions.
+
+        Args:
+            macro_actions (list[MacroAction]): Macro actions to unwrap.
+
+        """
         raise NotImplementedError
 
     @property
-    def start_t(self):
+    def start_t(self) -> int:
         """The start time of the macro action."""
         return self.action_segments[0].times[0]
 
     @property
-    def end_t(self):
+    def end_t(self) -> int:
         """The end time of the macro action."""
         return self.action_segments[-1].times[-1]

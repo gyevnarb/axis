@@ -1,13 +1,12 @@
-import os
-import sys
 import logging
+import sys
+from pathlib import Path
 
-import igp2 as ip
 import gymnasium as gym
+import igp2 as ip
 
 import axs
-from implementations import axs_igp2
-
+from implementations import axs_igp2  # Import to register macro actions  # noqa: F401
 
 logger = logging.getLogger(__name__)
 axs.init_logging(["igp2.core.velocitysmoother", "matplotlib"],
@@ -16,10 +15,11 @@ axs.init_logging(["igp2.core.velocitysmoother", "matplotlib"],
 CONFIG_FILE = "data/igp2/configs/scenario1.json"
 OUTPUT = "output/"
 
-if not os.path.exists(CONFIG_FILE):
-    raise FileNotFoundError(f"Configuration file not found: {CONFIG_FILE}")
-if not os.path.exists(OUTPUT):
-    os.makedirs(OUTPUT)
+if not Path.exists(CONFIG_FILE):
+    error_msg = f"Configuration file not found: {CONFIG_FILE}"
+    raise FileNotFoundError(error_msg)
+if not Path.exists(OUTPUT):
+    Path.mkdir(OUTPUT)
 
 config = axs.Config(CONFIG_FILE)
 env = gym.make(config.env.name,
@@ -31,7 +31,7 @@ observation, info = env.reset(seed=config.env.seed)
 # axs.MacroAction.register(name: str, type: type["MacroAction"])
 
 axs_agent = axs.AXSAgent(config)
-if os.path.exists(f"{OUTPUT}/agent.pkl"):
+if Path.exists(f"{OUTPUT}/agent.pkl"):
     axs_agent.load_state(f"{OUTPUT}/agent.pkl")
     prompt = axs.Prompt(**config.axs.user_prompts[0])
     user_query = prompt.fill()
