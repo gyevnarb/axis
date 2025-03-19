@@ -53,4 +53,4 @@ igp2 = { git = "https://github.com/uoe-agents/IGP2" }
 
 [tool.ruff]
 select = ["ALL"]
-ignore = ["S301", "ANN003"]
+ignore = ["S301", "ANN401", "ERA001"]

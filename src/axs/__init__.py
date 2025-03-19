@@ -12,43 +12,57 @@ from pathlib import Path
 from typing import Annotated
 
 import gymnasium as gym
-import pettingzoo
 import typer
 from rich.logging import RichHandler
 
 from .agent import AXSAgent
-from .config import Config
+from .config import (
+    AXSConfig,
+    Config,
+    EnvConfig,
+    LLMConfig,
+    MacroActionConfig,
+    SupportedEnv,
+    VerbalizerConfig,
+)
 from .macroaction import ActionSegment, MacroAction
+from .memory import EpisodicMemory, SemanticMemory
 from .prompt import Prompt
+from .query import Query
 from .verbalize import Verbalizer
 
 __all__ = [
     "AXSAgent",
+    "AXSConfig",
     "ActionSegment",
     "Config",
+    "EnvConfig",
+    "EpisodicMemory",
+    "LLMConfig",
     "MacroAction",
+    "MacroActionConfig",
     "Prompt",
+    "Query",
+    "SemanticMemory",
     "SupportedEnv",
     "Verbalizer",
+    "VerbalizerConfig",
     "init_logging",
 ]
-
-SupportedEnv = gym.Env | pettingzoo.ParallelEnv | pettingzoo.AECEnv
-SupportedEnv.__doc__ = "The supported environment types for the AXS agent."
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
 def init_logging(
-    muted: list[str] | None = None,
+    warning_only: list[str] | None = None,
     log_dir: str | None = None,
     log_name: str | None = None,
 ) -> None:
     """Initialize logging.
 
     Args:
-        muted (List[str]): List of loggers to mute.
+        warning_only (List[str]): List of loggers whose level is set to WARNING.
         log_dir (str): Directory to save logs.
         log_name (str): Name base of the log file.
 
@@ -60,13 +74,13 @@ def init_logging(
         handlers=[RichHandler(rich_tracebacks=True)],
     )
 
-    for mute in muted:
+    for mute in warning_only:
         logging.getLogger(mute).setLevel(logging.WARNING)
 
     # Add saving to file if arguments are provided
     if log_dir and log_name:
-        if not Path.exists(log_dir):
-            Path.mkdir(log_dir, parents=True)
+        if not Path(log_dir).exists():
+            Path(log_dir).mkdir(parents=True)
         date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
         log_path = Path(f"{log_dir}/{log_name}_{date_time}.log")
         file_handler = logging.FileHandler(log_path)
@@ -90,11 +104,11 @@ def main(
     ] = "output/",
 ) -> None:
     """Execute the AXS agent according to the configuration file."""
-    if not Path.exists(config_file):
+    if not Path(config_file).exists():
         error_msg = f"Configuration file not found: {config_file}"
         raise FileNotFoundError(error_msg)
-    if not Path.exists(output):
-        Path.mkdir(output, parents=True)
+    if not Path(output).exists():
+        Path(output).mkdir(parents=True)
 
     config_file = "data/igp2/configs/scenario1.json"
     config = Config(config_file)

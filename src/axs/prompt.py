@@ -1,6 +1,7 @@
 """Module containing prompt generator functions for LLMs."""
 
 from string import Formatter
+from typing import Any
 
 
 class Prompt:
@@ -21,7 +22,7 @@ class Prompt:
         self.template = template
         self.time = time
 
-    def fill(self, **context) -> str:
+    def fill(self, **context: dict[str, Any]) -> str:
         """Complete the prompt from the template and context."""
         for k in context:
             if k not in self.placeholders:

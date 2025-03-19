@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
-from axs import SupportedEnv
+from axs.config import SupportedEnv
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +51,14 @@ class Verbalizer(ABC):
             raise ValueError(error_msg)
         return cls._verbalizer_library[name]
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     def convert(
         env: SupportedEnv,
         observations: list[Any],
         macro_actions: list[dict[int, Any]],
         infos: list[dict[str, Any]],
-        **kwargs,
+        **kwargs: dict[str, Any],
     ) -> str:
         """Convert all environment data.
 
@@ -77,9 +77,9 @@ class Verbalizer(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     @staticmethod
-    def convert_environment(env: SupportedEnv, **kwargs) -> str:
+    @abstractmethod
+    def convert_environment(env: SupportedEnv, **kwargs: dict[str, Any]) -> str:
         """Verbalize the static elements of the environment.
 
         Keyword arguments are used for additional options.
@@ -91,9 +91,9 @@ class Verbalizer(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     @staticmethod
-    def convert_observations(observations: list[Any], **kwargs) -> str:
+    @abstractmethod
+    def convert_observations(observations: list[Any], **kwargs: dict[str, Any]) -> str:
         """Verbalize a sequence of observations of the environment.
 
         Args:
@@ -103,9 +103,12 @@ class Verbalizer(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     @staticmethod
-    def convert_macro_actions(macro_actions: dict[int, list[Any]], **kwargs) -> str:
+    @abstractmethod
+    def convert_macro_actions(
+        macro_actions: dict[int, list[Any]],
+        **kwargs: dict[str, Any],
+    ) -> str:
         """Verbalize the macro actions of all agents taken in the environment.
 
         Args:
@@ -116,9 +119,9 @@ class Verbalizer(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     @staticmethod
-    def convert_infos(infos: list[dict[str, Any]], **kwargs) -> str:
+    @abstractmethod
+    def convert_infos(infos: list[dict[str, Any]], **kwargs: dict[str, Any]) -> str:
         """Verbalize a sequence of information dictionaries of the environment.
 
         Args:

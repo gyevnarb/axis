@@ -35,7 +35,7 @@ class IGP2MacroAction(axs.MacroAction):
         if self.action_segments:
             return (
                 f"{self.macro_name}[{self.start_t}-{self.end_t}]"
-                f"({len(self.action_segments)} segments)"
+                # f"({len(self.action_segments)} segments)"
             )
         return f"{self.macro_name}[empty]"
 
@@ -75,7 +75,9 @@ class IGP2MacroAction(axs.MacroAction):
                 matched_actions = cls._match_actions(config, trajectory, inx)
                 action_sequences.append(matched_actions)
             action_segmentations = cls._segment_actions(
-                config, trajectory, action_sequences,
+                config,
+                trajectory,
+                action_sequences,
             )
             ret[agent_id] = cls._group_actions(action_segmentations)
         return ret
@@ -91,7 +93,8 @@ class IGP2MacroAction(axs.MacroAction):
 
     @classmethod
     def _group_actions(
-        cls, action_segmentations: list[axs.ActionSegment],
+        cls,
+        action_segmentations: list[axs.ActionSegment],
     ) -> list["IGP2MacroAction"]:
         """Group action segments to macro actions by IGP2 maneuver."""
         ret, group = [], []
@@ -161,7 +164,9 @@ class IGP2MacroAction(axs.MacroAction):
 
     @staticmethod
     def _match_actions(
-        config: axs.MacroActionConfig, trajectory: ip.StateTrajectory, inx: int,
+        config: axs.MacroActionConfig,
+        trajectory: ip.StateTrajectory,
+        inx: int,
     ) -> tuple[tuple[str, ...], np.ndarray]:
         """Segment the trajectory into different actions and sorted with time.
 

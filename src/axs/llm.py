@@ -65,14 +65,22 @@ class LLMWrapper:
             ]
 
         available_models = [m.id for m in self._llm.models.list().data]
-        if self.config.model not in available_models:
+        internal_name = [
+            model for model in available_models if self.config.model in model
+        ]
+        if not internal_name:
             error_msg = (
                 f"Model {self.config.model} not found in openai.OpenAI "
                 f"available models: {available_models}"
             )
             raise ValueError(error_msg)
+        if len(internal_name) > 1:
+            error_msg = (
+                f"Multiple models found for {self.config.model}: {internal_name}"
+            )
+            raise ValueError(error_msg)
         completions = self._llm.chat.completions.create(
-            model=self.config.model,
+            model=internal_name[0],
             messages=messages,
             stream=False,
             seed=self._sampling_params.seed,

@@ -1,3 +1,5 @@
+"""Test the AXS implementation."""
+
 import logging
 import sys
 from pathlib import Path
@@ -9,29 +11,27 @@ import axs
 from envs import axs_igp2  # Import to register macro actions  # noqa: F401
 
 logger = logging.getLogger(__name__)
-axs.init_logging(["igp2.core.velocitysmoother", "matplotlib"],
-                 log_dir="output/logs", log_name="test")
+axs.init_logging(
+    ["igp2.core.velocitysmoother", "matplotlib", "httpcore", "openai"],
+    log_dir="output/logs",
+    log_name="test",
+)
 
 CONFIG_FILE = "data/igp2/configs/scenario1.json"
 OUTPUT = "output/"
 
-if not Path.exists(CONFIG_FILE):
+if not Path(CONFIG_FILE).exists():
     error_msg = f"Configuration file not found: {CONFIG_FILE}"
     raise FileNotFoundError(error_msg)
-if not Path.exists(OUTPUT):
-    Path.mkdir(OUTPUT)
+if not Path(OUTPUT).exists():
+    Path(OUTPUT).mkdir(parents=True)
 
 config = axs.Config(CONFIG_FILE)
-env = gym.make(config.env.name,
-                config=config.env.params,
-                render_mode=config.env.render_mode)
+env = gym.make(config.env.name, render_mode=config.env.render_mode, **config.env.params)
 observation, info = env.reset(seed=config.env.seed)
 
-# Register macro action here if necessary
-# axs.MacroAction.register(name: str, type: type["MacroAction"])
-
 axs_agent = axs.AXSAgent(config)
-if Path.exists(f"{OUTPUT}/agent.pkl"):
+if Path(f"{OUTPUT}/agent.pkl").exists():
     axs_agent.load_state(f"{OUTPUT}/agent.pkl")
     prompt = axs.Prompt(**config.axs.user_prompts[0])
     user_query = prompt.fill()
@@ -49,7 +49,8 @@ for n in range(config.env.n_episodes):
 
         # Learning and explanation phase
         axs_agent.semantic_memory.learn(
-            observations=observation, actions=action, infos=info)
+            observations=observation, actions=action, infos=info
+        )
         for prompt_dict in config.axs.user_prompts:
             prompt = axs.Prompt(**prompt_dict)
             if t > 0 and prompt.time == t - 1:

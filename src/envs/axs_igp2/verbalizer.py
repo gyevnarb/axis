@@ -45,7 +45,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         observations: list[np.ndarray],  # noqa: ARG004
         macro_actions: dict[int, list[IGP2MacroAction]],
         infos: list[dict[str, Any]],
-        **kwargs,
+        **kwargs: dict[str, Any],
     ) -> str:
         """Verbalize the IGP2 scenario.
 
@@ -56,26 +56,28 @@ class IGP2Verbalizer(axs.Verbalizer):
             infos (list): The information of the agents. Not used.
             kwargs: Optional keyword arguments.
                 - add_roads: Whether to add road descriptions.
+                - add_actions: Whether to add raw steering and acceleration values.
                 - add_macro_actions: Whether to add macro action descriptions.
                 - add_observations: Whether to add observation descriptions.
                 - add_infos: Whether to add agent information.
-                - f_subsample (int): Frequency of subsampling observations.
+                - subsample (int): Frequency of subsampling observations.
                         Use this to decrease the complexity of the verbalization.
                 - rounding (int): Number of decimal places to round the values to.
-                - control_signals (list[str]): List of control signals to include.
-                        Possible values: ["times", "timesteps", "path", "velocity",
-                            "acceleration", "heading", "angular_velocity"].
+                - state_signals (list[str]): List of control signals to include.
+                        Possible values: ["times", "timesteps", "path",
+                                          "velocity", "heading"].
                         Default is all control signals except time.
-                - add_lanes: Whether to add lane descriptions (True).
-                - add_intersections: Whether to add intersection descriptions (True).
-                - add_intersection_links: Whether to add intersection lane link (False).
+                - add_lanes: Whether to add lane descriptions.
+                - add_intersections: Whether to add intersection descriptions.
+                - add_intersection_links: Whether to add intersection lane link.
                 - resolution: The resolution of the road midline (0.01).
                 - add_metadata: Whether to add metadata before
-                            the road layout description (False).
+                            the road layout description.
 
         """
         context = ""
-        if kwargs.get("add_roads", False):
+
+        if kwargs.get("add_roads", True):
             context += IGP2Verbalizer.convert_environment(env, kwargs) + "\n\n"
 
         actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
@@ -84,33 +86,35 @@ class IGP2Verbalizer(axs.Verbalizer):
             error_msg = "Agent IDs in actions and infos do not match."
             raise ValueError(error_msg)
 
-        for agent_id in actions_dict:
-            context += f"Vehicle {agent_id}:\n"
+        for aid in actions_dict:
+            context += f"- Vehicle {aid}:\n"
+            context += "  - Observations:\n"
             if kwargs.get("add_infos", True):
-                context += "  Observations:\n"
-                for signal in infos_dict[agent_id]:
-                    context += f"    {signal}"
-
+                for signal, data in infos_dict[aid].items():
+                    if signal in ["Steering", "Acceleration"]:
+                        continue  # Do not include actions here
+                    context += f"    - {signal}: {data}\n"
+            context += "  - Actions: "
             if kwargs.get("add_macro_actions", True):
-                context += "  Actions:\n"
-                for segment in actions_dict[agent_id]:
-                    context += f"    {segment}\n"
-
+                context += f"{actions_dict[aid]}\n"
+            if kwargs.get("add_actions", True):
+                context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
+                context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
             context += "\n"
 
         return context[:-1]  # Remove trailing newline
 
     @staticmethod
-    def convert_infos(infos: list[dict[str, Any]], **kwargs) -> str:
+    def convert_infos(infos: list[dict[str, Any]], **kwargs: dict[str, Any]) -> str:
         """Verbalize a frame of the simulation state.
 
         Args:
             infos (list[str, dict[Any]]): Sequence of info dictionaries for each agent.
             kwargs: Optional keyword arguments.
-                - f_subsample (int): Frequency of subsampling observations.
+                - subsample (int): Frequency of subsampling observations.
                         Use this to decrease the complexity of the verbalization.
                 - rounding (int): Number of decimal places to round the values to.
-                - control_signals (list[str]): List of control signals to include.
+                - state_signals (list[str]): List of control signals to include.
                         Possible values: ["times", "timesteps", "path", "velocity",
                             "acceleration", "heading", "angular_velocity"].
                         Default is all control signals except time.
@@ -118,17 +122,18 @@ class IGP2Verbalizer(axs.Verbalizer):
         """
         ret = "Observations:\n"
         infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
-        for agent_id, control_signals in infos_dict.items():
+        for agent_id, state_signals in infos_dict.items():
             ret += f"  Vehicle {agent_id}:\n"
-            for signal in control_signals:
-                ret += f"    {signal}\n"
+            for signal, data in state_signals.items():
+                ret += f"    {signal}: {data}\n"
             ret += "\n"
         return ret[:-1]
 
     @staticmethod
     def _convert_infos(
-        infos: dict[int, list[IGP2MacroAction]], **kwargs,
-    ) -> list[str]:
+        infos: dict[int, list[IGP2MacroAction]],
+        **kwargs: dict[str, Any],
+    ) -> dict[int, dict[str, str]]:
         trajectories = defaultdict(list)
         for frame in infos:
             for agent_id, state in frame.items():
@@ -137,30 +142,32 @@ class IGP2Verbalizer(axs.Verbalizer):
 
         ret = {}
 
-        f_subsample = kwargs.get("f_subsample", 1)
+        subsample = kwargs.get("subsample", 1)
         rounding = kwargs.get("rounding", 2)
-        control_signals = kwargs.get(
-            "control_signals",
-            ["timesteps", "path", "velocity", "acceleration", "angular_velocity"],
+        state_signals = kwargs.get(
+            "state_signals",
+            ["timesteps", "path", "velocity"],
         )
+        # We always calculate these as they may be included as part of the actions
+        state_signals.extend(["angular_velocity", "acceleration"])
         for agent_id, trajectory in trajectories.items():
             sampled_trajectory = trajectory
-            if f_subsample > 1:
-                sampled_trajectory = util.subsample_trajectory(trajectory, f_subsample)
+            if subsample > 1:
+                sampled_trajectory = util.subsample_trajectory(trajectory, subsample)
 
-            ret[agent_id] = [
+            ret[agent_id] = dict([
                 IGP2Verbalizer._verbalize_control_signal(
                     signal,
                     rounding,
                     sampled_trajectory,
                 )
-                for signal in control_signals
-            ]
+                for signal in state_signals
+            ])
 
         return ret
 
     @staticmethod
-    def convert_observations(observations: list[Any], **kwargs) -> str:  # noqa: ARG004
+    def convert_observations(observations: list[Any], **kwargs: dict[str, Any]) -> str:  # noqa: ARG004
         """Verbalize the observations of the agents. Not used in IGP2."""
         logger.debug("IGP2 does not use Verbalizer.convert_observations.")
         return ""
@@ -168,7 +175,7 @@ class IGP2Verbalizer(axs.Verbalizer):
     @staticmethod
     def convert_macro_actions(
         macro_actions: dict[int, list[IGP2MacroAction]],
-        **kwargs,  # noqa: ARG004
+        **kwargs: dict[str, Any],  # noqa: ARG004
     ) -> str:
         """Verbalize the macro actions of the agents."""
         ret = "Actions:\n"
@@ -180,6 +187,7 @@ class IGP2Verbalizer(axs.Verbalizer):
     @staticmethod
     def _convert_macro_actions(
         macro_actions: dict[int, list[IGP2MacroAction]],
+        **kwargs: dict[str, Any],  # noqa: ARG004
     ) -> dict[int, str]:
         ret = {}
         for agent_id, segmentations in macro_actions.items():
@@ -187,7 +195,10 @@ class IGP2Verbalizer(axs.Verbalizer):
         return ret
 
     @staticmethod
-    def convert_environment(env: ip.simplesim.SimulationEnv, **kwargs) -> str:
+    def convert_environment(
+        env: ip.simplesim.SimulationEnv,
+        **kwargs: dict[str, Any],
+    ) -> str:
         """Verbalize the road layout.
 
         Args:
@@ -222,7 +233,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         ret += "\n\n"
 
         # Describe roads
-        IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, kwargs)
+        IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
 
         # Describe intersections
         if kwargs.get("add_intersections", True):
@@ -242,7 +253,9 @@ class IGP2Verbalizer(axs.Verbalizer):
 
     @staticmethod
     def _add_verbalized_roads(
-        ret: str, scenario_map: ip.Map, kwargs: dict[str, Any],
+        ret: str,
+        scenario_map: ip.Map,
+        **kwargs: dict[str, Any],
     ) -> None:
         for rid, road in scenario_map.roads.items():
             if not road.drivable:
@@ -252,7 +265,8 @@ class IGP2Verbalizer(axs.Verbalizer):
             ret += f"  Length: {road.length} m\n"
 
             midline = ramer_douglas(
-                np.array(road.midline.coords), dist=kwargs.get("resolution", 0.02),
+                np.array(road.midline.coords),
+                dist=kwargs.get("resolution", 0.02),
             )
             midline = [(x, y) for x, y in np.round(midline, 2)]
             ret += f"  Midline coordinates: {midline}\n"
@@ -285,26 +299,28 @@ class IGP2Verbalizer(axs.Verbalizer):
         signal: str,
         precision: int,
         trajectory: ip.StateTrajectory,
-    ) -> str:
+    ) -> tuple[str, str]:
+        name = {
+            "times": "Time",
+            "timesteps": "Timesteps",
+            "maneuver": "Maneuvers",
+            "macro": "Macro actions",
+            "path": "Position",
+            "velocity": "Speed",
+            "acceleration": "Acceleration",
+            "heading": "Heading",
+            "angular_velocity": "Steering",
+        }[signal]
+        data = None
+
         if signal == "timesteps":
             timesteps = np.array([s.time for s in trajectory.states])
-            return f"Timesteps: {util.ndarray2str(timesteps)}\n"
+            data = util.ndarray2str(timesteps)
         if signal == "maneuver":
-            mans = [s.maneuver for s in trajectory.states]
-            return f"Maneuver: {mans}\n"
+            data = [s.maneuver for s in trajectory.states]
         if signal == "macro":
-            macros = [s.macro_action for s in trajectory.states]
-            return f"Macro action: {macros}\n"
+            data = [s.macro_action for s in trajectory.states]
         if hasattr(trajectory, signal):
-            name = {
-                "times": "Time",
-                "path": "Position",
-                "velocity": "Speed",
-                "acceleration": "Acceleration",
-                "heading": "Heading",
-                "angular_velocity": "Steering",
-            }[signal]
-            txt_signal = util.ndarray2str(getattr(trajectory, signal), precision)
-            return f"{name}: {txt_signal}\n"
-        error_msg = f"Unknown control signal: {signal}"
-        raise ValueError(error_msg)
+            data = util.ndarray2str(getattr(trajectory, signal), precision)
+
+        return name, data

@@ -21,7 +21,11 @@
             }
         },
         "verbalizer": {
-            "name": "IGP2Verbalizer"
+            "name": "IGP2Verbalizer",
+            "params": {
+                "add_roads": false,
+                "subsample": 2
+            }
         },
         "system_template": "data/igp2/prompts/system.txt",
         "query_template": "data/igp2/prompts/query.txt",
@@ -38,7 +42,7 @@
         "max_iter": 1000,
         "n_epsiodes": 1,
         "seed": 28,
-        "render_mode": "plot",
+        "render_mode": "human",
         "params": {
             "config": {
                 "scenario": {
@@ -92,7 +96,7 @@
                         },
                         "mcts": {
                             "t_update": 2.0,
-                            "n_simulations": 15,
+                            "n_simulations": 30,
                             "store_results": "all",
                             "trajectory_agents": false,
                             "reward_factors": {

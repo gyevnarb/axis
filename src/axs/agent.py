@@ -2,12 +2,9 @@
 
 import logging
 import pickle
-from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
-from axs import SupportedEnv
-from axs.config import Config
+from axs.config import Config, SupportedEnv
 from axs.llm import LLMWrapper
 from axs.macroaction import MacroAction
 from axs.memory import EpisodicMemory, SemanticMemory
@@ -34,7 +31,7 @@ class AXSAgent:
 
         Args:
             config (Config): The configuration object for the agent.
-            simulator_env (SupportedEnv): Optional environment to be used for simulation.
+            simulator_env (SupportedEnv): Optional environment to use for simulation.
                             If not given, a new internal environment will be created.
 
         """
@@ -97,7 +94,7 @@ class AXSAgent:
             observations,
             macro_actions,
             infos,
-            self.config.verbalizer.params,
+            **self.config.axs.verbalizer.params,
         )
 
         query_prompt = self._query_prompt.fill(
@@ -105,17 +102,17 @@ class AXSAgent:
             macro_names=self._macro_action.macro_names,
             context=context,
         )
-        messages.append(query_prompt)
+        messages.append({"role": "user", "content": query_prompt})
 
         n = 0
         explanation, prev_explanation = None, None
         while (
             n < self.config.axs.n_max
-            and distance(explanation, prev_explanation) > self.config.axs.delta
+            # and distance(explanation, prev_explanation) > self.config.axs.delta
         ):
             # Simulator interrogation
             query_output = self._llm.chat(messages)
-            simulation_query = query_output.outputs[0].content
+            simulation_query = query_output.outputs[0]["content"]
             self._simulator.set_state(start_state)
             sim_states, sim_actions, rewards = self._simulator.query(simulation_query)
             self._episodic_memory.learn(
@@ -153,12 +150,12 @@ class AXSAgent:
             "macro_action": self._macro_action,
         }
 
-        with Path.open(path, "wb") as f:
+        with Path(path).open("wb") as f:
             pickle.dump(statedict, f)
 
     def load_state(self, path: str) -> None:
         """Load the agent's state from a file except for the LLM."""
-        with Path.open(path, "rb") as f:
+        with Path(path).open("rb") as f:
             statedict = pickle.load(f)
         for key, value in statedict.items():
             setattr(self, "_" + key, value)
