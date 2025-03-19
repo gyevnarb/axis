@@ -6,7 +6,7 @@ import gymnasium as gym
 import igp2 as ip
 
 import axs
-from implementations import axs_igp2  # Import to register macro actions  # noqa: F401
+from envs import axs_igp2  # Import to register macro actions  # noqa: F401
 
 logger = logging.getLogger(__name__)
 axs.init_logging(["igp2.core.velocitysmoother", "matplotlib"],
@@ -27,7 +27,7 @@ env = gym.make(config.env.name,
                 render_mode=config.env.render_mode)
 observation, info = env.reset(seed=config.env.seed)
 
-# Registr macro action here if necessary
+# Register macro action here if necessary
 # axs.MacroAction.register(name: str, type: type["MacroAction"])
 
 axs_agent = axs.AXSAgent(config)

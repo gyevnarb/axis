@@ -9,8 +9,8 @@ import numpy as np
 from igp2.opendrive.elements.geometry import ramer_douglas
 
 import axs
-from implementations.axs_igp2 import util
-from implementations.axs_igp2.macroaction import IGP2MacroAction
+from envs.axs_igp2 import util
+from envs.axs_igp2.macroaction import IGP2MacroAction
 
 logger = logging.getLogger(__name__)
 
