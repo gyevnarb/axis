@@ -2,54 +2,16 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import Any
 
-from axs.config import SupportedEnv
+from axs.config import Registerable, SupportedEnv
 
 logger = logging.getLogger(__name__)
+_verbalizer_library: dict[str, "type[Verbalizer]"] = {}
 
 
-class Verbalizer(ABC):
+class Verbalizer(ABC, Registerable, class_type=None):
     """Abstract base class for verbalizing environment/simulation data."""
-
-    _verbalizer_library: ClassVar[dict[str, "type[Verbalizer]"]] = {}
-
-    @classmethod
-    def register(cls, name: str, verbalizer_type: type["Verbalizer"]) -> None:
-        """Register a verbalizer type with the factory.
-
-        Args:
-            name (str): The name of the verbalizer.
-            verbalizer_type (type[Verbalizer]): The type of the verbalizer.
-
-        """
-        if not issubclass(verbalizer_type, cls):
-            error_msg = f"Verbalizer {verbalizer_type} is not a subclass of Verbalizer."
-            raise TypeError(error_msg)
-
-        if name in cls._verbalizer_library:
-            error_msg = (
-                f"Verbalizer {name} already registered in the factory "
-                f"with {cls._verbalizer_library.keys()} keys."
-            )
-            raise ValueError(error_msg)
-        cls._verbalizer_library[name] = verbalizer_type
-
-    @classmethod
-    def get(cls, name: str) -> "type[Verbalizer]":
-        """Get the verbalizer type from the factory.
-
-        Args:
-            name (str): The name of the verbalizer.
-
-        """
-        if name not in cls._verbalizer_library:
-            error_msg = (
-                f"Verbalizer {name} not found in the factory "
-                f"with {cls._verbalizer_library.keys()}."
-            )
-            raise ValueError(error_msg)
-        return cls._verbalizer_library[name]
 
     @staticmethod
     @abstractmethod

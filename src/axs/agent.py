@@ -3,12 +3,14 @@
 import logging
 import pickle
 from pathlib import Path
+from typing import Any
 
 from axs.config import Config, SupportedEnv
 from axs.llm import LLMWrapper
 from axs.macroaction import MacroAction
 from axs.memory import EpisodicMemory, SemanticMemory
 from axs.prompt import Prompt
+from axs.query import Query
 from axs.simulator import Simulator
 from axs.verbalize import Verbalizer
 
@@ -26,13 +28,21 @@ class AXSAgent:
         self,
         config: Config,
         simulator_env: SupportedEnv | None = None,
+        **kwargs: dict[str, Any],
     ) -> "AXSAgent":
         """Initialize the AXS agent with the parameters.
 
         Args:
             config (Config): The configuration object for the agent.
             simulator_env (SupportedEnv): Optional environment to use for simulation.
-                            If not given, a new internal environment will be created.
+                If not given, a new internal environment will be created.
+                Note, if an existing environment is passed then
+                the environment will be changed in-place by the agent.
+            kwargs (dict): Additional optional keyword arguments.
+                If not given, the config file will be used.
+                - macro_type (type[MacroAction]): The type of macro action to use.
+                - verbalizer_type (type[Verbalizer]): The type of verbalizer to use.
+                - query_type (type[Query]): The type of query to use.
 
         """
         self.config = config
@@ -49,12 +59,37 @@ class AXSAgent:
         self._episodic_memory = EpisodicMemory()
 
         # Procedural components
-        self._simulator = Simulator(config.env, simulator_env)  # Internal simulator
+        self._simulator = Simulator(config.env, simulator_env)
         self._llm = LLMWrapper(config.llm)
 
         # Utility components
-        self._macro_action = MacroAction.get(config.axs.macro_action.name)
-        self._verbalizer = Verbalizer.get(config.axs.verbalizer.name)
+        if "macro_type" in kwargs:
+            macro_type = kwargs["macro_type"]
+            if not issubclass(macro_type, MacroAction):
+                error_msg = (f"Macro type must be a subclass of MacroAction. "
+                             f"Got: {macro_type}")
+                raise ValueError(error_msg)
+            self._macro_action = macro_type
+        else:
+            self._macro_action = MacroAction.get(config.axs.macro_action.name)
+        if "verbalizer_type" in kwargs:
+            verbalizer_type = kwargs["verbalizer_type"]
+            if not issubclass(verbalizer_type, Verbalizer):
+                error_msg = (f"Verbalizer type must be a subclass of Verbalizer. "
+                             f"Got: {verbalizer_type}")
+                raise ValueError(error_msg)
+            self._verbalizer = verbalizer_type
+        else:
+            self._verbalizer = Verbalizer.get(config.axs.verbalizer.name)
+        if "query_type" in kwargs:
+            query_type = kwargs["query_type"]
+            if not issubclass(query_type, Query):
+                error_msg = (f"Query type must be a subclass of Query. "
+                             f"Got: {query_type}")
+                raise ValueError(error_msg)
+            self._query = query_type
+        else:
+            self._query = Query.get(config.axs.query.name)
 
     def explain(self, user_prompt: str) -> str:
         """Explain behaviour based on the user's prompt.
@@ -78,6 +113,7 @@ class AXSAgent:
 
         macro_actions = self._macro_action.wrap(
             self.config.axs.macro_action,
+            self._simulator.env.unwrapped,
             actions,
             observations,
             infos,
@@ -85,8 +121,10 @@ class AXSAgent:
         if not isinstance(macro_actions, dict) and not all(
             isinstance(k, int) for k in macro_actions
         ):
-            error_msg = (f"Macro actions must be a dictionary with "
-                         f"int agent ids as keys. Got: {macro_actions}")
+            error_msg = (
+                f"Macro actions must be a dictionary with "
+                f"int agent ids as keys. Got: {macro_actions}"
+            )
             raise ValueError(error_msg)
 
         context = self._verbalizer.convert(
@@ -98,21 +136,39 @@ class AXSAgent:
         )
 
         query_prompt = self._query_prompt.fill(
-            question=user_prompt,
+            query_descriptions=None,
+            query_type_descriptions=None,
+            user_prompt=user_prompt,
             macro_names=self._macro_action.macro_names,
             context=context,
         )
         messages.append({"role": "user", "content": query_prompt})
 
         n = 0
+        n_max = self.config.axs.n_max
         explanation, prev_explanation = None, None
         while (
-            n < self.config.axs.n_max
+            n < n_max
             # and distance(explanation, prev_explanation) > self.config.axs.delta
         ):
-            # Simulator interrogation
             query_output = self._llm.chat(messages)
-            simulation_query = query_output.outputs[0]["content"]
+            messages.append(query_output)
+            query_content= query_output.outputs[0]["content"]
+            try:
+                simulation_query = Query.parse(query_content)
+            except ValueError:
+                logger.info(
+                    "LLM-generated query was not valid. Query: %s",
+                    query_content,
+                )
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Your generated query was invalid. Make sure "
+                                   "to use the format `query(args1, args2, ...)`. ",
+                    },
+                )
+                continue
             self._simulator.set_state(start_state)
             sim_states, sim_actions, rewards = self._simulator.query(simulation_query)
             self._episodic_memory.learn(

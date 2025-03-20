@@ -1,5 +1,6 @@
 """Test the AXS implementation."""
 
+import contextlib
 import logging
 import sys
 from pathlib import Path
@@ -8,7 +9,11 @@ import gymnasium as gym
 import igp2 as ip
 
 import axs
-from envs import axs_igp2  # Import to register macro actions  # noqa: F401
+
+# Import to register env-specific classes but may fail if dependencies are not installed
+with contextlib.suppress(ImportError):
+    from envs import *
+
 
 logger = logging.getLogger(__name__)
 axs.init_logging(
@@ -49,7 +54,7 @@ for n in range(config.env.n_episodes):
 
         # Learning and explanation phase
         axs_agent.semantic_memory.learn(
-            observations=observation, actions=action, infos=info
+            observations=observation, actions=action, infos=info,
         )
         for prompt_dict in config.axs.user_prompts:
             prompt = axs.Prompt(**prompt_dict)

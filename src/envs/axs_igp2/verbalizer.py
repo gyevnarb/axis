@@ -316,11 +316,14 @@ class IGP2Verbalizer(axs.Verbalizer):
         if signal == "timesteps":
             timesteps = np.array([s.time for s in trajectory.states])
             data = util.ndarray2str(timesteps)
-        if signal == "maneuver":
+        elif signal == "maneuver":
             data = [s.maneuver for s in trajectory.states]
-        if signal == "macro":
+        elif signal == "macro":
             data = [s.macro_action for s in trajectory.states]
-        if hasattr(trajectory, signal):
+        elif hasattr(trajectory, signal):
             data = util.ndarray2str(getattr(trajectory, signal), precision)
+        else:
+            error_msg = f"Unknown control signal: {signal}"
+            raise ValueError(error_msg)
 
         return name, data

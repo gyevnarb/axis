@@ -10,6 +10,48 @@ import pettingzoo
 SupportedEnv = Union[gym.Env, pettingzoo.ParallelEnv, pettingzoo.AECEnv]  # noqa: UP007
 SupportedEnv.__doc__ = "The supported environment types for the AXS agent."
 
+_registry: dict[str, "type[Registerable]"] = {}
+
+
+class Registerable:
+    """Abstract base class for registerable classes."""
+
+    def __init_subclass__(cls, class_type: type | None = object) -> None:
+        """Register a type in the registry.
+
+        Args:
+            class_type: The abstract type of the class to register.
+                Used for checking the class inheritance.
+
+        """
+        if class_type is None:
+            return
+
+        name = cls.__name__
+        if not issubclass(cls, class_type):
+            error_msg = f"Type {cls} is not a subclass of {class_type}."
+            raise TypeError(error_msg)
+        if name in _registry:
+            error_msg = f"Type {name} already registered in the registry."
+            raise ValueError(error_msg)
+        _registry[name] = cls
+
+    @classmethod
+    def get(cls, name: str) -> type:
+        """Get the type from the library by name.
+
+        Args:
+            name (str): The name of the type.
+
+        """
+        if name not in _registry:
+            error_msg = (
+                f"Verbalizer {name} not found in the factory "
+                f"with {_registry.keys()}."
+            )
+            raise ValueError(error_msg)
+        return _registry[name]
+
 
 class ConfigBase:
     """Abstract base class for configuration classes."""
@@ -146,6 +188,19 @@ class VerbalizerConfig(ConfigBase):
         return self._config.get("params", {})
 
 
+class QueryConfig(ConfigBase):
+    """Configuration class for queries."""
+
+    @property
+    def name(self) -> str:
+        """The name of the query."""
+        return self._config["name"]
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Additional parameters for the query."""
+        return self._config.get("params", {})
+
 class AXSConfig(ConfigBase):
     """Configuration class for the AXS agent parameters."""
 
@@ -182,6 +237,11 @@ class AXSConfig(ConfigBase):
     def verbalizer(self) -> VerbalizerConfig:
         """The verbalizer configuration for the AXSAgent."""
         return VerbalizerConfig(self._config["verbalizer"])
+
+    @property
+    def query(self) -> QueryConfig:
+        """The query configuration for the AXSAgent."""
+        return QueryConfig(self._config["query"])
 
     @property
     def user_prompts(self) -> list[dict[str, Any]]:

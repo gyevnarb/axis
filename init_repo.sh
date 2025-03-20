@@ -10,6 +10,8 @@ else
     echo "uv is already installed"
 fi
 
+source $HOME/.local/bin/env
+
 # Ask user if they want to sync
 SYNC_ENV="no"
 echo -n "Do you want to sync the virtual environment? (y/N): "
@@ -37,4 +39,5 @@ else
 fi
 
 # Login to huggingface-hub
+git config --global credential.helper store
 uv run huggingface-cli login

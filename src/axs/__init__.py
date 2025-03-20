@@ -28,7 +28,7 @@ from .config import (
 from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
 from .prompt import Prompt
-from .query import Query
+from .query import Query, QueryTypeMap
 from .verbalize import Verbalizer
 
 __all__ = [
@@ -43,6 +43,7 @@ __all__ = [
     "MacroActionConfig",
     "Prompt",
     "Query",
+    "QueryTypeMap",
     "SemanticMemory",
     "SupportedEnv",
     "Verbalizer",

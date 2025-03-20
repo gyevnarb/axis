@@ -16,7 +16,6 @@
         "macro_action": {
             "name": "IGP2MacroAction",
             "params": {
-                "scenario_map": "",
                 "eps": 0.1
             }
         },
@@ -24,8 +23,11 @@
             "name": "IGP2Verbalizer",
             "params": {
                 "add_roads": false,
-                "subsample": 2
+                "subsample": 3
             }
+        },
+        "query": {
+            "name": "IGP2Query"
         },
         "system_template": "data/igp2/prompts/system.txt",
         "query_template": "data/igp2/prompts/query.txt",

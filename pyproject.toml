@@ -43,6 +43,7 @@ igp2 = [
 
 [dependency-groups]
 dev = [
+    "bitsandbytes>=0.45.3",
     "jupyter>=1.1.1",
     "minigrid>=3.0.0",
 ]

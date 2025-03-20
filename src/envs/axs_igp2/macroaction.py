@@ -43,6 +43,7 @@ class IGP2MacroAction(axs.MacroAction):
     def wrap(
         cls,
         config: axs.MacroActionConfig,
+        env: ip.simplesim.SimulationEnv,
         actions: list[np.ndarray],  # noqa: ARG003
         observations: list[np.ndarray],  # noqa: ARG003
         infos: list[str, dict[Any]] | None = None,
@@ -52,7 +53,8 @@ class IGP2MacroAction(axs.MacroAction):
         Also stores results in place and overrides previously stored actions.
 
         Args:
-            config (MacroActionConfig): The configuration for the macro action
+            config (MacroActionConfig): The configuration for the macro action.
+            env (SupportedEnv): The environment to extract the agent states.
             actions (List[np.ndarray]): An agent trajectory to
                     segment into macro actions.
             observations (List[Dict[str, np.ndarray]]): The environment
@@ -72,7 +74,9 @@ class IGP2MacroAction(axs.MacroAction):
             cls._fix_initial_state(trajectory)
             action_sequences = []
             for inx in range(len(trajectory.times)):
-                matched_actions = cls._match_actions(config, trajectory, inx)
+                matched_actions = cls._match_actions(
+                    config, env.scenario_map, trajectory, inx,
+                )
                 action_sequences.append(matched_actions)
             action_segmentations = cls._segment_actions(
                 config,
@@ -165,6 +169,7 @@ class IGP2MacroAction(axs.MacroAction):
     @staticmethod
     def _match_actions(
         config: axs.MacroActionConfig,
+        scenario_map: ip.Map,
         trajectory: ip.StateTrajectory,
         inx: int,
     ) -> tuple[tuple[str, ...], np.ndarray]:
@@ -181,7 +186,6 @@ class IGP2MacroAction(axs.MacroAction):
 
         """
         eps = config.params["eps"]
-        scenario_map = config.params["scenario_map"]
         action_names = []
         state = trajectory.states[inx]
 

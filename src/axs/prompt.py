@@ -22,13 +22,13 @@ class Prompt:
         self.template = template
         self.time = time
 
-    def fill(self, **context: dict[str, Any]) -> str:
+    def fill(self, **content: dict[str, Any]) -> str:
         """Complete the prompt from the template and context."""
-        for k in context:
+        for k in content:
             if k not in self.placeholders:
-                error_msg = f"Placeholder {k} not specified in context."
+                error_msg = f"Placeholder '{k}' not specified in context."
                 raise ValueError(error_msg)
-        return self.template.format(**context)
+        return self.template.format(**content)
 
     @property
     def placeholders(self) -> list[str]:

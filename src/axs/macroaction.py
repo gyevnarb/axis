@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from axs.config import MacroActionConfig
+from axs.config import MacroActionConfig, Registerable, SupportedEnv
 
 
 @dataclass
@@ -32,7 +32,9 @@ class ActionSegment:
             raise ValueError(error_msg)
 
 
-class MacroAction(ABC):
+_macro_library: dict[str, "type[MacroAction]"] = {}
+
+class MacroAction(ABC, Registerable, class_type=None):
     """Abstract base class for macro actions.
 
     Attributes:
@@ -40,7 +42,6 @@ class MacroAction(ABC):
 
     """
 
-    _macro_library: ClassVar[dict[str, "type[MacroAction]"]] = {}
     macro_names: ClassVar[list[str]] = []
 
     def __init__(
@@ -79,46 +80,11 @@ class MacroAction(ABC):
         raise RuntimeError(error_msg)
 
     @classmethod
-    def register(cls, name: str, macro_type: type["MacroAction"]) -> None:
-        """Register a macro action type with the factory.
-
-        Args:
-            name (str): The name of the macro action.
-            macro_type (type[MacroAction]): The type of the macro action.
-
-        """
-        if not issubclass(macro_type, cls):
-            error_msg = f"Macro action {macro_type} is not a subclass of MacroAction."
-            raise TypeError(error_msg)
-        if name in cls._macro_library:
-            error_msg = (
-                f"Macro action {name} already registered in the factory "
-                f"with {cls._macro_library.keys()}."
-            )
-            raise ValueError(error_msg)
-        cls._macro_library[name] = macro_type
-
-    @classmethod
-    def get(cls, name: str) -> "type[MacroAction]":
-        """Get the macro action type from the registered macro actions.
-
-        Args:
-            name (str): The name of the macro action.
-
-        """
-        if name not in cls._macro_library:
-            error_msg = (
-                f"Macro action {name} not found in the "
-                f"factory with {cls._macro_library.keys()}."
-            )
-            raise ValueError(error_msg)
-        return cls._macro_library[name]
-
-    @classmethod
     @abstractmethod
     def wrap(
         cls,
         config: MacroActionConfig,
+        env: SupportedEnv,
         actions: list[Any],
         observations: list[Any],
         infos: list[dict[str, Any]] | None = None,
@@ -131,6 +97,7 @@ class MacroAction(ABC):
 
         Args:
             config (MacroActionConfig): Configuration for the macro action.
+            env (SupportedEnv): Environment for the agent.
             actions (list[Any]): Low-level trajectory of actions of the agent to wrap.
             observations (list[Any]): Environment observation sequence.
             infos (list[dict[str, Any]] | None): list of info dictionaries from the env.
