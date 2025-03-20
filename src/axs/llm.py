@@ -58,6 +58,10 @@ class LLMWrapper:
             messages (List[Dict[str, str]]): List of messages to send to the LLM model.
 
         """
+        logger.debug(
+            "[bold yellow]Latest message:[/bold yellow]\n%s", messages[-1]["content"]
+        )
+
         if self._mode == "offline":
             outputs = self._llm.chat(messages, sampling_params=self._sampling_params)
             return [
@@ -94,10 +98,15 @@ class LLMWrapper:
             temperature=self._sampling_params.temperature,
             top_p=self._sampling_params.top_p,
         )
-        return [
+        responses = [
             {"role": c.message.role, "content": c.message.content}
             for c in completions.choices
         ]
+
+        logger.debug(
+            "[bold yellow]LLM response:[/bold yellow]\n%s", responses[0]["content"]
+        )
+        return responses
 
     @property
     def mode(self) -> str:

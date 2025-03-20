@@ -159,6 +159,7 @@ class Query(Registerable, class_type=None):
                 error_msg = f"Invalid argument syntax: {(arg, arg_val, arg_list)}"
                 raise ValueError(error_msg)
 
+        # Convert all parameters to the correct types
         arg_and_types = cls.args_and_types[query_name]
         for arg_name, arg_type in arg_and_types.items():
             if arg_name not in params:

@@ -39,9 +39,9 @@ class IGP2Query(axs.Query):
         automatically. The descriptions are used to generate user prompts for the LLM.
         """
         return {
-            "location": "A 2D coordinate.",
-            "goal": "A 2D coordinate.",
-            "vehicle": "An integer corresponding to the ID of a vehicle.",
-            "actions": "A list of macro actions from {macro_names}.",
-            "time": "An integer corresponding to a timestep.",
+            "location": "2D coordinate",
+            "goal": "2D coordinate",
+            "vehicle": "int",
+            "actions": "list of macro actions from {macro_names}.",
+            "time": "integer",
         }

@@ -1,13 +1,17 @@
-You may ask me queries with arguments which have the form: `query(arg1, arg2, ...)`. The valid queries available are:
+You explain why a vehicle took a certain action at a given time in a particular scenario. You may ask me queries with keyword arguments which have the form: 'query(arg1, arg2, ...)'. The valid queries available are:
 {query_descriptions}
 
-The arguments must have the following types:
+
+The keyword arguments must have the following types:
 {query_type_descriptions}
+
 
 You are given the following context about the observations and actions of the vehicles in the scenario:
 {context}
 
+
 I want you to answer the following question:
 {user_prompt}
 
-Give your answer as a single query from the four types of queries, specifying concrete values for the arguments.
+
+Give your answer as a single query, specifying concrete values for the keyword arguments.

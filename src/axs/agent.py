@@ -61,6 +61,7 @@ class AXSAgent:
         # Procedural components
         self._simulator = Simulator(config.env, simulator_env)
         self._llm = LLMWrapper(config.llm)
+        self._distance = lambda x, y: True  # TODO: Placeholder
 
         # Utility components
         if "macro_type" in kwargs:
@@ -150,14 +151,16 @@ class AXSAgent:
         explanation, prev_explanation = None, None
         while (
             n < n_max
-            # and distance(explanation, prev_explanation) > self.config.axs.delta
+            and self._distance(explanation, prev_explanation) > self.config.axs.delta
         ):
-            query_output = self._llm.chat(messages)
+            logger.info("Explanation iteration %d: %s", n, explanation)
+
+            query_output = self._llm.chat(messages)[0]
             messages.append(query_output)
-            query_content= query_output.outputs[0]["content"]
+            query_content= query_output["content"]
             try:
-                simulation_query = Query.parse(query_content)
-            except ValueError:
+                simulation_query = self._query.parse(query_content)
+            except ValueError as e:
                 logger.info(
                     "LLM-generated query was not valid. Query: %s",
                     query_content,
@@ -165,12 +168,12 @@ class AXSAgent:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Your generated query was invalid. Make sure "
-                                   "to use the format `query(args1, args2, ...)`. ",
+                        "content": "Your generated query was invalid. " + str(e),
                     },
                 )
                 continue
-            self._simulator.set_state(start_state)
+
+            # self._simulator.set_state(start_state)
             sim_states, sim_actions, rewards = self._simulator.query(simulation_query)
             self._episodic_memory.learn(
                 {"states": sim_states, "actions": sim_actions, "rewards": rewards},

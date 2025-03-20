@@ -35,7 +35,7 @@
         "user_prompts": [
             {
                 "time": 80,
-                "template": "Why did the ego vehicle change lanes left?"
+                "template": "Why did that vehicle change lanes left?"
             }
         ]
     },
@@ -104,7 +104,7 @@
                             "reward_factors": {
                                 "time": 1.0,
                                 "jerk": -0.2,
-                                "angular_velocity": -0.05,
+                                "angular_velocity": -0.04,
                                 "curvature": 0.0,
                                 "coll": 0.0
                             }

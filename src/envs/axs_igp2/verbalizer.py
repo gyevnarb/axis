@@ -106,13 +106,14 @@ class IGP2Verbalizer(axs.Verbalizer):
             if kwargs.get("add_actions", True):
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
-            context += "\n"
+            context += "\n\n"
+        context = context[:-2]  # Remove trailing newlines
 
         query_descriptions, query_type_descriptions = \
             IGP2Verbalizer.convert_query(query)
 
         return {
-            "context": context[:-1],  # Remove trailing newline
+            "context": context,
             "query_descriptions": query_descriptions,
             "query_type_descriptions": query_type_descriptions,
         }
@@ -360,5 +361,5 @@ class IGP2Verbalizer(axs.Verbalizer):
         query_str = ""
         for query_name, syntax in query.queries().items():
             query_str += f"- '{syntax}': {q_desc[query_name]}\n"
-        query_types_str = "\n".join([f"{k}: {v}" for k, v in q_type_desc.items()])
+        query_types_str = "\n".join([f"- {k}: {v}" for k, v in q_type_desc.items()])
         return query_str[:-1], query_types_str
