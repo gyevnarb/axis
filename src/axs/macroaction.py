@@ -34,6 +34,7 @@ class ActionSegment:
 
 _macro_library: dict[str, "type[MacroAction]"] = {}
 
+
 class MacroAction(ABC, Registerable, class_type=None):
     """Abstract base class for macro actions.
 
@@ -45,7 +46,9 @@ class MacroAction(ABC, Registerable, class_type=None):
     macro_names: ClassVar[list[str]] = []
 
     def __init__(
-        self, name: str, action_segments: list[ActionSegment],
+        self,
+        name: str,
+        action_segments: list[ActionSegment] | None = None,
     ) -> "MacroAction":
         """Initialize the macro action with an empty list of actions.
 
@@ -53,7 +56,8 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         Args:
             name (str): The name of the macro action.
-            action_segments (list[ActionSegment]): Action segments of the macro action.
+            action_segments (list[ActionSegment] | None): Action segments of the
+                macroaction. Optional, and may be set later with from_observations().
 
         """
         if not self.macro_names:
@@ -66,13 +70,14 @@ class MacroAction(ABC, Registerable, class_type=None):
             raise ValueError(error_msg)
         self.macro_name = name
 
-        if any(not isinstance(seg, ActionSegment) for seg in action_segments):
+        self.action_segments = action_segments
+        if self.action_segments is not None and any(
+            not isinstance(seg, ActionSegment) for seg in action_segments
+        ):
             error_msg = (
                 f"Action segments {action_segments} must be of type ActionSegment."
             )
             raise ValueError(error_msg)
-        self.action_segments = action_segments
-        self.__repr__()  # Call repr to check if it is implemented
 
     def __repr__(self) -> str:
         """Return representation of the macro action. Used in verbalization."""
@@ -115,6 +120,16 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         Args:
             macro_actions (list[MacroAction]): Macro actions to unwrap.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def from_observations(self, observations: list[Any]) -> "MacroAction":
+        """Create a macro action from observations for the given macro name.
+
+        Args:
+            observations (list[Any]): The observations to create the macro action.
 
         """
         raise NotImplementedError

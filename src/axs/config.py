@@ -46,7 +46,7 @@ class Registerable:
         """
         if name not in _registry:
             error_msg = (
-                f"Verbalizer {name} not found in the factory "
+                f"Type {name} not found in the registry "
                 f"with {_registry.keys()}."
             )
             raise ValueError(error_msg)

@@ -39,6 +39,10 @@ class IGP2MacroAction(axs.MacroAction):
             )
         return f"{self.macro_name}[empty]"
 
+    def __str__(self) -> str:
+        """Create string representation of the macro action."""
+        return self.__repr__()
+
     @classmethod
     def wrap(
         cls,
@@ -94,6 +98,9 @@ class IGP2MacroAction(axs.MacroAction):
             for segment in macro_action.action_segments:
                 ret.extend(segment.actions)
         return ret
+
+    def from_observations(self, observations):
+        pass
 
     @classmethod
     def _group_actions(
