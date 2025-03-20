@@ -49,7 +49,7 @@ class IGP2MacroAction(axs.MacroAction):
         config: axs.MacroActionConfig,
         env: ip.simplesim.SimulationEnv,
         actions: list[np.ndarray],  # noqa: ARG003
-        observations: list[np.ndarray],  # noqa: ARG003
+        observations: list[np.ndarray] | None = None,
         infos: list[str, dict[Any]] | None = None,
     ) -> dict[int, list["IGP2MacroAction"]]:
         """Segment the trajectory into different actions and sorted with time.
@@ -98,6 +98,9 @@ class IGP2MacroAction(axs.MacroAction):
             for segment in macro_action.action_segments:
                 ret.extend(segment.actions)
         return ret
+
+    def applicable(self, observation: Any, info: dict[str, Any] | None = None) -> bool:
+        return True
 
     def from_observations(self, observations):
         pass

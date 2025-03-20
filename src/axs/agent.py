@@ -67,8 +67,9 @@ class AXSAgent:
         if "macro_type" in kwargs:
             macro_type: type[MacroAction] = kwargs["macro_type"]
             if not issubclass(macro_type, MacroAction):
-                error_msg = (f"Macro type must be a subclass of MacroAction. "
-                             f"Got: {macro_type}")
+                error_msg = (
+                    f"Macro type must be a subclass of MacroAction. Got: {macro_type}"
+                )
                 raise ValueError(error_msg)
             self._macro_action = macro_type
         else:
@@ -77,8 +78,10 @@ class AXSAgent:
         if "verbalizer_type" in kwargs:
             verbalizer_type: type[Verbalizer] = kwargs["verbalizer_type"]
             if not issubclass(verbalizer_type, Verbalizer):
-                error_msg = (f"Verbalizer type must be a subclass of Verbalizer. "
-                             f"Got: {verbalizer_type}")
+                error_msg = (
+                    f"Verbalizer type must be a subclass of Verbalizer. "
+                    f"Got: {verbalizer_type}"
+                )
                 raise ValueError(error_msg)
             self._verbalizer = verbalizer_type
         else:
@@ -87,8 +90,7 @@ class AXSAgent:
         if "query_type" in kwargs:
             query_type: type[Query] = kwargs["query_type"]
             if not issubclass(query_type, Query):
-                error_msg = (f"Query type must be a subclass of Query. "
-                             f"Got: {query_type}")
+                error_msg = f"Query type must be a subclass of Query. Got: {query_type}"
                 raise ValueError(error_msg)
             self._query = query_type
         else:
@@ -157,7 +159,7 @@ class AXSAgent:
 
             query_output = self._llm.chat(messages)[0]
             messages.append(query_output)
-            query_content= query_output["content"]
+            query_content = query_output["content"]
             try:
                 simulation_query = self._query.parse(query_content)
             except ValueError as e:
@@ -168,13 +170,14 @@ class AXSAgent:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Your generated query was invalid. " + str(e),
+                        "content": (f"The generated query is invalid. "
+                                    f"See error message: {e}"),
                     },
                 )
                 continue
 
             # self._simulator.set_state(start_state)
-            sim_states, sim_actions, rewards = self._simulator.query(simulation_query)
+            sim_states, sim_actions, rewards = self._simulator.run(simulation_query)
             self._episodic_memory.learn(
                 {"states": sim_states, "actions": sim_actions, "rewards": rewards},
             )

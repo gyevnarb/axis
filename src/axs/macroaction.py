@@ -79,10 +79,10 @@ class MacroAction(ABC, Registerable, class_type=None):
             )
             raise ValueError(error_msg)
 
+    @abstractmethod
     def __repr__(self) -> str:
         """Return representation of the macro action. Used in verbalization."""
-        error_msg = "MacroAction __repr__ must be overriden."
-        raise RuntimeError(error_msg)
+        raise NotImplementedError
 
     @classmethod
     @abstractmethod
@@ -91,7 +91,7 @@ class MacroAction(ABC, Registerable, class_type=None):
         config: MacroActionConfig,
         env: SupportedEnv,
         actions: list[Any],
-        observations: list[Any],
+        observations: list[Any] | None = None,
         infos: list[dict[str, Any]] | None = None,
     ) -> dict[int, list["MacroAction"]]:
         """Wrap low-level actions, observations, or other infos into macro actions.
@@ -104,7 +104,7 @@ class MacroAction(ABC, Registerable, class_type=None):
             config (MacroActionConfig): Configuration for the macro action.
             env (SupportedEnv): Environment for the agent.
             actions (list[Any]): Low-level trajectory of actions of the agent to wrap.
-            observations (list[Any]): Environment observation sequence.
+            observations (list[Any] | None): Environment observation sequence.
             infos (list[dict[str, Any]] | None): list of info dictionaries from the env.
 
         Returns:
@@ -120,6 +120,17 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         Args:
             macro_actions (list[MacroAction]): Macro actions to unwrap.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def applicable(self, observation: Any, info: dict[str, Any] | None = None) -> bool:
+        """Check if the macro action is applicable in the given observation.
+
+        Args:
+            observation (Any): The observation to check applicability.
+            info (Any | None): Optional environment info dict.
 
         """
         raise NotImplementedError
