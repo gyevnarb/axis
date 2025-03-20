@@ -64,7 +64,7 @@ class AXSAgent:
 
         # Utility components
         if "macro_type" in kwargs:
-            macro_type = kwargs["macro_type"]
+            macro_type: type[MacroAction] = kwargs["macro_type"]
             if not issubclass(macro_type, MacroAction):
                 error_msg = (f"Macro type must be a subclass of MacroAction. "
                              f"Got: {macro_type}")
@@ -72,8 +72,9 @@ class AXSAgent:
             self._macro_action = macro_type
         else:
             self._macro_action = MacroAction.get(config.axs.macro_action.name)
+
         if "verbalizer_type" in kwargs:
-            verbalizer_type = kwargs["verbalizer_type"]
+            verbalizer_type: type[Verbalizer] = kwargs["verbalizer_type"]
             if not issubclass(verbalizer_type, Verbalizer):
                 error_msg = (f"Verbalizer type must be a subclass of Verbalizer. "
                              f"Got: {verbalizer_type}")
@@ -81,8 +82,9 @@ class AXSAgent:
             self._verbalizer = verbalizer_type
         else:
             self._verbalizer = Verbalizer.get(config.axs.verbalizer.name)
+
         if "query_type" in kwargs:
-            query_type = kwargs["query_type"]
+            query_type: type[Query] = kwargs["query_type"]
             if not issubclass(query_type, Query):
                 error_msg = (f"Query type must be a subclass of Query. "
                              f"Got: {query_type}")
@@ -127,8 +129,9 @@ class AXSAgent:
             )
             raise ValueError(error_msg)
 
-        context = self._verbalizer.convert(
+        context_dict = self._verbalizer.convert(
             self._simulator.env.unwrapped,
+            self._query,
             observations,
             macro_actions,
             infos,
@@ -136,11 +139,9 @@ class AXSAgent:
         )
 
         query_prompt = self._query_prompt.fill(
-            query_descriptions=None,
-            query_type_descriptions=None,
+            context_dict,
             user_prompt=user_prompt,
             macro_names=self._macro_action.macro_names,
-            context=context,
         )
         messages.append({"role": "user", "content": query_prompt})
 
@@ -202,7 +203,6 @@ class AXSAgent:
             "semantic_memory": self._semantic_memory,
             "episodic_memory": self._episodic_memory,
             "simulator": self._simulator,
-            "verbalizer": self._verbalizer,
             "macro_action": self._macro_action,
         }
 

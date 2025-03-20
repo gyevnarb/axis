@@ -42,15 +42,17 @@ class IGP2Verbalizer(axs.Verbalizer):
     @staticmethod
     def convert(
         env: ip.simplesim.SimulationEnv,
+        query: axs.Query,
         observations: list[np.ndarray],  # noqa: ARG004
         macro_actions: dict[int, list[IGP2MacroAction]],
         infos: list[dict[str, Any]],
         **kwargs: dict[str, Any],
-    ) -> str:
+    ) -> dict[str, str]:
         """Verbalize the IGP2 scenario.
 
         Args:
             env (ip.simplesim.SimulationEnv): The IGP2 environment.
+            query (axs.Query): The query to verbalize.
             observations (list): The observations of the agents. Not used.
             macro_actions (list): The macro actions of the agents.
             infos (list): The information of the agents. Not used.
@@ -73,6 +75,10 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - resolution: The resolution of the road midline (0.01).
                 - add_metadata: Whether to add metadata before
                             the road layout description.
+
+        Returns:
+            context (dict[str, str]): Dictionary of verbalized data with keys mapping to
+                argument names in a axs.Query objetc
 
         """
         context = ""
@@ -102,7 +108,14 @@ class IGP2Verbalizer(axs.Verbalizer):
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
             context += "\n"
 
-        return context[:-1]  # Remove trailing newline
+        query_descriptions, query_type_descriptions = \
+            IGP2Verbalizer.convert_query(query)
+
+        return {
+            "context": context[:-1],  # Remove trailing newline
+            "query_descriptions": query_descriptions,
+            "query_type_descriptions": query_type_descriptions,
+        }
 
     @staticmethod
     def convert_infos(infos: list[dict[str, Any]], **kwargs: dict[str, Any]) -> str:
@@ -155,14 +168,16 @@ class IGP2Verbalizer(axs.Verbalizer):
             if subsample > 1:
                 sampled_trajectory = util.subsample_trajectory(trajectory, subsample)
 
-            ret[agent_id] = dict([
-                IGP2Verbalizer._verbalize_control_signal(
-                    signal,
-                    rounding,
-                    sampled_trajectory,
-                )
-                for signal in state_signals
-            ])
+            ret[agent_id] = dict(
+                [
+                    IGP2Verbalizer._verbalize_control_signal(
+                        signal,
+                        rounding,
+                        sampled_trajectory,
+                    )
+                    for signal in state_signals
+                ],
+            )
 
         return ret
 
@@ -327,3 +342,23 @@ class IGP2Verbalizer(axs.Verbalizer):
             raise ValueError(error_msg)
 
         return name, data
+
+    @staticmethod
+    def convert_query(query: axs.Query) -> tuple[str, str]:
+        """Convert the query to query and type descriptions.
+
+        Args:
+            query (axs.Query): The query to convert.
+
+        Returns:
+            tuple: The query and its type descriptions.
+
+        """
+        q_desc = query.query_descriptions()
+        q_type_desc = query.query_type_descriptions()
+
+        query_str = ""
+        for query_name, syntax in query.queries().items():
+            query_str += f"- '{syntax}': {q_desc[query_name]}\n"
+        query_types_str = "\n".join([f"{k}: {v}" for k, v in q_type_desc.items()])
+        return query_str[:-1], query_types_str

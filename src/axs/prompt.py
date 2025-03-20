@@ -4,6 +4,14 @@ from string import Formatter
 from typing import Any
 
 
+class SafeDict(dict):
+    """A dictionary that returns the key as a value if the key is missing."""
+
+    def __missing__(self, key: str) -> str:
+        """Return the key as a value if the key is missing."""
+        return "{" + key + "}"
+
+
 class Prompt:
     """A class to generate prompts from templates and context.
 
@@ -22,13 +30,30 @@ class Prompt:
         self.template = template
         self.time = time
 
-    def fill(self, **content: dict[str, Any]) -> str:
-        """Complete the prompt from the template and context."""
-        for k in content:
-            if k not in self.placeholders:
+    def fill(
+        self, context_dict: dict[str, str] | None = None, **content: dict[str, Any],
+    ) -> str:
+        """Complete the prompt from the template and context.
+
+        Additional content can be passed as keyword arguments,
+        which will be added to query text after the context has been initialized.
+
+        Args:
+            context_dict (dict): The context dictionary to fill the template.
+            content (dict[str, Any]): Additional content to fill the template.`
+
+        """
+        if context_dict is None:
+            context_dict = {}
+
+        all_vars = {k for d in [context_dict, content] for k in d}
+        for k in self.placeholders:
+            if k not in all_vars:
                 error_msg = f"Placeholder '{k}' not specified in context."
                 raise ValueError(error_msg)
-        return self.template.format(**content)
+
+        temp_str = self.template.format_map(SafeDict(context_dict))
+        return temp_str.format_map(SafeDict(content))
 
     @property
     def placeholders(self) -> list[str]:

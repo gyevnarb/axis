@@ -184,6 +184,7 @@ class IGP2MacroAction(axs.MacroAction):
 
         Args:
             config (MacroActionConfig): Configuration for the macro action.
+            scenario_map (ip.Map): The road layout of the scenario.
             trajectory (ip.StateTrajectory): Trajectory to segment into macro actions.
             inx (int): The index of the trajectory to segment.
 

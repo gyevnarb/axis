@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from axs.config import Registerable, SupportedEnv
+from axs.query import Query
 
 logger = logging.getLogger(__name__)
-_verbalizer_library: dict[str, "type[Verbalizer]"] = {}
 
 
 class Verbalizer(ABC, Registerable, class_type=None):
@@ -17,11 +17,12 @@ class Verbalizer(ABC, Registerable, class_type=None):
     @abstractmethod
     def convert(
         env: SupportedEnv,
+        query: Query,
         observations: list[Any],
         macro_actions: list[dict[int, Any]],
         infos: list[dict[str, Any]],
         **kwargs: dict[str, Any],
-    ) -> str:
+    ) -> dict[str, str]:
         """Convert all environment data.
 
         This method is used in AXSAgent to verbalize the context information.
@@ -30,11 +31,16 @@ class Verbalizer(ABC, Registerable, class_type=None):
 
         Args:
             env (SupportedEnv): The environment to verbalize.
+            query (Query): The query to verbalize.
             observations (list[Any]): The observations to verbalize.
             macro_actions (list[dict[int, Any]]): dictionary of agent IDs to
                     corresponding macro actions.
             infos (list[dict[str, Any]]): The information dictionaries to verbalize.
             kwargs: Additional options for the verbalizer.
+
+        Returns:
+            context (dict[str, str]): Dictionary of verbalized data with keys mapping to
+                argument names in a axs.Query objetc
 
         """
         raise NotImplementedError
@@ -89,6 +95,20 @@ class Verbalizer(ABC, Registerable, class_type=None):
         Args:
             infos (list[str, dict[Any]]): List of information dictionaries to verbalize.
             kwargs: Additional options for the verbalizer.
+
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def convert_query(query: Query) -> tuple[str, str]:
+        """Convert the query to query and type descriptions.
+
+        Args:
+            query (axs.Query): The query to convert.
+
+        Returns:
+            tuple: The query and its type descriptions.
 
         """
         raise NotImplementedError

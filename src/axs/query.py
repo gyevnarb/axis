@@ -5,6 +5,7 @@ import re
 from typing import Any, ClassVar, get_args, get_origin
 
 from axs.config import Registerable
+from axs.macroaction import MacroAction
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,22 @@ class Query(Registerable, class_type=None):
         "whatif",
         "what",
     ]
-    args_and_types: ClassVar[QueryTypeMap]
+    args_and_types: ClassVar[QueryTypeMap] = {
+        "add": {"state": str},  # We don't know the state space so we use str
+        "remove": {"agent": int},
+        "whatif": {"agent": int, "actions": list[MacroAction], "time": int},
+        "what": {"agent": int, "time": int},
+    }
 
     def __init__(self, name: str, params: dict[str, Any]) -> "Query":
-        """Initialize new Query."""
-        self.name = name
+        """Initialize new Query.
+
+        Args:
+            name (str): The name of the query.
+            params (dict): The parameters for the query.
+
+        """
+        self.quey_name = name
         self.params = params
 
     def __init_subclass__(cls) -> None:
@@ -65,6 +77,14 @@ class Query(Registerable, class_type=None):
                     raise ValueError(error_msg)
 
     @classmethod
+    def queries(cls) -> dict[str, str]:
+        """Return the list of valid queries with arguments."""
+        return {
+            query: f"{query}({', '.join(args)})"
+            for query, args in cls.args_and_types.items()
+        }
+
+    @classmethod
     def query_descriptions(cls) -> dict[str, str]:
         """Return a string with the query descriptions.
 
@@ -74,9 +94,9 @@ class Query(Registerable, class_type=None):
         generate the user prompt for the LLM.
         """
         return {
-            "add": "What would happen if a new agent was present from at <state> from the start?",
+            "add": "What would happen if a new agent was present from at <state> from the start?",  # noqa: E501
             "remove": "What would happen if <agent> was removed from the environment?",
-            "whatif": "What would happen if <agent> took <actions> starting from <time>?",
+            "whatif": "What would happen if <agent> took <actions> starting from <time>?",  # noqa: E501
             "what": "What will <agent> be doing at <time>?",
         }
 

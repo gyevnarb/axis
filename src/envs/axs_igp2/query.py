@@ -25,9 +25,9 @@ class IGP2Query(axs.Query):
         These descriptions are used to generate the user prompt for the LLM.
         """
         return {
-            "add": "What would happen if a new vehicle was present at <location> with goal <goal> from the start?",
+            "add": "What would happen if a new vehicle was present at <location> with goal <goal> from the start?",  # noqa: E501
             "remove": "What would happen if <vehicle> was removed from the road?",
-            "whatif": "What would happen if <vehicle> took <actions> starting from <time>?",
+            "whatif": "What would happen if <vehicle> took <actions> starting from <time>?",  # noqa: E501
             "what": "What will <vehicle> be doing at <time>?",
         }
 
