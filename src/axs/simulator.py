@@ -14,6 +14,10 @@ from axs.wrapper import QueryableAECWrapper, QueryableWrapper
 logger = logging.getLogger(__name__)
 
 
+class SimulationError(Exception):
+    """Exception raised for errors in the simulation."""
+
+
 class Simulator:
     """Wrapper class around gymansium-style environments."""
 
@@ -29,10 +33,13 @@ class Simulator:
         self.config = config
 
         if env is not None:
+            if not isinstance(env, SupportedEnv):
+                error_msg = "Environment must be a supported environment."
+                raise TypeError(error_msg)
             self.env = env
         elif config.name in gym.registry:
             self.env = gym.make(config.name, render_mode=None, **config.params)
-            self.env = QueryableWrapper(self.env)
+            self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
         elif config.env_type:
             if config.env_type == "aec":
                 self.env = pettingzoo.AECEnv(**config.params)
@@ -44,21 +51,32 @@ class Simulator:
                     f"Environment simulator {config.name} cannot be initialized."
                 )
                 raise ValueError(error_msg)
-            self.env = QueryableAECWrapper(self.env)
+            self.env = QueryableAECWrapper.get(config.wrapper_type)(self.env)
         else:
             error_msg = f"Environment simulator {config.name} cannot be initialized."
             raise ValueError(error_msg)
 
-    def run(self, query: Query) -> dict[str, Any]:
+    def run(
+        self,
+        query: Query,
+        observations: list[Any],
+        actions: list[Any],
+        infos: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Run the simulation with the given query.
 
         Args:
             query (Query): The query to run the simulation with.
+            observations (list[Any]): Observations used to set initial state.
+            actions (list[Any]): Actions used to set initial state.
+            infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
-        observations = []
-        infos = []
-        actions = []
+        self.env.set_state(query.params.get("time", None), observations, actions, infos)
+
+        sim_observations = []
+        sim_infos = []
+        sim_actions = []
 
         observation, info = self.env.reset(seed=self.config.seed)
 
@@ -76,8 +94,8 @@ class Simulator:
                 break
 
         return {
-            "observations": observations,
-            "infos": infos,
-            "actions": actions,
+            "observations": sim_observations,
+            "macro_actions": sim_actions,
+            "infos": sim_infos,
             "rewards": rewards,
         }

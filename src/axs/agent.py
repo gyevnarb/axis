@@ -11,7 +11,7 @@ from axs.macroaction import MacroAction
 from axs.memory import EpisodicMemory, SemanticMemory
 from axs.prompt import Prompt
 from axs.query import Query
-from axs.simulator import Simulator
+from axs.simulator import SimulationError, Simulator
 from axs.verbalize import Verbalizer
 
 logger = logging.getLogger(__name__)
@@ -134,10 +134,10 @@ class AXSAgent:
 
         context_dict = self._verbalizer.convert(
             self._simulator.env.unwrapped,
-            self._query,
             observations,
             macro_actions,
             infos,
+            query=self._query,
             **self.config.axs.verbalizer.params,
         )
 
@@ -170,28 +170,35 @@ class AXSAgent:
                 messages.append(
                     {
                         "role": "user",
-                        "content": (f"The generated query is invalid. "
-                                    f"See error message: {e}"),
+                        "content": (
+                            f"The generated query is invalid. See error message: {e}"
+                        ),
                     },
                 )
                 continue
 
-            # self._simulator.set_state(start_state)
-            simulation_results = self._simulator.run(simulation_query)
-            self._episodic_memory.learn(simulation_results)
+            try:
+                simulation_results = self._simulator.run(
+                    simulation_query, observations, actions, infos,
+                )
+                self._episodic_memory.learn(simulation_results)
+            except SimulationError as e:
+                error_msg = f"The simulation failed with error: {e}"
+                logger.info(error_msg)
+                messages.append({"role": "user", "content": error_msg})
 
             # Explanation synthesis
             simulation_context = self._verbalizer.convert(
-                self._simulator.env.unwrapped,)
-            explanation_prompt = self._explanation_prompt.fill(
-                states=txt_sim_states,
-                actions=txt_sim_actions,
-                rewards=txt_rewards,
+                self._simulator.env.unwrapped,
+                **simulation_results,
+                **self.config.axs.verbalizer.params,
             )
-            messages.append(explanation_prompt)
-            explanation_output = self._llm.chat(messages)
-            explanation = explanation_output.outputs[0].content
 
+            explanation_prompt = self._explanation_prompt.fill(simulation_context)
+            messages.append(explanation_prompt)
+
+            explanation_output = self._llm.chat(messages)[0]
+            explanation = explanation_output["content"]
             prev_explanation = explanation
             n += 1
 

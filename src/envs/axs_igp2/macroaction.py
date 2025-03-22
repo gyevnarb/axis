@@ -125,7 +125,7 @@ class IGP2MacroAction(axs.MacroAction):
 
     def from_observation(
         self,
-        observation: np.ndarray,
+        observation: np.ndarray,  # noqa: ARG002
         env: ip.simplesim.SimulationEnv | None = None,
         info: dict[str, ip.AgentState] | None = None,
     ) -> None:

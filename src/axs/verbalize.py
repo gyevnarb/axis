@@ -16,7 +16,7 @@ class Verbalizer(ABC, Registerable, class_type=None):
 
     @staticmethod
     @abstractmethod
-    def convert(
+    def convert(  # noqa: PLR0913
         env: SupportedEnv,
         observations: list[Any],
         macro_actions: list[dict[int, MacroAction]],

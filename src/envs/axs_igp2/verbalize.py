@@ -44,7 +44,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         env: ip.simplesim.SimulationEnv,
         observations: list[np.ndarray],  # noqa: ARG004
         macro_actions: dict[int, list[IGP2MacroAction]],
-        infos: list[dict[str, Any]],
+        infos: list[dict[str, ip.AgentState]],
         rewards: dict[str, float] | None = None,
         query: axs.Query | None = None,
         **kwargs: dict[str, Any],

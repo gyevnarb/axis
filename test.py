@@ -14,13 +14,13 @@ import axs
 with contextlib.suppress(ImportError):
     from envs import *
 
-
-logger = logging.getLogger(__name__)
 axs.init_logging(
     ["igp2.core.velocitysmoother", "matplotlib", "httpcore", "openai", "httpx"],
     # log_dir="output/logs",
     # log_name="test",
 )
+
+logger = logging.getLogger(__name__)
 
 CONFIG_FILE = "data/igp2/configs/scenario1.json"
 OUTPUT = "output/"

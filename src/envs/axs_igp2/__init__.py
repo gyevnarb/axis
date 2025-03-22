@@ -2,6 +2,7 @@
 
 from .macroaction import IGP2MacroAction
 from .query import IGP2Query
-from .verbalizer import IGP2Verbalizer
+from .verbalize import IGP2Verbalizer
+from .wrapper import IGP2Wrapper
 
-__all__ = ["IGP2MacroAction", "IGP2Query", "IGP2Verbalizer"]
+__all__ = ["IGP2MacroAction", "IGP2Query", "IGP2Verbalizer", "IGP2Wrapper"]

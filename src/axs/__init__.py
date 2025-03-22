@@ -29,7 +29,9 @@ from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
 from .prompt import Prompt
 from .query import Query, QueryTypeMap
+from .simulator import SimulationError, Simulator
 from .verbalize import Verbalizer
+from .wrapper import QueryableAECWrapper, QueryableWrapper
 
 __all__ = [
     "AXSAgent",
@@ -44,7 +46,11 @@ __all__ = [
     "Prompt",
     "Query",
     "QueryTypeMap",
+    "QueryableAECWrapper",
+    "QueryableWrapper",
     "SemanticMemory",
+    "SimulationError",
+    "Simulator",
     "SupportedEnv",
     "Verbalizer",
     "VerbalizerConfig",
@@ -114,7 +120,7 @@ def main(
     config_file = "data/igp2/configs/scenario1.json"
     config = Config(config_file)
     env = gym.make(
-        config.env.name, config=config.env.params, render_mode=config.env.render_mode
+        config.env.name, render_mode=config.env.render_mode, **config.env.params,
     )
     observation, info = env.reset(seed=config.env.seed)
 

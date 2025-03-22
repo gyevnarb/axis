@@ -75,6 +75,12 @@ class EnvConfig(ConfigBase):
         return self._config["name"]
 
     @property
+    def wrapper_type(self) -> str:
+        """QueryableWrapper type for the simulator to use."""
+        return self._config["wrapper_type"]
+
+
+    @property
     def env_type(self) -> str | None:
         """Optional environment type used for pettingzoo environments.
 
