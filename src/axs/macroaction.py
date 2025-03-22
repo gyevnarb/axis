@@ -1,6 +1,7 @@
 """Contains functions for wrapping low-level actions to higher level abstractions."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -32,9 +33,6 @@ class ActionSegment:
             raise ValueError(error_msg)
 
 
-_macro_library: dict[str, "type[MacroAction]"] = {}
-
-
 class MacroAction(ABC, Registerable, class_type=None):
     """Abstract base class for macro actions.
 
@@ -47,7 +45,9 @@ class MacroAction(ABC, Registerable, class_type=None):
 
     def __init__(
         self,
-        name: str,
+        macro_name: str,
+        agent_id: int | None = None,
+        config: MacroActionConfig | None = None,
         action_segments: list[ActionSegment] | None = None,
     ) -> "MacroAction":
         """Initialize the macro action with an empty list of actions.
@@ -55,7 +55,9 @@ class MacroAction(ABC, Registerable, class_type=None):
         This method also checks whether the macro library has been defined.
 
         Args:
-            name (str): The name of the macro action.
+            macro_name (str): The name of the macro action.
+            agent_id (int | None): The agent id to whome the macro action belongs.
+            config (MacroActionConfig | None): Configuration for the macro action.
             action_segments (list[ActionSegment] | None): Action segments of the
                 macroaction. Optional, and may be set later with from_observations().
 
@@ -63,12 +65,20 @@ class MacroAction(ABC, Registerable, class_type=None):
         if not self.macro_names:
             error_msg = f"Macro library of {type(self)} is empty."
             raise ValueError(error_msg)
-        if name not in self.macro_names:
-            error_msg = (
-                f"Macro action {name} not found in the factory with {self.macro_names}."
-            )
+        if macro_name not in self.macro_names:
+            error_msg = f"Macro {macro_name} not found in library {self.macro_names}."
             raise ValueError(error_msg)
-        self.macro_name = name
+        self.macro_name = macro_name
+
+        if config is not None and not isinstance(config, MacroActionConfig):
+            error_msg = f"Configuration {config} must be of type MacroActionConfig."
+            raise TypeError(error_msg)
+        self.config = config
+
+        if agent_id is not None and not isinstance(agent_id, int):
+            error_msg = f"Agent id {agent_id} must be of type int."
+            raise TypeError(error_msg)
+        self.agent_id = agent_id
 
         self.action_segments = action_segments
         if self.action_segments is not None and any(
@@ -77,7 +87,15 @@ class MacroAction(ABC, Registerable, class_type=None):
             error_msg = (
                 f"Action segments {action_segments} must be of type ActionSegment."
             )
+            raise TypeError(error_msg)
+
+    def __iter__(self) -> Generator["MacroAction", None, None]:
+        """Return the macro action object as an iterator."""
+        if self.action_segments is None:
+            error_msg = "Action segments not initialized."
             raise ValueError(error_msg)
+        for segment in self.action_segments:
+            yield from segment.actions
 
     @abstractmethod
     def __repr__(self) -> str:
@@ -89,9 +107,9 @@ class MacroAction(ABC, Registerable, class_type=None):
     def wrap(
         cls,
         config: MacroActionConfig,
-        env: SupportedEnv,
         actions: list[Any],
         observations: list[Any] | None = None,
+        env: SupportedEnv | None = None,
         infos: list[dict[str, Any]] | None = None,
     ) -> dict[int, list["MacroAction"]]:
         """Wrap low-level actions, observations, or other infos into macro actions.
@@ -102,9 +120,9 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         Args:
             config (MacroActionConfig): Configuration for the macro action.
-            env (SupportedEnv): Environment for the agent.
             actions (list[Any]): Low-level trajectory of actions of the agent to wrap.
             observations (list[Any] | None): Environment observation sequence.
+            env (SupportedEnv | None): Environment of the agent.
             infos (list[dict[str, Any]] | None): list of info dictionaries from the env.
 
         Returns:
@@ -113,37 +131,60 @@ class MacroAction(ABC, Registerable, class_type=None):
         """
         raise NotImplementedError
 
-    @classmethod
-    @abstractmethod
-    def unwrap(cls, macro_actions: list["MacroAction"]) -> list[Any]:
-        """Unwrap the macro actions into low-level actions.
-
-        Args:
-            macro_actions (list[MacroAction]): Macro actions to unwrap.
-
-        """
-        raise NotImplementedError
+    def unwrap(self) -> list[Any]:
+        """Unwrap the macro action into low-level actions."""
+        return list(self)
 
     @abstractmethod
-    def applicable(self, observation: Any, info: dict[str, Any] | None = None) -> bool:
+    def applicable(
+        self,
+        observation: Any,
+        env: SupportedEnv | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> bool:
         """Check if the macro action is applicable in the given observation.
 
         Args:
             observation (Any): The observation to check applicability.
+            env (SupportedEnv | None): Optional environment object.
             info (Any | None): Optional environment info dict.
 
         """
         raise NotImplementedError
 
     @abstractmethod
-    def from_observations(self, observations: list[Any]) -> "MacroAction":
-        """Create a macro action from observations for the given macro name.
+    def from_observation(
+        self,
+        observation: Any,
+        env: SupportedEnv | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize action segments of the macro action staring from an observation.
+
+        This function will calculate the action segments for the macro action
+        which the agent will take when executing the macro action.
 
         Args:
-            observations (list[Any]): The observations to create the macro action.
+            observation (list[Any]): The observations to create the macro action.
+            env (SupportedEnv | None): The agent's environment object.
+            info (dict[str, Any]): The info dictionary from the environment.
 
         """
         raise NotImplementedError
+
+    def next_action(
+        self,
+        observation: Any | None = None,
+        env: SupportedEnv | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> Any:
+        """Return the next action of the macro action.
+
+        By default, this process invokes next() on a generator object built
+        from the action segments. It may be overriden to calculate the next action based
+        on the current state of the environment.
+        """
+        return next(self)
 
     @property
     def start_t(self) -> int:

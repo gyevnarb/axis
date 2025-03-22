@@ -18,8 +18,8 @@ class IGP2MacroAction(axs.MacroAction):
     """
 
     macro_names: ClassVar[list[str]] = [
-        "SlowDown",
-        "Accelerate",
+        # "SlowDown",
+        # "Accelerate",
         "Stop",
         "ChangeLaneLeft",
         "ChangeLaneRight",
@@ -47,22 +47,22 @@ class IGP2MacroAction(axs.MacroAction):
     def wrap(
         cls,
         config: axs.MacroActionConfig,
-        env: ip.simplesim.SimulationEnv,
         actions: list[np.ndarray],  # noqa: ARG003
-        observations: list[np.ndarray] | None = None,
+        observations: list[np.ndarray] | None = None,  # noqa: ARG003
+        env: ip.simplesim.SimulationEnv | None = None,
         infos: list[str, dict[Any]] | None = None,
     ) -> dict[int, list["IGP2MacroAction"]]:
-        """Segment the trajectory into different actions and sorted with time.
+        """Segment a trajectory into different actions and sorted with time.
 
         Also stores results in place and overrides previously stored actions.
 
         Args:
             config (MacroActionConfig): The configuration for the macro action.
-            env (SupportedEnv): The environment to extract the agent states.
             actions (List[np.ndarray]): An agent trajectory to
                     segment into macro actions.
             observations (List[Dict[str, np.ndarray]]): The environment
                     observation sequence.
+            env (SupportedEnv): The environment to extract the agent states.
             infos (List[Dict[int, ip.AgentState]]): Optional list of
                     agent states from the environment.
 
@@ -79,7 +79,10 @@ class IGP2MacroAction(axs.MacroAction):
             action_sequences = []
             for inx in range(len(trajectory.times)):
                 matched_actions = cls._match_actions(
-                    config, env.scenario_map, trajectory, inx,
+                    config.params["eps"],
+                    env.scenario_map,
+                    trajectory,
+                    inx,
                 )
                 action_sequences.append(matched_actions)
             action_segmentations = cls._segment_actions(
@@ -87,28 +90,103 @@ class IGP2MacroAction(axs.MacroAction):
                 trajectory,
                 action_sequences,
             )
-            ret[agent_id] = cls._group_actions(action_segmentations)
+            ret[agent_id] = cls._group_actions(action_segmentations, agent_id, config)
         return ret
 
-    @classmethod
-    def unwrap(cls, macro_actions: list["IGP2MacroAction"]) -> list[np.ndarray]:
-        """Unwrap the macro actions into low-level actions. Returns a generator."""
-        ret = []
-        for macro_action in macro_actions:
-            for segment in macro_action.action_segments:
-                ret.extend(segment.actions)
+    def applicable(
+        self,
+        observation: Any,  # noqa: ARG002
+        env: ip.simplesim.SimulationEnv | None = None,
+        info: dict[str, ip.AgentState] | None = None,
+    ) -> bool:
+        """Check if the macro action is applicable in the given observation.
+
+        Args:
+            observation (Any): The observation to check applicability.
+            env (SupportedEnv | None): The environment to extract the agent states.
+            info (Any | None): Optional environment info dict.
+
+        """
+        state = (info[self.agent_id], env.scenario_map)
+        ret = False
+        if self.name == "Stop":
+            ret = ip.StopMA.applicable(*state)
+        elif self.name == "ChangeLaneLeft":
+            ret = ip.ChangeLaneLeft.applicable(*state)
+        elif self.name == "ChangeLaneRight":
+            ret = ip.ChangeLaneRight.applicable(*state)
+        elif self.name in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
+            ret = ip.Turn.applicable(*state)
+        elif self.name == "GiveWay":
+            ret = ip.GiveWay.applicable(*state)
+        elif self.name == "GoStraight":
+            ret = ip.FollowLane.applicable(*state)
         return ret
 
-    def applicable(self, observation: Any, info: dict[str, Any] | None = None) -> bool:
-        return True
+    def from_observation(
+        self,
+        observation: np.ndarray,
+        env: ip.simplesim.SimulationEnv | None = None,
+        info: dict[str, ip.AgentState] | None = None,
+    ) -> None:
+        """Use IGP2's built-in macro actions to set up action segments if possible.
 
-    def from_observations(self, observations):
-        pass
+        For the SlowDown, Accelerate, and Stop macro actions, we can directly initialize
+        the action segments based on the agent's velocity and acceleration.
+
+        Args:
+            observation (np.ndarray): The observation to create the macro action.
+            env (ip.simplesim.SimulationEnv | None): Environment of the agent.
+            info (dict[str, ip.AgentState] | None): Optional info dict.
+
+        """
+        if self.name == "Stop":
+            ip_macro = ip.StopMA
+        elif self.name == "ChangeLaneLeft":
+            ip_macro = ip.ChangeLaneLeft
+        elif self.name == "ChangeLaneRight":
+            ip_macro = ip.ChangeLaneRight
+        elif self.name in ["TurnLeft", "TurnRight", "GoStraightJunction", "GiveWay"]:
+            ip_macro = ip.Exit
+        elif self.name == "GoStraight":
+            ip_macro = ip.Continue
+
+        agent_state = info[self.agent_id]
+        ip_agent = ip.MacroAgent(self.agent_id, agent_state)
+        ip_observation = ip.Observation(info, env.scenario_map)
+        ip_ma_args = ip_macro.get_possible_args(agent_state, env.scenario_map)
+        for config_dict in ip_ma_args:
+            if "GiveWay" in agent_state.maneuver and self.name != "GiveWay":
+                config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
+            macro = ip_agent.update_macro_action(ip_macro, config_dict, ip_observation)
+            if ip_macro == ip.Exit:
+                direction = (
+                    1
+                    if self.name == "TurnLeft"
+                    else -1
+                    if self.name == "TurnRight"
+                    else 0
+                )
+                if direction == macro.direction:
+                    break
+        self.action_segments = []
+        self._agent = ip_agent
+
+    def next_action(
+        self,
+        observation: Any | None = None,  # noqa: ARG002
+        env: ip.simplesim.SimulationEnv | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> ip.Action:
+        """Return the next action of the macro action."""
+        return self._agent.next_action(ip.Observation(info, env.scenario_map))
 
     @classmethod
     def _group_actions(
         cls,
         action_segmentations: list[axs.ActionSegment],
+        agent_id: int,
+        config: axs.MacroActionConfig,
     ) -> list["IGP2MacroAction"]:
         """Group action segments to macro actions by IGP2 maneuver."""
         ret, group = [], []
@@ -116,11 +194,11 @@ class IGP2MacroAction(axs.MacroAction):
         for segment in action_segmentations:
             man = segment.name[-1]
             if prev_man != man:
-                ret.append(cls(prev_man, group))
+                ret.append(cls(prev_man, agent_id, config, group))
                 group = []
             group.append(segment)
             prev_man = man
-        ret.append(cls(prev_man, group))
+        ret.append(cls(prev_man, agent_id, config, group))
         return ret
 
     @staticmethod
@@ -178,7 +256,7 @@ class IGP2MacroAction(axs.MacroAction):
 
     @staticmethod
     def _match_actions(
-        config: axs.MacroActionConfig,
+        eps: float,
         scenario_map: ip.Map,
         trajectory: ip.StateTrajectory,
         inx: int,
@@ -186,7 +264,7 @@ class IGP2MacroAction(axs.MacroAction):
         """Segment the trajectory into different actions and sorted with time.
 
         Args:
-            config (MacroActionConfig): Configuration for the macro action.
+            eps (float): The epsilon value for comparison.
             scenario_map (ip.Map): The road layout of the scenario.
             trajectory (ip.StateTrajectory): Trajectory to segment into macro actions.
             inx (int): The index of the trajectory to segment.
@@ -196,7 +274,6 @@ class IGP2MacroAction(axs.MacroAction):
             np.ndarray: Raw action (acceleration-steering) of the agent at given index.
 
         """
-        eps = config.params["eps"]
         action_names = []
         state = trajectory.states[inx]
 

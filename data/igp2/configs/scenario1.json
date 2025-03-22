@@ -14,20 +14,20 @@
         "n_max": 5,
         "delta": 0.01,
         "macro_action": {
-            "name": "IGP2MacroAction",
+            "type_name": "IGP2MacroAction",
             "params": {
                 "eps": 0.1
             }
         },
         "verbalizer": {
-            "name": "IGP2Verbalizer",
+            "type_name": "IGP2Verbalizer",
             "params": {
                 "add_roads": false,
                 "subsample": 3
             }
         },
         "query": {
-            "name": "IGP2Query"
+            "type_name": "IGP2Query"
         },
         "system_template": "data/igp2/prompts/system.txt",
         "query_template": "data/igp2/prompts/query.txt",

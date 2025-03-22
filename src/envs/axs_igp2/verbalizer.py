@@ -42,20 +42,22 @@ class IGP2Verbalizer(axs.Verbalizer):
     @staticmethod
     def convert(
         env: ip.simplesim.SimulationEnv,
-        query: axs.Query,
         observations: list[np.ndarray],  # noqa: ARG004
         macro_actions: dict[int, list[IGP2MacroAction]],
         infos: list[dict[str, Any]],
+        rewards: dict[str, float] | None = None,
+        query: axs.Query | None = None,
         **kwargs: dict[str, Any],
     ) -> dict[str, str]:
         """Verbalize the IGP2 scenario.
 
         Args:
             env (ip.simplesim.SimulationEnv): The IGP2 environment.
-            query (axs.Query): The query to verbalize.
             observations (list): The observations of the agents. Not used.
             macro_actions (list): The macro actions of the agents.
-            infos (list): The information of the agents. Not used.
+            infos (list): The information of the agents.
+            rewards (dict[str, float] | None): Any rewards to verbalize.
+            query (axs.Query | None): The query to verbalize.
             kwargs: Optional keyword arguments.
                 - add_roads: Whether to add road descriptions.
                 - add_actions: Whether to add raw steering and acceleration values.
@@ -107,10 +109,13 @@ class IGP2Verbalizer(axs.Verbalizer):
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
             context += "\n\n"
-        context = context[:-2]  # Remove trailing newlines
+        context = context[:-3]  # Remove trailing newlines
 
         query_descriptions, query_type_descriptions = \
             IGP2Verbalizer.convert_query(query)
+
+        if rewards is not None:
+            pass  # TODO: Add reward verbalization
 
         return {
             "context": context,

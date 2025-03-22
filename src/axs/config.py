@@ -164,9 +164,9 @@ class MacroActionConfig(ConfigBase):
     """Configuration class for MacroAction creation."""
 
     @property
-    def name(self) -> str:
-        """The name of the macro action."""
-        return self._config["name"]
+    def type_name(self) -> str:
+        """The type name of the macro action."""
+        return self._config["type_name"]
 
     @property
     def params(self) -> dict[str, Any]:
@@ -178,9 +178,9 @@ class VerbalizerConfig(ConfigBase):
     """Configuration class for the verbalizer."""
 
     @property
-    def name(self) -> str:
+    def type_name(self) -> str:
         """The name of the verbalizer."""
-        return self._config["name"]
+        return self._config["type_name"]
 
     @property
     def params(self) -> dict[str, Any]:
@@ -192,9 +192,9 @@ class QueryConfig(ConfigBase):
     """Configuration class for queries."""
 
     @property
-    def name(self) -> str:
+    def type_name(self) -> str:
         """The name of the query."""
-        return self._config["name"]
+        return self._config["type_name"]
 
     @property
     def params(self) -> dict[str, Any]:

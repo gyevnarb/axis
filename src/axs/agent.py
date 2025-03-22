@@ -73,7 +73,7 @@ class AXSAgent:
                 raise ValueError(error_msg)
             self._macro_action = macro_type
         else:
-            self._macro_action = MacroAction.get(config.axs.macro_action.name)
+            self._macro_action = MacroAction.get(config.axs.macro_action.type_name)
 
         if "verbalizer_type" in kwargs:
             verbalizer_type: type[Verbalizer] = kwargs["verbalizer_type"]
@@ -85,7 +85,7 @@ class AXSAgent:
                 raise ValueError(error_msg)
             self._verbalizer = verbalizer_type
         else:
-            self._verbalizer = Verbalizer.get(config.axs.verbalizer.name)
+            self._verbalizer = Verbalizer.get(config.axs.verbalizer.type_name)
 
         if "query_type" in kwargs:
             query_type: type[Query] = kwargs["query_type"]
@@ -94,7 +94,7 @@ class AXSAgent:
                 raise ValueError(error_msg)
             self._query = query_type
         else:
-            self._query = Query.get(config.axs.query.name)
+            self._query = Query.get(config.axs.query.type_name)
 
     def explain(self, user_prompt: str) -> str:
         """Explain behaviour based on the user's prompt.
@@ -118,9 +118,9 @@ class AXSAgent:
 
         macro_actions = self._macro_action.wrap(
             self.config.axs.macro_action,
-            self._simulator.env.unwrapped,
             actions,
             observations,
+            self._simulator.env.unwrapped,
             infos,
         )
         if not isinstance(macro_actions, dict) and not all(
@@ -177,15 +177,12 @@ class AXSAgent:
                 continue
 
             # self._simulator.set_state(start_state)
-            sim_states, sim_actions, rewards = self._simulator.run(simulation_query)
-            self._episodic_memory.learn(
-                {"states": sim_states, "actions": sim_actions, "rewards": rewards},
-            )
+            simulation_results = self._simulator.run(simulation_query)
+            self._episodic_memory.learn(simulation_results)
 
             # Explanation synthesis
-            txt_sim_states = self._verbalizer.convert(sim_states)
-            txt_sim_actions = self._verbalizer.convert(sim_actions)
-            txt_rewards = self._verbalizer.convert(rewards)
+            simulation_context = self._verbalizer.convert(
+                self._simulator.env.unwrapped,)
             explanation_prompt = self._explanation_prompt.fill(
                 states=txt_sim_states,
                 actions=txt_sim_actions,

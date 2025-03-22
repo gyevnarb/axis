@@ -36,8 +36,6 @@ env = gym.make(config.env.name, render_mode=config.env.render_mode, **config.env
 observation, info = env.reset(seed=config.env.seed)
 
 axs_agent = axs.AXSAgent(config)
-q1 = axs_agent._query.parse("whatif(vehicle=0, actions=[TurnLeft], time=0)")
-q2 = axs_agent._query.parse("add(location=(2, 5), goal=(5, 6))")
 
 if Path(f"{OUTPUT}/agent.pkl").exists():
     axs_agent.load_state(f"{OUTPUT}/agent.pkl")

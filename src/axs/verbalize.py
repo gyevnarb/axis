@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from axs.config import Registerable, SupportedEnv
+from axs.macroaction import MacroAction
 from axs.query import Query
 
 logger = logging.getLogger(__name__)
@@ -17,10 +18,11 @@ class Verbalizer(ABC, Registerable, class_type=None):
     @abstractmethod
     def convert(
         env: SupportedEnv,
-        query: Query,
         observations: list[Any],
-        macro_actions: list[dict[int, Any]],
+        macro_actions: list[dict[int, MacroAction]],
         infos: list[dict[str, Any]],
+        rewards: dict[str, float] | None = None,
+        query: Query | None = None,
         **kwargs: dict[str, Any],
     ) -> dict[str, str]:
         """Convert all environment data.
@@ -33,9 +35,10 @@ class Verbalizer(ABC, Registerable, class_type=None):
             env (SupportedEnv): The environment to verbalize.
             query (Query): The query to verbalize.
             observations (list[Any]): The observations to verbalize.
-            macro_actions (list[dict[int, Any]]): dictionary of agent IDs to
+            macro_actions (list[dict[int, MacroAction]]): dictionary of agent IDs to
                     corresponding macro actions.
             infos (list[dict[str, Any]]): The information dictionaries to verbalize.
+            rewards (dict[str, float] | None): Any rewards to verbalize.
             kwargs: Additional options for the verbalizer.
 
         Returns:

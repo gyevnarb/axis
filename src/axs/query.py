@@ -24,12 +24,6 @@ class Query(Registerable, class_type=None):
     any classes that can parse a string and (non-nested) lists and tuples.
     """
 
-    valid_queries: ClassVar[list[str]] = [
-        "add",
-        "remove",
-        "whatif",
-        "what",
-    ]
     args_and_types: ClassVar[QueryTypeMap] = {
         "add": {"state": str},  # We don't know the state space so we use str
         "remove": {"agent": int},
@@ -45,7 +39,7 @@ class Query(Registerable, class_type=None):
             params (dict): The parameters for the query.
 
         """
-        self.quey_name = name
+        self.query_name = name
         self.params = params
 
     def __init_subclass__(cls) -> None:
@@ -55,7 +49,7 @@ class Query(Registerable, class_type=None):
             error_msg = "Query.args_and_types is not defined."
             raise ValueError(error_msg)
 
-        for query_name in cls.valid_queries:
+        for query_name in cls.args_and_types:
             for arg_name, arg_type in cls.args_and_types[query_name].items():
                 origin = get_origin(arg_type)
                 args = get_args(arg_type)
@@ -66,7 +60,7 @@ class Query(Registerable, class_type=None):
         # Check description implementations
         query_descriptions = cls.query_descriptions()
         for query_name, description in query_descriptions.items():
-            if query_name not in cls.valid_queries:
+            if query_name not in cls.args_and_types:
                 error_msg = f"Invalid query name: {query_name}"
                 raise ValueError(error_msg)
             for match in desc_arg_re.findall(description):
@@ -142,7 +136,7 @@ class Query(Registerable, class_type=None):
 
         # Check if the query name is valid
         query_name = match.group(1)
-        if query_name not in Query.valid_queries:
+        if query_name not in cls.args_and_types:
             error_msg = f"Invalid query name: {query_name}"
             raise ValueError(error_msg)
 
