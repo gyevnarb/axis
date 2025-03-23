@@ -18,30 +18,6 @@ class QueryableWrapperBase(ABC):
     """Abstract class for simulation querying."""
 
     @abstractmethod
-    def set_state(
-        self,
-        agent_policies: dict[int, Policy],
-        query: Query,
-        observations: list[Any],
-        actions: list[Any],
-        infos: list[dict[str, Any]],
-    ) -> None:
-        """Set the state of the simulation and the agent policies.
-
-        This function is called ahead of each simulation call to
-        set the starting state of the simulation.
-
-        Args:
-            agent_policies (dict[int, Policy]): The agent policies to set.
-            query (Query): The query used to set the state.
-            observations (list[Any]): The observations to set.
-            actions (list[Any]): The actions to set.
-            infos (list[dict[str, Any]]): The infos to set.
-
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def execute_query(
         self,
         agent_policies: dict[int, Policy],
@@ -49,14 +25,21 @@ class QueryableWrapperBase(ABC):
         observations: list[Any],
         actions: list[Any],
         infos: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+        **kwargs: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any]]:
         """Execute the query on the simulation.
 
         Args:
+            agent_policies (dict[int, Policy]): Agent policies used in the simulation.
             query (Query): The query to execute.
+            observations (list[np.ndarray]): The observations from the environment.
+            actions (list[np.ndarray]): The actions from the environment.
+            infos (list[dict[str, Any]]): The infos from the environment.
+            kwargs: Additional optional keyword arguments.
 
         Returns:
-            result (dict[str, Any]): The result of the query.
+            result (tuple[Any, dict[str, Any]]): The new observation and info dict
+                after executing the query.
 
         """
         raise NotImplementedError

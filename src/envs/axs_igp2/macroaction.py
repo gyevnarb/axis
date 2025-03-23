@@ -32,11 +32,11 @@ class IGP2MacroAction(axs.MacroAction):
 
     def __init__(
         self,
-        scenario_map: ip.Map,
         macro_name: str,
         agent_id: int | None = None,
         config: axs.MacroActionConfig | None = None,
         action_segments: list[axs.ActionSegment] | None = None,
+        scenario_map: ip.Map | None = None,
     ) -> "IGP2MacroAction":
         """Initialize the macro action."""
         super().__init__(macro_name, agent_id, config, action_segments)
@@ -206,11 +206,13 @@ class IGP2MacroAction(axs.MacroAction):
         for segment in action_segmentations:
             man = segment.name[-1]
             if prev_man != man:
-                ret.append(cls(scenario_map, prev_man, agent_id, config, group))
+                ret.append(
+                    cls(prev_man, agent_id, config, group, scenario_map=scenario_map),
+                )
                 group = []
             group.append(segment)
             prev_man = man
-        ret.append(cls(scenario_map, prev_man, agent_id, config, group))
+        ret.append(cls(prev_man, agent_id, config, group, scenario_map=scenario_map))
         return ret
 
     @staticmethod

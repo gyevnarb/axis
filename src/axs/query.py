@@ -83,6 +83,15 @@ class Query(Registerable, class_type=None):
                 raise ValueError(error_msg)
         return time
 
+    def __repr__(self) -> str:
+        """Return the string representation of the Query."""
+        params = ", ".join(f"{k}={v}" for k, v in self.params.items())
+        return f"{self.query_name}({params})"
+
+    def __str__(self) -> str:
+        """Return the string representation of the Query."""
+        return repr(self)
+
     @classmethod
     def queries(cls) -> dict[str, str]:
         """Return the list of valid queries with arguments."""

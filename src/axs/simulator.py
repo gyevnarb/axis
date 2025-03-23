@@ -84,7 +84,11 @@ class Simulator:
             infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
-        self.env.reset()
+        logger.info("Running simulation with query: %s", str(query))
+
+        logger.debug("Resetting internal simulator state.")
+        self.env.reset(seed=self.config.seed)
+
         init_state = self.env.execute_query(
             self.agent_policies,
             query,
