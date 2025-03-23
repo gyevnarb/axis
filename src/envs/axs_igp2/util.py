@@ -1,5 +1,6 @@
 """Utility functions for the IGP2 AXSAgent implementation."""
 
+from collections import defaultdict
 import igp2 as ip
 import numpy as np
 
@@ -41,7 +42,10 @@ def subsample_trajectory(
     if trajectory.fps is not None:
         fps = trajectory.fps // f_subsample
     return ip.StateTrajectory(
-        fps, states=states, path=path, velocity=v_r,
+        fps,
+        states=states,
+        path=path,
+        velocity=v_r,
     )
 
 
@@ -65,3 +69,19 @@ def ndarray2str(array: np.ndarray, precision: int = 2) -> str:
     )
     ret = ret.replace("\n", "")
     return " ".join(ret.split())
+
+
+def infos2traj(
+    infos: list[dict[str, int]], time: int | None = None, fps: int | None = None,
+) -> dict[int, ip.StateTrajectory]:
+    """Convert a list of info dicts to a dictionary of StateTrajectories."""
+    trajectories = defaultdict(list)
+    for t, info_dict in enumerate(infos):
+        if time is not None and t > time:
+            break
+        for agent_id, agent_state in info_dict.items():
+            trajectories[agent_id].append(agent_state)
+    return {
+        agent_id: ip.StateTrajectory(fps, trajectory)
+        for agent_id, trajectory in trajectories.items()
+    }

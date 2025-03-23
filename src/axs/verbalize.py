@@ -17,12 +17,12 @@ class Verbalizer(ABC, Registerable, class_type=None):
     @staticmethod
     @abstractmethod
     def convert(  # noqa: PLR0913
-        env: SupportedEnv,
         observations: list[Any],
         macro_actions: list[dict[int, MacroAction]],
-        infos: list[dict[str, Any]],
+        infos: list[dict[str, Any]] | None = None,
         rewards: dict[str, float] | None = None,
         query: Query | None = None,
+        env: SupportedEnv | None = None,
         **kwargs: dict[str, Any],
     ) -> dict[str, str]:
         """Convert all environment data.
@@ -32,13 +32,13 @@ class Verbalizer(ABC, Registerable, class_type=None):
         as is, so it should be formatted accordingly.
 
         Args:
-            env (SupportedEnv): The environment to verbalize.
             query (Query): The query to verbalize.
             observations (list[Any]): The observations to verbalize.
             macro_actions (list[dict[int, MacroAction]]): dictionary of agent IDs to
                     corresponding macro actions.
-            infos (list[dict[str, Any]]): The information dictionaries to verbalize.
+            infos (list[dict[str, Any]] | None): Information dictionaries to verbalize.
             rewards (dict[str, float] | None): Any rewards to verbalize.
+            env (SupportedEnv | None): The environment to verbalize.
             kwargs: Additional options for the verbalizer.
 
         Returns:

@@ -109,8 +109,8 @@ class MacroAction(ABC, Registerable, class_type=None):
         config: MacroActionConfig,
         actions: list[Any],
         observations: list[Any] | None = None,
-        env: SupportedEnv | None = None,
         infos: list[dict[str, Any]] | None = None,
+        env: SupportedEnv | None = None,
     ) -> dict[int, list["MacroAction"]]:
         """Wrap low-level actions, observations, or other infos into macro actions.
 
@@ -122,8 +122,8 @@ class MacroAction(ABC, Registerable, class_type=None):
             config (MacroActionConfig): Configuration for the macro action.
             actions (list[Any]): Low-level trajectory of actions of the agent to wrap.
             observations (list[Any] | None): Environment observation sequence.
-            env (SupportedEnv | None): Environment of the agent.
             infos (list[dict[str, Any]] | None): list of info dictionaries from the env.
+            env (SupportedEnv | None): Environment of the agent.
 
         Returns:
             Dict[int, list[MacroAction]]: A dictionary of agent ids to macro actions.
@@ -139,14 +139,12 @@ class MacroAction(ABC, Registerable, class_type=None):
     def applicable(
         self,
         observation: Any,
-        env: SupportedEnv | None = None,
         info: dict[str, Any] | None = None,
     ) -> bool:
         """Check if the macro action is applicable in the given observation.
 
         Args:
             observation (Any): The observation to check applicability.
-            env (SupportedEnv | None): Optional environment object.
             info (Any | None): Optional environment info dict.
 
         """
@@ -156,7 +154,6 @@ class MacroAction(ABC, Registerable, class_type=None):
     def from_observation(
         self,
         observation: Any,
-        env: SupportedEnv | None = None,
         info: dict[str, Any] | None = None,
     ) -> None:
         """Initialize action segments of the macro action staring from an observation.
@@ -166,7 +163,6 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         Args:
             observation (list[Any]): The observations to create the macro action.
-            env (SupportedEnv | None): The agent's environment object.
             info (dict[str, Any]): The info dictionary from the environment.
 
         """
@@ -175,7 +171,6 @@ class MacroAction(ABC, Registerable, class_type=None):
     def next_action(
         self,
         observation: Any | None = None,
-        env: SupportedEnv | None = None,
         info: dict[str, Any] | None = None,
     ) -> Any:
         """Return the next action of the macro action.

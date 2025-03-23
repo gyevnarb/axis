@@ -6,7 +6,7 @@ Supports offline, localhost, and online LLM models.
 import logging
 
 import openai
-from vllm import LLM, SamplingParams
+from vllm import SamplingParams
 
 from axs.config import LLMConfig
 
@@ -32,6 +32,7 @@ class LLMWrapper:
         self._mode = config.inference_mode
 
         if self._mode == "offline":
+            from vllm import LLM
             self._llm = LLM(
                 config.model,
                 seed=self._sampling_params.seed,

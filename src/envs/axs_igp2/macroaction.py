@@ -1,6 +1,5 @@
 """Macro action wrapper for IGP2 agent."""
 
-from collections import defaultdict
 from copy import copy
 from typing import Any, ClassVar
 
@@ -9,6 +8,7 @@ import numpy as np
 from numpy import ma
 
 import axs
+from envs.axs_igp2 import util
 
 
 class IGP2MacroAction(axs.MacroAction):
@@ -30,6 +30,18 @@ class IGP2MacroAction(axs.MacroAction):
         "GoStraight",
     ]
 
+    def __init__(
+        self,
+        scenario_map: ip.Map,
+        macro_name: str,
+        agent_id: int | None = None,
+        config: axs.MacroActionConfig | None = None,
+        action_segments: list[axs.ActionSegment] | None = None,
+    ) -> "IGP2MacroAction":
+        """Initialize the macro action."""
+        super().__init__(macro_name, agent_id, config, action_segments)
+        self._scenario_map = scenario_map
+
     def __repr__(self) -> str:
         """Create representation of the macro action. Used in verbalization."""
         if self.action_segments:
@@ -49,8 +61,8 @@ class IGP2MacroAction(axs.MacroAction):
         config: axs.MacroActionConfig,
         actions: list[np.ndarray],  # noqa: ARG003
         observations: list[np.ndarray] | None = None,  # noqa: ARG003
-        env: ip.simplesim.SimulationEnv | None = None,
         infos: list[str, dict[Any]] | None = None,
+        env: ip.simplesim.SimulationEnv | None = None,
     ) -> dict[int, list["IGP2MacroAction"]]:
         """Segment a trajectory into different actions and sorted with time.
 
@@ -62,25 +74,23 @@ class IGP2MacroAction(axs.MacroAction):
                     segment into macro actions.
             observations (List[Dict[str, np.ndarray]]): The environment
                     observation sequence.
-            env (SupportedEnv): The environment to extract the agent states.
             infos (List[Dict[int, ip.AgentState]]): Optional list of
                     agent states from the environment.
+            env (SupportedEnv): The environment to extract the agent states.
 
         """
-        trajectories = defaultdict(list)
-        for frame in infos:
-            for agent_id, state in frame.items():
-                trajectories[agent_id].append(state)
+        scenario_map = env.scenario_map
+
+        trajectories = util.infos2traj(infos, fps=env.fps)
 
         ret = {}
-        for agent_id, states in trajectories.items():
-            trajectory = ip.StateTrajectory(None, states)
+        for agent_id, trajectory in trajectories.items():
             cls._fix_initial_state(trajectory)
             action_sequences = []
             for inx in range(len(trajectory.times)):
                 matched_actions = cls._match_actions(
                     config.params["eps"],
-                    env.scenario_map,
+                    scenario_map,
                     trajectory,
                     inx,
                 )
@@ -90,24 +100,27 @@ class IGP2MacroAction(axs.MacroAction):
                 trajectory,
                 action_sequences,
             )
-            ret[agent_id] = cls._group_actions(action_segmentations, agent_id, config)
+            ret[agent_id] = cls._group_actions(
+                action_segmentations,
+                agent_id,
+                config,
+                scenario_map,
+            )
         return ret
 
     def applicable(
         self,
-        observation: Any,  # noqa: ARG002
-        env: ip.simplesim.SimulationEnv | None = None,
+        observation: Any,
         info: dict[str, ip.AgentState] | None = None,
     ) -> bool:
         """Check if the macro action is applicable in the given observation.
 
         Args:
             observation (Any): The observation to check applicability.
-            env (SupportedEnv | None): The environment to extract the agent states.
             info (Any | None): Optional environment info dict.
 
         """
-        state = (info[self.agent_id], env.scenario_map)
+        state = (info[self.agent_id], self.scenario_map)
         ret = False
         if self.name == "Stop":
             ret = ip.StopMA.applicable(*state)
@@ -125,8 +138,7 @@ class IGP2MacroAction(axs.MacroAction):
 
     def from_observation(
         self,
-        observation: np.ndarray,  # noqa: ARG002
-        env: ip.simplesim.SimulationEnv | None = None,
+        observation: np.ndarray,
         info: dict[str, ip.AgentState] | None = None,
     ) -> None:
         """Use IGP2's built-in macro actions to set up action segments if possible.
@@ -136,7 +148,6 @@ class IGP2MacroAction(axs.MacroAction):
 
         Args:
             observation (np.ndarray): The observation to create the macro action.
-            env (ip.simplesim.SimulationEnv | None): Environment of the agent.
             info (dict[str, ip.AgentState] | None): Optional info dict.
 
         """
@@ -153,8 +164,8 @@ class IGP2MacroAction(axs.MacroAction):
 
         agent_state = info[self.agent_id]
         ip_agent = ip.MacroAgent(self.agent_id, agent_state)
-        ip_observation = ip.Observation(info, env.scenario_map)
-        ip_ma_args = ip_macro.get_possible_args(agent_state, env.scenario_map)
+        ip_observation = ip.Observation(info, self.scenario_map)
+        ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map)
         for config_dict in ip_ma_args:
             if "GiveWay" in agent_state.maneuver and self.name != "GiveWay":
                 config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
@@ -174,9 +185,9 @@ class IGP2MacroAction(axs.MacroAction):
 
     def next_action(
         self,
-        observation: Any | None = None,  # noqa: ARG002
-        env: ip.simplesim.SimulationEnv | None = None,
+        observation: Any | None = None,
         info: dict[str, Any] | None = None,
+        env: ip.simplesim.SimulationEnv | None = None,
     ) -> ip.Action:
         """Return the next action of the macro action."""
         return self._agent.next_action(ip.Observation(info, env.scenario_map))
@@ -187,6 +198,7 @@ class IGP2MacroAction(axs.MacroAction):
         action_segmentations: list[axs.ActionSegment],
         agent_id: int,
         config: axs.MacroActionConfig,
+        scenario_map: ip.Map,
     ) -> list["IGP2MacroAction"]:
         """Group action segments to macro actions by IGP2 maneuver."""
         ret, group = [], []
@@ -194,11 +206,11 @@ class IGP2MacroAction(axs.MacroAction):
         for segment in action_segmentations:
             man = segment.name[-1]
             if prev_man != man:
-                ret.append(cls(prev_man, agent_id, config, group))
+                ret.append(cls(scenario_map, prev_man, agent_id, config, group))
                 group = []
             group.append(segment)
             prev_man = man
-        ret.append(cls(prev_man, agent_id, config, group))
+        ret.append(cls(scenario_map, prev_man, agent_id, config, group))
         return ret
 
     @staticmethod

@@ -1,6 +1,7 @@
 """Create a wrapper class around gymansium-style environments."""
 
 import logging
+from collections import defaultdict
 from typing import Any
 
 import gymnasium as gym
@@ -8,6 +9,7 @@ import pettingzoo
 from pettingzoo.utils.conversions import parallel_to_aec
 
 from axs.config import EnvConfig, SupportedEnv
+from axs.policy import Policy
 from axs.query import Query
 from axs.wrapper import QueryableAECWrapper, QueryableWrapper
 
@@ -21,16 +23,26 @@ class SimulationError(Exception):
 class Simulator:
     """Wrapper class around gymansium-style environments."""
 
-    def __init__(self, config: EnvConfig, env: SupportedEnv = None) -> "Simulator":
+    def __init__(
+        self,
+        config: EnvConfig,
+        agent_policies: dict[int, Policy],
+        env: SupportedEnv = None,
+    ) -> "Simulator":
         """Initialize the simulator with the environment config.
 
         Args:
             config (Dict[str, Any]): The configuration for the environment.
+            agent_policies (Dict[int, Policy]): Agent policies used in the simulator.
             env (SupportedEnv): Optional environment to be used for simulation.
                            If not given, a new internal environment will be created.
 
         """
         self.config = config
+        self.agent_policies = agent_policies
+
+        if len(agent_policies) > 1 and env is not None and not isinstance(env, gym.Env):
+            logger.warning("Running multi-agent simulation using one agent policy!")
 
         if env is not None:
             if not isinstance(env, SupportedEnv):
@@ -72,26 +84,90 @@ class Simulator:
             infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
-        self.env.set_state(query.params.get("time", None), observations, actions, infos)
+        self.env.reset()
+        init_state = self.env.execute_query(
+            self.agent_policies,
+            query,
+            observations,
+            actions,
+            infos,
+            **self.config.params,
+        )
 
+        if isinstance(self.env, QueryableWrapper):
+            results = self.run_single_agent(*init_state)
+        else:
+            results = self.run_multi_agent()  # AEC env uses env.last() for init state
+
+        return results
+
+    def run_single_agent(
+        self, observation: Any, info: dict[str, Any],
+    ) -> dict[str, dict[int, list[Any]]]:
+        """Run the simulation when using a single agent gym environment.
+
+        Returns:
+            dict[str, dict[int, list[Any]]]: The simulation results mapping agent IDs to
+                corresponding observations, actions, infos, and rewards.
+
+        """
+        agent_id = next(self.agent_policies.keys())
         sim_observations = []
         sim_infos = []
         sim_actions = []
 
-        observation, info = self.env.reset(seed=self.config.seed)
-
-        # Add the queried changes to the environment
-        getattr(self.env, query.query_name)(**query.params)
-
         for _ in range(self.config.max_iter):
-            action = None
+            action = self.agent_policies[agent_id].next_action(observation, info)
 
             # Perform environment step
             observation, rewards, terminated, truncated, info = self.env.step(action)
 
+            sim_observations.append(observation)
+            sim_infos.append(info)
+            sim_actions.append(action)
+
             if terminated or truncated:
                 logger.debug("Simulator terminated.")
                 break
+
+        return {
+            "observations": {agent_id: sim_observations},
+            "macro_actions": {agent_id: sim_actions},
+            "infos": {agent_id: sim_infos},
+            "rewards": {agent_id: rewards},
+        }
+
+    def run_multi_agent(self) -> dict[str, dict[int, list[Any]]]:
+        """Run the simulation when using a multi-agent pettingzoo environment.
+
+        Returns:
+            dict[str, dict[int, list[Any]]]: The simulation results mapping agent IDs to
+                corresponding observations, actions, infos, and rewards.
+
+        """
+        sim_observations = defaultdict(list)
+        sim_infos = defaultdict(list)
+        sim_actions = defaultdict(list)
+        sim_rewards = defaultdict(list)
+
+        for agent in self.env.agent_iter():
+            observation, rewards, termination, truncation, info = self.env.last()
+
+            if termination or truncation:
+                action = None
+                logger.debug("Agent %d terminated or truncated.", agent)
+            else:
+                action = self.agent_policies[agent].next_action(
+                    observation,
+                    info,
+                )
+
+            sim_observations[agent].append(observation)
+            sim_infos[agent].append(info)
+            sim_actions[agent].append(action)
+            sim_rewards[agent].append(rewards)
+
+            self.env.step(action)
 
         return {
             "observations": sim_observations,

@@ -27,6 +27,7 @@ from .config import (
 )
 from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
+from .policy import Policy
 from .prompt import Prompt
 from .query import Query, QueryTypeMap
 from .simulator import SimulationError, Simulator
@@ -43,6 +44,7 @@ __all__ = [
     "LLMConfig",
     "MacroAction",
     "MacroActionConfig",
+    "Policy",
     "Prompt",
     "Query",
     "QueryTypeMap",

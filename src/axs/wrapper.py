@@ -10,6 +10,8 @@ import gymnasium as gym
 from pettingzoo.utils.wrappers import BaseWrapper
 
 from axs.config import Registerable
+from axs.policy import Policy
+from axs.query import Query
 
 
 class QueryableWrapperBase(ABC):
@@ -18,18 +20,20 @@ class QueryableWrapperBase(ABC):
     @abstractmethod
     def set_state(
         self,
-        t: int,
+        agent_policies: dict[int, Policy],
+        query: Query,
         observations: list[Any],
         actions: list[Any],
         infos: list[dict[str, Any]],
     ) -> None:
-        """Set the state of the simulation.
+        """Set the state of the simulation and the agent policies.
 
         This function is called ahead of each simulation call to
         set the starting state of the simulation.
 
         Args:
-            t (int): The time step to set the simulation to.
+            agent_policies (dict[int, Policy]): The agent policies to set.
+            query (Query): The query used to set the state.
             observations (list[Any]): The observations to set.
             actions (list[Any]): The actions to set.
             infos (list[dict[str, Any]]): The infos to set.
@@ -38,40 +42,23 @@ class QueryableWrapperBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add(self, agent_id: int):
-        """Add a new agent to the start of the simulation with the given state.
-
-        Args:
-            agent_id (int): The ID of the agent to add.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def remove(
+    def execute_query(
         self,
-        agent_id: int,
-        **kwargs: dict[str, Any],
-    ) -> tuple[Any, dict[str, Any]]:
-        """Remove an agent from the simulation.
+        agent_policies: dict[int, Policy],
+        query: Query,
+        observations: list[Any],
+        actions: list[Any],
+        infos: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Execute the query on the simulation.
 
         Args:
-            agent_id (int): The ID of the agent to remove.
-            kwargs: Additional options for the removal.
+            query (Query): The query to execute.
 
         Returns:
-            tuple: The observation and info dict after removing the agent.
+            result (dict[str, Any]): The result of the query.
 
         """
-        raise NotImplementedError
-
-    @abstractmethod
-    def whatif(self, state):
-        """Run a simulation with the given state."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def what(self):
-        """Return the current state of the simulation."""
         raise NotImplementedError
 
 

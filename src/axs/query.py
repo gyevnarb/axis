@@ -70,6 +70,19 @@ class Query(Registerable, class_type=None):
                     )
                     raise ValueError(error_msg)
 
+    def get_time(self, current_time: int) -> int:
+        """Return the time parameter of the query."""
+        time = self.params.get("time", None)
+        if time is None:
+            if self.query_name in ["add", "remove"]:
+                time = 0
+            elif self.query_name == "what":
+                time = current_time
+            else:
+                error_msg = f"Time parameter not found for query: {self.query_name}"
+                raise ValueError(error_msg)
+        return time
+
     @classmethod
     def queries(cls) -> dict[str, str]:
         """Return the list of valid queries with arguments."""

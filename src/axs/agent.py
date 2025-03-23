@@ -9,6 +9,7 @@ from axs.config import Config, SupportedEnv
 from axs.llm import LLMWrapper
 from axs.macroaction import MacroAction
 from axs.memory import EpisodicMemory, SemanticMemory
+from axs.policy import Policy
 from axs.prompt import Prompt
 from axs.query import Query
 from axs.simulator import SimulationError, Simulator
@@ -27,6 +28,7 @@ class AXSAgent:
     def __init__(
         self,
         config: Config,
+        agent_policies: dict[int, Policy],
         simulator_env: SupportedEnv | None = None,
         **kwargs: dict[str, Any],
     ) -> "AXSAgent":
@@ -34,6 +36,7 @@ class AXSAgent:
 
         Args:
             config (Config): The configuration object for the agent.
+            agent_policies (dict[int, Policy]): Agent policies used in the simulator.
             simulator_env (SupportedEnv): Optional environment to use for simulation.
                 If not given, a new internal environment will be created.
                 Note, if an existing environment is passed then
@@ -45,6 +48,18 @@ class AXSAgent:
                 - query_type (type[Query]): The type of query to use.
 
         """
+        if not isinstance(config, Config):
+            error_msg = f"Config must be an instance of Config. Got: {config}"
+            raise TypeError(error_msg)
+        if not isinstance(agent_policies, dict) or not all(
+            isinstance(k, int) and isinstance(v, Policy)
+            for k, v in agent_policies.items()
+        ):
+            error_msg = (
+                f"Agent policies must be a dictionary with "
+                f"int agent ids as keys and Policy as values. Got: {agent_policies}"
+            )
+            raise ValueError(error_msg)
         self.config = config
 
         # Prompting components
@@ -59,7 +74,7 @@ class AXSAgent:
         self._episodic_memory = EpisodicMemory()
 
         # Procedural components
-        self._simulator = Simulator(config.env, simulator_env)
+        self._simulator = Simulator(config.env, agent_policies, simulator_env)
         self._llm = LLMWrapper(config.llm)
         self._distance = lambda x, y: True  # TODO: Placeholder
 
@@ -120,8 +135,8 @@ class AXSAgent:
             self.config.axs.macro_action,
             actions,
             observations,
-            self._simulator.env.unwrapped,
             infos,
+            self.simulator.env.unwrapped,
         )
         if not isinstance(macro_actions, dict) and not all(
             isinstance(k, int) for k in macro_actions
@@ -133,11 +148,11 @@ class AXSAgent:
             raise ValueError(error_msg)
 
         context_dict = self._verbalizer.convert(
-            self._simulator.env.unwrapped,
             observations,
             macro_actions,
-            infos,
+            infos=infos,
             query=self._query,
+            env=self._simulator.env.unwrapped,
             **self.config.axs.verbalizer.params,
         )
 
@@ -179,7 +194,10 @@ class AXSAgent:
 
             try:
                 simulation_results = self._simulator.run(
-                    simulation_query, observations, actions, infos,
+                    simulation_query,
+                    observations,
+                    actions,
+                    infos,
                 )
                 self._episodic_memory.learn(simulation_results)
             except SimulationError as e:
@@ -212,8 +230,7 @@ class AXSAgent:
         statedict = {
             "semantic_memory": self._semantic_memory,
             "episodic_memory": self._episodic_memory,
-            "simulator": self._simulator,
-            "macro_action": self._macro_action,
+            # "simulator": self._simulator,
         }
 
         with Path(path).open("wb") as f:

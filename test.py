@@ -12,7 +12,7 @@ import axs
 
 # Import to register env-specific classes but may fail if dependencies are not installed
 with contextlib.suppress(ImportError):
-    from envs import *
+    from envs import axs_igp2
 
 axs.init_logging(
     ["igp2.core.velocitysmoother", "matplotlib", "httpcore", "openai", "httpx"],
@@ -35,7 +35,11 @@ config = axs.Config(CONFIG_FILE)
 env = gym.make(config.env.name, render_mode=config.env.render_mode, **config.env.params)
 observation, info = env.reset(seed=config.env.seed)
 
-axs_agent = axs.AXSAgent(config)
+agent_policies = {
+    aid: axs_igp2.IGP2Policy(agent, env.unwrapped.scenario_map)
+    for aid, agent in env.unwrapped.simulation.agents.items()
+}
+axs_agent = axs.AXSAgent(config, agent_policies)
 
 if Path(f"{OUTPUT}/agent.pkl").exists():
     axs_agent.load_state(f"{OUTPUT}/agent.pkl")
@@ -55,7 +59,9 @@ for n in range(config.env.n_episodes):
 
         # Learning and explanation phase
         axs_agent.semantic_memory.learn(
-            observations=observation, actions=action, infos=info,
+            observations=observation,
+            actions=action,
+            infos=info,
         )
         for prompt_dict in config.axs.user_prompts:
             prompt = axs.Prompt(**prompt_dict)

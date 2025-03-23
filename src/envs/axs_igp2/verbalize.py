@@ -41,23 +41,23 @@ class IGP2Verbalizer(axs.Verbalizer):
 
     @staticmethod
     def convert(
-        env: ip.simplesim.SimulationEnv,
         observations: list[np.ndarray],  # noqa: ARG004
         macro_actions: dict[int, list[IGP2MacroAction]],
-        infos: list[dict[str, ip.AgentState]],
+        infos: list[dict[str, ip.AgentState]] | None = None,
         rewards: dict[str, float] | None = None,
         query: axs.Query | None = None,
+        env: ip.simplesim.SimulationEnv | None = None,
         **kwargs: dict[str, Any],
     ) -> dict[str, str]:
         """Verbalize the IGP2 scenario.
 
         Args:
-            env (ip.simplesim.SimulationEnv): The IGP2 environment.
             observations (list): The observations of the agents. Not used.
             macro_actions (list): The macro actions of the agents.
             infos (list): The information of the agents.
             rewards (dict[str, float] | None): Any rewards to verbalize.
             query (axs.Query | None): The query to verbalize.
+            env (ip.simplesim.SimulationEnv | None): The IGP2 environment.
             kwargs: Optional keyword arguments.
                 - add_roads: Whether to add road descriptions.
                 - add_actions: Whether to add raw steering and acceleration values.
