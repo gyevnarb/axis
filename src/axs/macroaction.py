@@ -151,11 +151,29 @@ class MacroAction(ABC, Registerable, class_type=None):
         raise NotImplementedError
 
     @abstractmethod
+    def done(
+        self,
+        observation: Any,
+        info: dict[str, Any] | None = None,
+        **kwargs: dict[str, Any],
+    ) -> bool:
+        """Check if the macro action is done in the given observation.
+
+        Args:
+            observation (Any): The observation to check if the macro action is done.
+            info (dict[str, Any] | None): Optional environment info dict.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def from_observation(
         self,
         observation: Any,
         info: dict[str, Any] | None = None,
-    ) -> None:
+        **kwargs: dict[str, Any],
+    ) -> Any:
         """Initialize action segments of the macro action staring from an observation.
 
         This function will calculate the action segments for the macro action
@@ -164,6 +182,7 @@ class MacroAction(ABC, Registerable, class_type=None):
         Args:
             observation (list[Any]): The observations to create the macro action.
             info (dict[str, Any]): The info dictionary from the environment.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
 
         """
         raise NotImplementedError
@@ -172,21 +191,34 @@ class MacroAction(ABC, Registerable, class_type=None):
         self,
         observation: Any | None = None,
         info: dict[str, Any] | None = None,
+        **kwargs: dict[str, Any],
     ) -> Any:
         """Return the next action of the macro action.
 
         By default, this process invokes next() on a generator object built
         from the action segments. It may be overriden to calculate the next action based
         on the current state of the environment.
+
+        Args:
+            observation (Any | None): The current observation.
+            info (dict[str, Any] | None): The info dictionary from the environment.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
+
         """
         return next(self)
 
     @property
     def start_t(self) -> int:
         """The start time of the macro action."""
+        if not self.action_segments:
+            error_msg = "Action segments are not initialized."
+            raise ValueError(error_msg)
         return self.action_segments[0].times[0]
 
     @property
     def end_t(self) -> int:
         """The end time of the macro action."""
+        if not self.action_segments:
+            error_msg = "Action segments are not initialized."
+            raise ValueError(error_msg)
         return self.action_segments[-1].times[-1]

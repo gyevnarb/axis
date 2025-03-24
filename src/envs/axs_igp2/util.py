@@ -74,7 +74,14 @@ def ndarray2str(array: np.ndarray, precision: int = 2) -> str:
 def infos2traj(
     infos: list[dict[str, int]], time: int | None = None, fps: int | None = None,
 ) -> dict[int, ip.StateTrajectory]:
-    """Convert a list of info dicts to a dictionary of StateTrajectories."""
+    """Convert a list of info dicts to a dictionary of StateTrajectories.
+
+    Args:
+        infos: The list of info dicts to convert.
+        time: The cut-off time to stop at, truncating the info dict list.
+        fps: The frames per second of the trajectories.
+
+    """
     trajectories = defaultdict(list)
     for t, info_dict in enumerate(infos):
         if time is not None and t > time:

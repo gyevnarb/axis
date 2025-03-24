@@ -9,6 +9,7 @@ import pettingzoo
 from pettingzoo.utils.conversions import parallel_to_aec
 
 from axs.config import EnvConfig, SupportedEnv
+from axs.macroaction import MacroAction
 from axs.policy import Policy
 from axs.query import Query
 from axs.wrapper import QueryableAECWrapper, QueryableWrapper
@@ -50,7 +51,7 @@ class Simulator:
                 raise TypeError(error_msg)
             self.env = env
         elif config.name in gym.registry:
-            self.env = gym.make(config.name, render_mode=None, **config.params)
+            self.env = gym.make(config.name, render_mode="human", **config.params)
             self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
         elif config.env_type:
             if config.env_type == "aec":
@@ -84,29 +85,42 @@ class Simulator:
             infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
-        logger.info("Running simulation with query: %s", str(query))
+        logger.info("Running internal simulation with query: %s", query)
 
         logger.debug("Resetting internal simulator state.")
         self.env.reset(seed=self.config.seed)
 
-        init_state = self.env.execute_query(
-            self.agent_policies,
+        logger.debug(
+            "Setting simulation state to timestep %d",
+            query.get_time(len(observations)),
+        )
+        observation, info = self.env.set_state(
             query,
             observations,
-            actions,
             infos,
             **self.config.params,
         )
 
+        logger.debug("Applying %s(...) to simulation.", query.query_name)
+        observation, info, macro_actions = self.env.apply_query(
+            query,
+            observation,
+            info,
+            **self.config.params,
+        )
+
         if isinstance(self.env, QueryableWrapper):
-            results = self.run_single_agent(*init_state)
+            results = self.run_single_agent(macro_actions, observation, info)
         else:
-            results = self.run_multi_agent()  # AEC env uses env.last() for init state
+            results = self.run_multi_agent(macro_actions)
 
         return results
 
     def run_single_agent(
-        self, observation: Any, info: dict[str, Any],
+        self,
+        macro_actions: list[MacroAction],
+        observation: Any,
+        info: dict[str, Any],
     ) -> dict[str, dict[int, list[Any]]]:
         """Run the simulation when using a single agent gym environment.
 
@@ -115,23 +129,38 @@ class Simulator:
                 corresponding observations, actions, infos, and rewards.
 
         """
-        agent_id = next(self.agent_policies.keys())
+        agent_id = next(iter(self.agent_policies.keys()))
+        agent_policy = self.agent_policies[agent_id]
         sim_observations = []
         sim_infos = []
         sim_actions = []
 
-        for _ in range(self.config.max_iter):
-            action = self.agent_policies[agent_id].next_action(observation, info)
+        current_macro = None
+        if macro_actions and macro_actions[agent_id]:
+            macro_actions = macro_actions[agent_id]
+            current_macro = macro_actions.pop(0)
 
-            # Perform environment step
+        for t in range(self.config.max_iter):
+            # Override the agent's policy with the macro action if applicable
+            if current_macro and current_macro.applicable(observation, info):
+                action = current_macro.next_action(observation, info)
+            else:
+                action = agent_policy.next_action(observation, info)
+
             observation, rewards, terminated, truncated, info = self.env.step(action)
+
+            # If macro is done then get next macro action or update policy to
+            # account for any mismatch between the policy and environment state
+            if current_macro and current_macro.done(observation, info):
+                current_macro = macro_actions.pop(0) if macro_actions else None
+                agent_policy.update(sim_observations, sim_infos)
 
             sim_observations.append(observation)
             sim_infos.append(info)
             sim_actions.append(action)
 
             if terminated or truncated:
-                logger.debug("Simulator terminated.")
+                logger.debug("Simulator terminated in %d steps.", t)
                 break
 
         return {
@@ -141,7 +170,10 @@ class Simulator:
             "rewards": {agent_id: rewards},
         }
 
-    def run_multi_agent(self) -> dict[str, dict[int, list[Any]]]:
+    def run_multi_agent(
+        self,
+        macro_actions: dict[int, list[MacroAction]],
+    ) -> dict[str, dict[int, list[Any]]]:
         """Run the simulation when using a multi-agent pettingzoo environment.
 
         Returns:
@@ -154,12 +186,29 @@ class Simulator:
         sim_actions = defaultdict(list)
         sim_rewards = defaultdict(list)
 
+        current_macros = {
+            aid: macro.pop(0) if macro else None for aid, macro in macro_actions.items()
+        }
+
         for agent in self.env.agent_iter():
             observation, rewards, termination, truncation, info = self.env.last()
+
+            if current_macros[agent] and current_macros[agent].done(observation, info):
+                current_macros[agent] = (
+                    macro_actions[agent].pop(0) if macro_actions[agent] else None
+                )
+                self.agent_policies[agent].update(
+                    sim_observations[agent], sim_infos[agent],
+                )
 
             if termination or truncation:
                 action = None
                 logger.debug("Agent %d terminated or truncated.", agent)
+            elif current_macros[agent] and current_macros[agent].applicable(
+                observation,
+                info,
+            ):
+                action = current_macros[agent].next_action(observation, info)
             else:
                 action = self.agent_policies[agent].next_action(
                     observation,
@@ -172,6 +221,8 @@ class Simulator:
             sim_rewards[agent].append(rewards)
 
             self.env.step(action)
+
+        logger.debug("Simulator terminated.")
 
         return {
             "observations": sim_observations,

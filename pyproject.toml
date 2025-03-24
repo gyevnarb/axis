@@ -2,9 +2,14 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/__about__.py"
+
 [project]
 name = "axs"
-version = "0.1.0"
+dynamic = [
+ "version",
+]
 description = "Generating agentic explanations for multi-agent systems with simulator grounding"
 readme = "README.md"
 authors = [
@@ -13,6 +18,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "gymnasium>=1.1.1",
+    "hatch>=1.14.0",
     "huggingface-hub>=0.29.3",
     "openai>=1.66.3",
     "pettingzoo>=1.24.3",

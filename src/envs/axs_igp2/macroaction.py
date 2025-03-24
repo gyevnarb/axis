@@ -40,7 +40,7 @@ class IGP2MacroAction(axs.MacroAction):
     ) -> "IGP2MacroAction":
         """Initialize the macro action."""
         super().__init__(macro_name, agent_id, config, action_segments)
-        self._scenario_map = scenario_map
+        self.scenario_map = scenario_map
 
     def __repr__(self) -> str:
         """Create representation of the macro action. Used in verbalization."""
@@ -120,27 +120,31 @@ class IGP2MacroAction(axs.MacroAction):
             info (Any | None): Optional environment info dict.
 
         """
-        state = (info[self.agent_id], self.scenario_map)
-        ret = False
-        if self.name == "Stop":
-            ret = ip.StopMA.applicable(*state)
-        elif self.name == "ChangeLaneLeft":
-            ret = ip.ChangeLaneLeft.applicable(*state)
-        elif self.name == "ChangeLaneRight":
-            ret = ip.ChangeLaneRight.applicable(*state)
-        elif self.name in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
-            ret = ip.Turn.applicable(*state)
-        elif self.name == "GiveWay":
-            ret = ip.GiveWay.applicable(*state)
-        elif self.name == "GoStraight":
-            ret = ip.FollowLane.applicable(*state)
-        return ret
+        return info[self.agent_id].time >= self.start_t
+
+    def done(
+        self,
+        observation: np.ndarray,
+        info: dict[str, ip.AgentState] | None = None,
+    ) -> bool:
+        """Check whether the macro action is done in the given observation.
+
+        Args:
+            observation (Any): The observation to check if the macro action is done.
+            info (dict[str, Any] | None): Optional environment info dict.
+
+        """
+        if not self.action_segments:
+            return True
+        macro_action = self.action_segments[0]
+        return macro_action.done(ip.Observation(info, self.scenario_map))
 
     def from_observation(
         self,
         observation: np.ndarray,
         info: dict[str, ip.AgentState] | None = None,
-    ) -> None:
+        **kwargs: dict[str, Any],
+    ) -> "IGP2MacroAction":
         """Use IGP2's built-in macro actions to set up action segments if possible.
 
         For the SlowDown, Accelerate, and Stop macro actions, we can directly initialize
@@ -149,48 +153,120 @@ class IGP2MacroAction(axs.MacroAction):
         Args:
             observation (np.ndarray): The observation to create the macro action.
             info (dict[str, ip.AgentState] | None): Optional info dict.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
 
         """
-        if self.name == "Stop":
+        if not self._ip_macro_applicable(observation, info, **kwargs):
+            error_msg = f"{self} is not a valid action."
+            raise axs.SimulationError(error_msg)
+
+        ma = self.macro_name
+
+        if ma == "Stop":
             ip_macro = ip.StopMA
-        elif self.name == "ChangeLaneLeft":
+        elif ma == "ChangeLaneLeft":
             ip_macro = ip.ChangeLaneLeft
-        elif self.name == "ChangeLaneRight":
+        elif ma == "ChangeLaneRight":
             ip_macro = ip.ChangeLaneRight
-        elif self.name in ["TurnLeft", "TurnRight", "GoStraightJunction", "GiveWay"]:
+        elif ma in ["TurnLeft", "TurnRight", "GoStraightJunction", "GiveWay"]:
             ip_macro = ip.Exit
-        elif self.name == "GoStraight":
+        elif ma == "GoStraight":
             ip_macro = ip.Continue
 
-        agent_state = info[self.agent_id]
-        ip_agent = ip.MacroAgent(self.agent_id, agent_state)
-        ip_observation = ip.Observation(info, self.scenario_map)
-        ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map)
-        for config_dict in ip_ma_args:
-            if "GiveWay" in agent_state.maneuver and self.name != "GiveWay":
-                config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
-            macro = ip_agent.update_macro_action(ip_macro, config_dict, ip_observation)
-            if ip_macro == ip.Exit:
-                direction = (
-                    1
-                    if self.name == "TurnLeft"
-                    else -1
-                    if self.name == "TurnRight"
-                    else 0
-                )
-                if direction == macro.direction:
-                    break
-        self.action_segments = []
-        self._agent = ip_agent
+        macro = self._get_ip_macro(ip_macro, info, kwargs["fps"])
+        self.action_segments = [macro]
+        return self
 
     def next_action(
         self,
         observation: Any | None = None,
         info: dict[str, Any] | None = None,
-        env: ip.simplesim.SimulationEnv | None = None,
-    ) -> ip.Action:
+    ) -> ip.Action | None:
         """Return the next action of the macro action."""
-        return self._agent.next_action(ip.Observation(info, env.scenario_map))
+        current_macro = self.action_segments[0]
+        return {
+            self.agent_id: current_macro.next_action(
+                ip.Observation(info, self.scenario_map),
+            ),
+        }
+
+    @property
+    def start_t(self) -> int:
+        """The start time of the macro action."""
+        if isinstance(self.action_segments[0], ip.MacroAction):
+            macro_action = self.action_segments[0]
+            return macro_action.start_frame[self.agent_id].time
+        return super().start_t
+
+    @property
+    def end_t(self) -> int | None:
+        """The end time of the macro action."""
+        if isinstance(self.action_segments[0], ip.MacroAction):
+            return None
+        return super().end_t
+
+    def _ip_macro_applicable(
+        self,
+        observation: Any,
+        info: dict[str, ip.AgentState] | None = None,
+        **kwargs: dict[str, Any],
+    ) -> bool:
+        """Check whether the IGP2 macro action is applicable in the given state.
+
+        Args:
+            observation (Any): The observation to check applicability.
+            info (Any | None): Optional environment info dict.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
+
+        """
+        state = (info[self.agent_id], self.scenario_map)
+        ret = False
+        if self.macro_name == "Stop":
+            ret = ip.StopMA.applicable(*state)
+        elif self.macro_name == "ChangeLaneLeft":
+            ret = ip.ChangeLaneLeft.applicable(*state)
+        elif self.macro_name == "ChangeLaneRight":
+            ret = ip.ChangeLaneRight.applicable(*state)
+        elif self.macro_name in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
+            ret = ip.Turn.applicable(*state)
+        elif self.macro_name == "GiveWay":
+            ret = ip.GiveWay.applicable(*state)
+        elif self.macro_name == "GoStraight":
+            ret = ip.FollowLane.applicable(*state)
+        return ret
+
+    def _get_ip_macro(
+        self,
+        ip_macro: ip.MacroAction,
+        info: dict[int, ip.AgentState],
+        fps: int,
+    ) -> ip.MacroAction:
+        """Get the IGP2 macro action object based on the macro name.
+
+        Args:
+            ip_macro (ip.MacroAction): The IGP2 macro action class to instantiate.
+            info (dict[int, ip.AgentState]): The environment info dict.
+            fps (int): The frames per second of the simulation.
+
+        """
+        agent_state = info[self.agent_id]
+        ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map)
+        for config_dict in ip_ma_args:
+            if "GiveWay" in agent_state.maneuver and self.macro_name != "GiveWay":
+                config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
+            config_dict["open_loop"] = False
+            config_dict["fps"] = fps
+            macro = ip_macro(
+                ip.MacroActionConfig(config_dict),
+                agent_id=self.agent_id,
+                frame=info,
+                scenario_map=self.scenario_map,
+            )
+            if ip_macro == ip.Exit:
+                direction = 1 if ma == "TurnLeft" else -1 if ma == "TurnRight" else 0
+                if direction == macro.orientation:
+                    break
+        return macro
 
     @classmethod
     def _group_actions(

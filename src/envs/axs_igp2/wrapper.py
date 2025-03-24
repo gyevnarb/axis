@@ -4,12 +4,11 @@ import logging
 from copy import copy
 from typing import Any
 
-import gymnasium as gym
 import igp2 as ip
 import numpy as np
 
 import axs
-from envs.axs_igp2 import IGP2MacroAction, IGP2Policy, IGP2Query, util
+from envs.axs_igp2 import IGP2MacroAction, IGP2Query, util
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +23,13 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             raise TypeError(error_msg)
         super().__init__(env)
 
-    def execute_query(
+    def set_state(
         self,
-        agent_policies: dict[int, axs.Policy],
         query: axs.Query,
         observations: list[np.ndarray],
-        actions: list[np.ndarray],
         infos: list[dict[str, ip.AgentState]],
         **kwargs: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> tuple[np.ndarray, dict[str, ip.AgentState]]:
         """Execute the query on the simulation.
 
         Args:
@@ -40,11 +37,12 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             query (Query): The query to execute.
             observations (list[np.ndarray]): The observations from the environment.
             actions (list[np.ndarray]): The actions from the environment.
-            infos (list[dict[str, Any]]): The infos from the environment.
+            infos (list[dict[str, ip.AgentState]]): The infos from the environment.
             kwargs: Additional optional keyword arguments.
 
         Returns:
-            result (dict[str, Any]): The result of the query.
+            result (tuple[Any, dict[str, Any]]): The observation and info dict of the
+                new state which is the result of applying the query.
 
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
@@ -62,38 +60,57 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             if env.t != 0:
                 _, info = env.reset(seed=env.np_random_seed)
         else:
-            env.simulation.reset()
-            for agent_id, policy in agent_policies.items():
-                agent = policy.agent
+            for agent_id, agent in env.simulation.agents.items():
                 new_agent_state = infos[time][agent_id]
                 agent._initial_state = new_agent_state
-                info[agent_id] = new_agent_state
                 agent.reset()
+                env.simulation.state[agent_id].time = time
 
                 if hasattr(agent, "observations"):
                     for aid, trajectory in trajectories.items():
                         agent.observations[aid] = (trajectory, copy(infos[0]))
 
-                env.simulation.add_agent(policy.agent)
-
-        # Call appropriate method based on query type
-        info = getattr(self, "_" + query.query_name)(query, time, info)
+                info[agent_id] = new_agent_state
 
         return env._get_obs(), info
 
+    def apply_query(
+        self,
+        query: IGP2Query,
+        observation: np.ndarray,
+        info: dict[int, ip.AgentState],
+        **kwargs: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any], dict[int, list[IGP2MacroAction]]]:
+        """Apply the query to the simulation.
+
+        Args:
+            query (Query): The query to apply.
+            observation (Any): The observation to apply the query to.
+            info (dict[str, Any]): The info dict to apply the query to.
+            kwargs: Additional optional keyword arguments from config.
+
+        Returns:
+            A 3-tuple containing observations, info dict, and macro actions.
+
+        """
+        info, macros = getattr(self, "_" + query.query_name)(query, info)
+        return self.env.unwrapped._get_obs(), info, macros
+
     def _add(
-        self, query: IGP2Query, time: int, info: dict[int, ip.AgentState],
+        self,
+        query: IGP2Query,
+        info: dict[int, ip.AgentState],
     ) -> tuple[np.ndarray, dict]:
         """Add a new TrafficAgent to the IGP2 simulation.
 
         Args:
             query (IGP2Query): The 'add' query to execute.
-            time (int): The current timestep in the simulation.
             info (dict[int, ip.AgentState]): The current agent states in the simulation.
 
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         next_agent_id = max(env.simulation.agents) + 1
+
         config = {
             "agents": [
                 {
@@ -116,25 +133,24 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         new_initial_state = env._generate_random_frame(env.scenario_map, config)[
             next_agent_id
         ]
-        new_initial_state.time = time
         goal = ip.PointGoal(query.params["goal"], 1.5)
         new_agent = ip.TrafficAgent(next_agent_id, new_initial_state, goal, fps=env.fps)
         env.simulation.add_agent(new_agent)
+
         env.reset_observation_space()
         info[next_agent_id] = new_initial_state
-        return info
+
+        return info, {}
 
     def _remove(
         self,
         query: IGP2Query,
-        time: int,
         info: dict[int, ip.AgentState],
     ) -> tuple[np.ndarray, dict]:
         """Reset the environment and remove an agent from the IGP2 simulation.
 
         Args:
             query (IGP2Query): The 'remove' query to execute.
-            time (int): The current timestep in the simulation.
             info (dict[int, ip.AgentState]): The current agent states in the simulation.
                 Updated in-place.
 
@@ -142,10 +158,25 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         agent_id = query.params["vehicle"]
         self.env.unwrapped.simulation.remove_agent(agent_id)
         info.pop(agent_id)
-        return info
+        return info, {}
 
-    def _whatif(self, macro_action: IGP2MacroAction) -> None:
+    def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
         """Set the macro action of the selected agent."""
+        env: ip.simplesim.SimulationEnv = self.env.unwrapped
+        observation = env._get_obs()
+        agent_id = query.params["vehicle"]
+
+        macro_actions = []
+        for macro_action in query.params["actions"]:
+            macro_action.agent_id = agent_id
+            macro_action.scenario_map = env.scenario_map
+            ip_macro = macro_action.from_observation(observation, info, fps=env.fps)
+            macro_actions.append(ip_macro)
+        env.simulation.agents[agent_id].set_macro_actions(
+            [macro.action_segments[0] for macro in macro_actions],
+        )
+
+        return info, {agent_id: macro_actions}
 
     def _what(self) -> None:
         """Get the macro action of the selected agent."""

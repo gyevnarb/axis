@@ -14,6 +14,20 @@ class Policy(ABC):
     """
 
     @abstractmethod
+    def update(self, observations: list[Any], infos: list[dict[str, Any]]) -> None:
+        """Update the internal policy state.
+
+        This function is called after a macro action is completed in the simulator,
+        providing a hook for the policy to update its internal state from the simulator.
+
+        Args:
+            observations (list[Any]): The observations from the simulator.
+            infos (list[dict[str, Any]]): The infos from the simulator.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def next_action(
         self,
         observation: Any,
