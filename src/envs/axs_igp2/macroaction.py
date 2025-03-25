@@ -184,10 +184,9 @@ class IGP2MacroAction(axs.MacroAction):
     ) -> ip.Action | None:
         """Return the next action of the macro action."""
         current_macro = self.action_segments[0]
+        action = current_macro.next_action(ip.Observation(info, self.scenario_map))
         return {
-            self.agent_id: current_macro.next_action(
-                ip.Observation(info, self.scenario_map),
-            ),
+            self.agent_id: (action, current_macro, current_macro.current_maneuver),
         }
 
     @property
@@ -320,8 +319,10 @@ class IGP2MacroAction(axs.MacroAction):
                 turn_type = "TurnRight"
             else:
                 turn_type = "GoStraightJunction"
-            for actions, _ in action_sequences[slicer]:
-                actions = actions[:-1] + (turn_type,)
+            action_sequences[slicer] = [
+                (actions[:-1] + (turn_type,), a)
+                for actions, a in action_sequences[slicer]
+            ]
 
         # aggregate same actions during a period
         action_segmentations = []

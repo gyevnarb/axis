@@ -6,7 +6,6 @@ from typing import Any
 
 import igp2 as ip
 import numpy as np
-from shapely import Polygon
 
 import axs
 from envs.axs_igp2 import IGP2MacroAction, IGP2Query, util
@@ -154,17 +153,15 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             }
             return {
                 "observations": [observations[time]],
-                "actions": [actions[time]],
                 "macro_actions": current_macros,
                 "infos": [infos[time]],
                 "rewards": {vehicle_id: ego_reward if vehicle_id == agent_id else None},
             }
         return {
             "observations": observations,
-            "actions": actions,
             "macro_actions": macros,
             "infos": infos,
-            "rewards": ego_reward,
+            "rewards": {agent_id: ego_reward},
         }
 
     def _add(
@@ -181,22 +178,6 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         next_agent_id = max(env.simulation.agents) + 1
-
-        location = query.params["location"]
-        goal = query.params["goal"]
-        spawn_box = Polygon(ip.Box(location, 1, 1, 0.0).boundary)
-        goal_box = Polygon(ip.Box(goal, 1, 1, 0.0).boundary)
-
-        spawn_intersects = False
-        goal_intersects = False
-        for road in env.scenario_map.roads.values():
-            if road.boundary.intersects(spawn_box):
-                spawn_intersects = True
-            if road.boundary.intersects(goal_box):
-                goal_intersects = True
-        if not spawn_intersects or not goal_intersects:
-            error_msg = "Spawn and goal locations must be on a road."
-            raise ValueError(error_msg)
 
         config = {
             "agents": [

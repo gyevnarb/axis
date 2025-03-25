@@ -118,14 +118,8 @@ class AXSAgent:
             user_prompt (str): The user's prompt to the agent.
 
         """
+        self.episodic_memory._mem = []  # TODO: Remove
         logger.info("Explaining behaviour based on user prompt: %s", user_prompt)
-
-        messages = [
-            {
-                "role": "developer",
-                "content": self._system_prompt.fill(n_max=self.config.axs.n_max),
-            },
-        ]
 
         observations = self._semantic_memory.retrieve("observations")
         actions = self._semantic_memory.retrieve("actions")
@@ -138,28 +132,29 @@ class AXSAgent:
             infos,
             self.simulator.env.unwrapped,
         )
-        if not isinstance(macro_actions, dict) and not all(
-            isinstance(k, int) for k in macro_actions
-        ):
-            error_msg = (
-                f"Macro actions must be a dictionary with "
-                f"int agent ids as keys. Got: {macro_actions}"
-            )
-            raise ValueError(error_msg)
 
         context_dict = self._verbalizer.convert(
             observations,
             macro_actions,
-            infos=infos,
-            query=self._query,
-            env=self._simulator.env.unwrapped,
+            infos,
+            None,
+            self._query,
+            self._simulator.env.unwrapped,
             **self.config.axs.verbalizer.params,
         )
 
+        system_prompt = self._system_prompt.fill(
+            n_max=self.config.axs.n_max,
+        )
+
+        messages = [{"role": "developer", "content": system_prompt}]
+
         query_prompt = self._query_prompt.fill(
             context_dict,
-            user_prompt=user_prompt,
             macro_names=self._macro_action.macro_names,
+            user_prompt=user_prompt,
+            n=1,
+            n_max=self.config.axs.n_max,
         )
         messages.append({"role": "user", "content": query_prompt})
 
@@ -170,13 +165,20 @@ class AXSAgent:
             n < n_max
             and self._distance(explanation, prev_explanation) > self.config.axs.delta
         ):
-            logger.info("Explanation iteration %d: %s", n, explanation)
+            logger.info("Explanation iteration %d/%d", n, n_max)
 
             query_output = self._llm.chat(messages)[0]
             messages.append(query_output)
             query_content = query_output["content"]
             try:
                 simulation_query = self._query.parse(query_content)
+                simulation_query.verify(
+                    self._simulator.env.unwrapped,
+                    observations[-1],
+                    actions[-1],
+                    macro_actions,
+                    infos[-1],
+                )
             except ValueError as e:
                 logger.info(
                     "LLM-generated query was not valid. Query: %s",
@@ -186,30 +188,36 @@ class AXSAgent:
                     {
                         "role": "user",
                         "content": (
-                            f"The generated query is invalid. See error message: {e}"
+                            f"The generated query is invalid. {e}. Generate a different query."
                         ),
                     },
                 )
                 continue
 
             try:
+                # q = self._query.parse("add(location=[-25, -1.5], goal=[20, 1.5])")
+                # q = self._query.parse("add(location=[-205, -1.5], goal=[1000, 1000])")
+                # q = self._query.parse("remove(vehicle=1)")
+                # q = self._query.parse("whatif(vehicle=0, actions=[GoStraightJunction], time=41)")
+                # q = self._query.parse("whatif(vehicle=1, actions=[ChangeLaneLeft], time=0)")
+                # q = self._query.parse("whatif(vehicle=1, actions=[GoStraightJunction], time=0)")
+                # q = self._query.parse("what(vehicle=2, time=100)")
                 simulation_results = self._simulator.run(
                     simulation_query,
                     observations,
-                    actions,
                     infos,
                 )
                 self._episodic_memory.learn(simulation_results)
             except (SimulationError, ValueError) as e:
-                error_msg = f"The simulation failed with error: {e}"
+                error_msg = f"The simulation failed: {e}"
                 logger.exception(error_msg)
                 messages.append({"role": "user", "content": error_msg})
                 continue
 
             # Explanation synthesis
             simulation_context = self._verbalizer.convert(
-                self._simulator.env.unwrapped,
                 **simulation_results,
+                env=self._simulator.env.unwrapped,
                 **self.config.axs.verbalizer.params,
             )
 

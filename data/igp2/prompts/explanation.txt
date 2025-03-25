@@ -1,1 +1,9 @@
+This is round {n}/{n_max}.
+This is the Explanation Stage.
+
+The simulation with query {query} return the following result:
+{context}
+
+
+
 Give your answer in plain English. Do not include state or action descriptions.

@@ -115,3 +115,15 @@ class Verbalizer(ABC, Registerable, class_type=None):
 
         """
         raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def convert_rewards(rewards: dict[str, float], **kwargs: dict[str, Any]) -> str:
+        """Verbalize the rewards of a simulation.
+
+        Args:
+            rewards (dict[str, float]): The rewards to verbalize.
+            kwargs: Additional options for the verbalizer.
+
+        """
+        raise NotImplementedError

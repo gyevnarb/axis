@@ -23,6 +23,7 @@
             "type_name": "IGP2Verbalizer",
             "params": {
                 "add_roads": false,
+                "add_actions": false,
                 "subsample": 3
             }
         },
@@ -35,7 +36,7 @@
         "user_prompts": [
             {
                 "time": 80,
-                "template": "Why did that vehicle change lanes left?"
+                "template": "Why did vehicle 0 change lanes left?"
             }
         ]
     },

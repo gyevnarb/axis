@@ -84,7 +84,7 @@ class Simulator:
             infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
-        logger.info("Running internal simulation with query: %s", query)
+        logger.info("Running internal simulation with: %s", query)
 
         logger.debug("Resetting internal simulator state.")
         self.env.reset(seed=self.config.seed)
@@ -140,7 +140,7 @@ class Simulator:
         sim_rewards = []
 
         current_macro = None
-        if macro_actions and macro_actions[agent_id]:
+        if macro_actions and agent_id in macro_actions and macro_actions[agent_id]:
             macro_actions = macro_actions[agent_id]
             current_macro = macro_actions.pop(0)
 

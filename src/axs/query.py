@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Any, ClassVar, get_args, get_origin
 
-from axs.config import Registerable
+from axs.config import Registerable, SupportedEnv
 from axs.macroaction import MacroAction
 
 logger = logging.getLogger(__name__)
@@ -70,27 +70,6 @@ class Query(Registerable, class_type=None):
                     )
                     raise ValueError(error_msg)
 
-    def get_time(self, current_time: int) -> int:
-        """Return the time parameter of the query."""
-        time = self.params.get("time", None)
-
-        if time is None:
-            if self.query_name in ["add", "remove"]:
-                time = 0
-            elif self.query_name == "what":
-                time = current_time
-            else:
-                error_msg = f"Time parameter not found for query: {self.query_name}"
-                raise ValueError(error_msg)
-        elif time < 0:
-            error_msg = f"Time parameter cannot be negative: {time}"
-            raise ValueError(error_msg)
-        elif time > current_time and self.query_name != "what":
-            error_msg = f"Time {time} is in the future for query type {self.query_name}"
-            raise ValueError(error_msg)
-
-        return time
-
     def __repr__(self) -> str:
         """Return the string representation of the Query."""
         params = ", ".join(f"{k}={v}" for k, v in self.params.items())
@@ -99,6 +78,35 @@ class Query(Registerable, class_type=None):
     def __str__(self) -> str:
         """Return the string representation of the Query."""
         return repr(self)
+
+    def verify(
+        self,
+        simulation_env: SupportedEnv | None = None,
+        observation: Any | None = None,
+        action: Any | None = None,
+        macro_actions: dict[str, list[MacroAction]] | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> bool:
+        """Verify the query is valid for the simulator.
+
+        Currently, always returns True. Subclasses may override this method
+        to perform additional validation checks. This method is called
+        before running the simulation to ensure the query is valid.
+        If the query is invalid, then an error should be raised.
+
+        Args:
+            simulation_env (SupportedEnv | None): The simulation environment
+                 to verify the query against.
+            observation (Any | None): The final observation of the environment
+                to verify the query against.
+            action (Any | None): The final action to verify the query against.
+            macro_actions (dict[str, list[MacroAction]] | None): The macro actions
+                to verify against.
+            info (dict[str, Any] | None): The final info dict to verify the
+                query against.
+
+        """
+        return True
 
     @classmethod
     def queries(cls) -> dict[str, str]:
@@ -176,9 +184,9 @@ class Query(Registerable, class_type=None):
             if arg_val:
                 params[arg] = arg_val
             elif arg_list:
-                params[arg] = list(map(str.strip, arg_list.split(",")))
+                params[arg] = [v.strip().replace("'", "") for v in arg_list.split(",")]
             elif arg_tuple:
-                params[arg] = list(map(str.strip, arg_tuple.split(",")))
+                params[arg] = [v.strip().replace("'", "") for v in arg_tuple.split(",")]
             else:
                 error_msg = f"Invalid argument syntax: {(arg, arg_val, arg_list)}"
                 raise ValueError(error_msg)
