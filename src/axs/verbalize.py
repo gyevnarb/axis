@@ -18,7 +18,7 @@ class Verbalizer(ABC, Registerable, class_type=None):
     @abstractmethod
     def convert(  # noqa: PLR0913
         observations: list[Any],
-        macro_actions: list[dict[int, MacroAction]],
+        macro_actions: dict[int, list[MacroAction]],
         infos: list[dict[str, Any]] | None = None,
         rewards: dict[str, float] | None = None,
         query: Query | None = None,
@@ -34,7 +34,7 @@ class Verbalizer(ABC, Registerable, class_type=None):
         Args:
             query (Query): The query to verbalize.
             observations (list[Any]): The observations to verbalize.
-            macro_actions (list[dict[int, MacroAction]]): dictionary of agent IDs to
+            macro_actions (dict[int, list[IGP2MacroAction]]): dictionary of agent IDs to
                     corresponding macro actions.
             infos (list[dict[str, Any]] | None): Information dictionaries to verbalize.
             rewards (dict[str, float] | None): Any rewards to verbalize.

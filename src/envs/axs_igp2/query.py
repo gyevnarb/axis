@@ -1,6 +1,6 @@
 """Query implementation for IGP2."""
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import axs
 
@@ -16,6 +16,19 @@ class IGP2Query(axs.Query):
         "whatif": {"vehicle": int, "actions": list[IGP2MacroAction], "time": int},
         "what": {"vehicle": int, "time": int},
     }
+
+    def __init__(self, name: str, params: dict[str, Any]) -> "IGP2Query":
+        """Initialize new Query.
+
+        Args:
+            name (str): The name of the query.
+            params (dict): The parameters for the query.
+
+        """
+        super().__init__(name, params)
+        if name == "remove" and params["vehicle"] == 0:
+            error_msg = "Cannot remove the ego vehicle."
+            raise ValueError(error_msg)
 
     @classmethod
     def query_descriptions(cls) -> dict[str, str]:

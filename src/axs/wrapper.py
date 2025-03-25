@@ -25,7 +25,7 @@ class QueryableWrapperBase(ABC):
         infos: list[dict[str, Any]],
         **kwargs: dict[str, Any],
     ) -> tuple[Any, dict[str, Any]]:
-        """Set the state of the simulation based on the given query.
+        """Set the starting state of the simulation based on the given query.
 
         Args:
             query (Query): The query to execute.
@@ -48,7 +48,7 @@ class QueryableWrapperBase(ABC):
         info: dict[str, Any],
         **kwargs: dict[str, Any],
     ) -> tuple[Any, dict[str, Any], dict[int, list[MacroAction]]]:
-        """Apply the query to the simulation.
+        """Apply changes to the simulation based on the query.
 
         Args:
             query (Query): The query to apply.
@@ -58,6 +58,37 @@ class QueryableWrapperBase(ABC):
 
         Returns:
             A 3-tuple containing observations, info dict, and macro actions.
+
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def process_results(
+        self,
+        query: Query,
+        observations: dict[int, list[Any]],
+        actions: dict[int, list[Any]],
+        infos: dict[int, list[dict[str, Any]]],
+        rewards: dict[int, list[Any]],
+    ) -> dict[int, Any]:
+        """Process the simulation results according to the query.
+
+        This function is called after the simulation terminates.
+
+        Args:
+            query (Query): The query used to run the simulation.
+            observations (dict[int, list[Any]]): The observations from the simulation
+                for each agent.
+            actions (dict[int, list[Any]]): The actions from the simulation
+                for each agent.
+            infos (dict[int, list[dict[str, Any]]]): The infos from the simulation
+                for each agent.
+            rewards (dict[int, list[Any]]): The rewards from the simulation
+                for each agent.
+
+        Returns:
+            result (dict[str, Any]): A dictionary of agent IDs to
+                corresponding results.
 
         """
         raise NotImplementedError

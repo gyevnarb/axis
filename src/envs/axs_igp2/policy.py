@@ -23,17 +23,37 @@ class IGP2Policy(axs.Policy):
         self.agent = agent
         self.scenario_map = scenario_map
 
+    def reset(
+        self,
+        observations: list[np.ndarray],
+        infos: list[dict[int, ip.AgentState]],
+    ) -> None:
+        """Reset the internal state of the policy."""
+        self.agent.reset()
+        if observations and infos:
+            self.update(observations, infos)
+
     def update(
-        self, observations: list[np.ndarray], infos: list[dict[int, ip.AgentState]],
+        self,
+        observations: list[np.ndarray],
+        infos: list[dict[int, ip.AgentState]],
     ) -> None:
         """Update the internal policy state."""
-        self.agent._initial_state = infos[-1][self.agent.agent_id]
-        self.agent.reset()
+        if not hasattr(self.agent, "observations"):
+            return
+        self.agent._vehicle = type(self.agent._vehicle)(
+            infos[-1][self.agent.agent_id],
+            self.agent.metadata,
+            self.agent.fps,
+        )
         trajectories = util.infos2traj(infos, None, self.agent.fps)
+        self.agent._trajectory_cl.extend(trajectories[self.agent.agent_id])
         for agent_id, trajectory in trajectories.items():
             if agent_id not in infos[-1]:
+                if agent_id in self.agent.observations:
+                    self.agent.observations.pop(agent_id)
                 continue
-            self.agent.observations[agent_id] = (trajectory, copy(infos[0]))
+            self.agent.observations[agent_id] = (copy(trajectory), copy(infos[0]))
 
     def next_action(
         self,
@@ -48,5 +68,11 @@ class IGP2Policy(axs.Policy):
 
         """
         ip_observation = ip.Observation(info, self.scenario_map)
-        self.agent
-        return {self.agent.agent_id: self.agent.next_action(ip_observation)}
+        action = self.agent.next_action(ip_observation)
+        return {
+            self.agent.agent_id: (
+                action,
+                self.agent.current_macro,
+                self.agent.current_macro.current_maneuver,
+            ),
+        }

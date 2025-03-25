@@ -6,6 +6,7 @@ from typing import Any
 
 import igp2 as ip
 import numpy as np
+from shapely import Polygon
 
 import axs
 from envs.axs_igp2 import IGP2MacroAction, IGP2Query, util
@@ -48,27 +49,29 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
 
         time = query.get_time(current_time=len(observations))
-        if time > len(observations):
-            error_msg = f"Cannot set simulation to timestep {time} in the future."
-            raise axs.SimulationError(error_msg)
+        time = max(0, min(len(observations), time) - 1)
+        logger.debug("Setting simulation state to timestep %d", time)
 
-        trajectories = util.infos2traj(infos, time, env.fps)
         info = {}
-
         if time == 0:
             info = infos[0]
             if env.t != 0:
                 _, info = env.reset(seed=env.np_random_seed)
         else:
+            trajectories = util.infos2traj(infos, time, env.fps)
             for agent_id, agent in env.simulation.agents.items():
-                new_agent_state = infos[time][agent_id]
-                agent._initial_state = new_agent_state
                 agent.reset()
-                env.simulation.state[agent_id].time = time
-
+                new_agent_state = infos[time][agent_id]
+                agent._vehicle = type(agent._vehicle)(
+                    new_agent_state,
+                    agent.metadata,
+                    agent.fps,
+                )
+                env.simulation.state[agent_id] = new_agent_state
+                agent._trajectory_cl.extend(trajectories[agent_id])
                 if hasattr(agent, "observations"):
                     for aid, trajectory in trajectories.items():
-                        agent.observations[aid] = (trajectory, copy(infos[0]))
+                        agent.observations[aid] = (copy(trajectory), copy(infos[0]))
 
                 info[agent_id] = new_agent_state
 
@@ -96,6 +99,74 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         info, macros = getattr(self, "_" + query.query_name)(query, info)
         return self.env.unwrapped._get_obs(), info, macros
 
+    def process_results(
+        self,
+        query: IGP2Query,
+        observations: dict[int, list[np.ndarray]],
+        actions: dict[int, list[np.ndarray]],
+        infos: dict[int, list[dict[str, ip.AgentState]]],
+        rewards: dict[int, list[float]],
+    ) -> dict[int, Any]:
+        """Process the simulation results according to the query.
+
+        This function is called after the simulation terminates.
+
+        Args:
+            query (IGP2Query): The query used to run the simulation.
+            observations (dict[int, list[np.ndarray]]): The observations from
+                the simulation for each agent ID.
+            actions (dict[int, list[np.ndarray]]): The actions from the simulation
+                for each agent ID.
+            infos (dict[int, list[dict[str, ip.AgentState]]]): The infos from
+                the simulation for each agent ID.
+            rewards (dict[int, list[float]]): The rewards from the simulation
+                for each agent ID.
+
+        Returns:
+            result (dict[str, Any]): A dictionary of agent IDs to
+                corresponding results.
+
+        """
+        agent_id = next(iter(observations.keys()))
+        observations = observations[agent_id]
+        actions = actions[agent_id]
+        infos = infos[agent_id]
+        rewards = rewards[agent_id]
+
+        ego_reward = infos[-1].pop("reward")
+        time = query.get_time(len(observations))
+        vehicle_id = query.params.get("vehicle", agent_id)
+
+        ma_config = axs.MacroActionConfig({"params": {"eps": 0.1}})
+        macros = IGP2MacroAction.wrap(
+            ma_config,
+            actions,
+            observations,
+            infos,
+            self.env.unwrapped,
+        )
+        if query.query_name == "what":
+            current_macros = {
+                aid: macro
+                for aid, macros in macros.items()
+                for macro in macros
+                if macro.start_t <= time < macro.end_t
+            }
+            return {
+                "observations": [observations[time]],
+                "actions": [actions[time]],
+                "macro_actions": current_macros,
+                "infos": [infos[time]],
+                "rewards": {vehicle_id: ego_reward if vehicle_id == agent_id else None},
+            }
+        return {
+            "observations": observations,
+            "actions": actions,
+            "macro_actions": macros,
+            "infos": infos,
+            "rewards": ego_reward,
+        }
+
     def _add(
         self,
         query: IGP2Query,
@@ -111,6 +182,22 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         next_agent_id = max(env.simulation.agents) + 1
 
+        location = query.params["location"]
+        goal = query.params["goal"]
+        spawn_box = Polygon(ip.Box(location, 1, 1, 0.0).boundary)
+        goal_box = Polygon(ip.Box(goal, 1, 1, 0.0).boundary)
+
+        spawn_intersects = False
+        goal_intersects = False
+        for road in env.scenario_map.roads.values():
+            if road.boundary.intersects(spawn_box):
+                spawn_intersects = True
+            if road.boundary.intersects(goal_box):
+                goal_intersects = True
+        if not spawn_intersects or not goal_intersects:
+            error_msg = "Spawn and goal locations must be on a road."
+            raise ValueError(error_msg)
+
         config = {
             "agents": [
                 {
@@ -121,7 +208,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                             ip.Maneuver.MAX_SPEED,
                         ],
                         "box": {
-                            "center": query.params["location"],
+                            "center": location,
                             "length": 1,
                             "width": 1,
                             "heading": 0.0,
@@ -178,5 +265,6 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
         return info, {agent_id: macro_actions}
 
-    def _what(self) -> None:
+    def _what(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
         """Get the macro action of the selected agent."""
+        return info, {}

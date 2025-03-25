@@ -200,10 +200,11 @@ class AXSAgent:
                     infos,
                 )
                 self._episodic_memory.learn(simulation_results)
-            except SimulationError as e:
+            except (SimulationError, ValueError) as e:
                 error_msg = f"The simulation failed with error: {e}"
-                logger.info(error_msg)
+                logger.exception(error_msg)
                 messages.append({"role": "user", "content": error_msg})
+                continue
 
             # Explanation synthesis
             simulation_context = self._verbalizer.convert(

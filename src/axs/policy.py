@@ -1,7 +1,6 @@
 """Contains wrapper class for easy call to next action in the simulation."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any
 
 
@@ -12,6 +11,19 @@ class Policy(ABC):
     The purpose of this class is to provide a single function, next_action(),
     which the AXS simulator can use to get actions from fixed policies.
     """
+
+    @abstractmethod
+    def reset(self, observations: list[Any], infos: list[dict[Any]]) -> None:
+        """Reset the internal state of the policy.
+
+        This function is called once before the AXS internal simulator starts.
+
+        Args:
+            observations (list[Any]): The observations from the simulator.
+            infos (list[dict[str, Any]]): The infos from the simulator.
+
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def update(self, observations: list[Any], infos: list[dict[str, Any]]) -> None:
@@ -41,22 +53,3 @@ class Policy(ABC):
 
         """
         raise NotImplementedError
-
-    @classmethod
-    def from_function(
-        cls, func: Callable[[Any, dict[str, Any] | None], Any],
-    ) -> "Policy":
-        """Create a Policy from a function.
-
-        Creates an instance of the Policy class and sets the next_action
-        function to the given function.
-
-        Args:
-            func (callable): The function to create the Policy from.
-                It should take an observation and an info dict as arguments
-                and return an action.
-
-        """
-        new_policy = cls()
-        new_policy.next_action = func
-        return new_policy

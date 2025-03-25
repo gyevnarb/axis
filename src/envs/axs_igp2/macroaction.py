@@ -49,7 +49,7 @@ class IGP2MacroAction(axs.MacroAction):
                 f"{self.macro_name}[{self.start_t}-{self.end_t}]"
                 # f"({len(self.action_segments)} segments)"
             )
-        return f"{self.macro_name}[empty]"
+        return f"{self.macro_name}"
 
     def __str__(self) -> str:
         """Create string representation of the macro action."""
@@ -321,7 +321,7 @@ class IGP2MacroAction(axs.MacroAction):
             else:
                 turn_type = "GoStraightJunction"
             for actions, _ in action_sequences[slicer]:
-                actions[-1] = turn_type
+                actions = actions[:-1] + (turn_type,)
 
         # aggregate same actions during a period
         action_segmentations = []

@@ -73,6 +73,7 @@ class Query(Registerable, class_type=None):
     def get_time(self, current_time: int) -> int:
         """Return the time parameter of the query."""
         time = self.params.get("time", None)
+
         if time is None:
             if self.query_name in ["add", "remove"]:
                 time = 0
@@ -81,6 +82,13 @@ class Query(Registerable, class_type=None):
             else:
                 error_msg = f"Time parameter not found for query: {self.query_name}"
                 raise ValueError(error_msg)
+        elif time < 0:
+            error_msg = f"Time parameter cannot be negative: {time}"
+            raise ValueError(error_msg)
+        elif time > current_time and self.query_name != "what":
+            error_msg = f"Time {time} is in the future for query type {self.query_name}"
+            raise ValueError(error_msg)
+
         return time
 
     def __repr__(self) -> str:

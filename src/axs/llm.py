@@ -61,6 +61,7 @@ class LLMWrapper:
         """
         logger.debug(
             "[bold yellow]Latest message:[/bold yellow]\n%s", messages[-1]["content"],
+            extra={"markup": True},
         )
 
         if self._mode == "offline":
@@ -106,6 +107,7 @@ class LLMWrapper:
 
         logger.debug(
             "[bold yellow]LLM response:[/bold yellow]\n%s", responses[0]["content"],
+            extra={"markup": True},
         )
         return responses
 

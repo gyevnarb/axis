@@ -89,6 +89,17 @@ class MacroAction(ABC, Registerable, class_type=None):
             )
             raise TypeError(error_msg)
 
+    def __getitem__(self, time: int) -> ActionSegment:
+        """Get action segment at time.
+
+        Calls MacroAction.at() method.
+
+        Args:
+            time (int): The time for which to get the action segment.
+
+        """
+        return self.at(time)
+
     def __iter__(self) -> Generator["MacroAction", None, None]:
         """Return the macro action object as an iterator."""
         if self.action_segments is None:
@@ -206,6 +217,22 @@ class MacroAction(ABC, Registerable, class_type=None):
 
         """
         return next(self)
+
+    def at(self, time: int) -> ActionSegment:
+        """Get action segment at time.
+
+        Args:
+            time (int): The time for which to get the action segment.
+
+        """
+        if not self.action_segments:
+            error_msg = "Action segments are not initialized."
+            raise ValueError(error_msg)
+        for segment in self.action_segments:
+            if time in segment.times:
+                return segment
+        error_msg = f"No action segment found at time {time}."
+        raise ValueError(error_msg)
 
     @property
     def start_t(self) -> int:

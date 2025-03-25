@@ -28,7 +28,7 @@ class Simulator:
         self,
         config: EnvConfig,
         agent_policies: dict[int, Policy],
-        env: SupportedEnv = None,
+        env: SupportedEnv | None = None,
     ) -> "Simulator":
         """Initialize the simulator with the environment config.
 
@@ -73,7 +73,6 @@ class Simulator:
         self,
         query: Query,
         observations: list[Any],
-        actions: list[Any],
         infos: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Run the simulation with the given query.
@@ -90,10 +89,7 @@ class Simulator:
         logger.debug("Resetting internal simulator state.")
         self.env.reset(seed=self.config.seed)
 
-        logger.debug(
-            "Setting simulation state to timestep %d",
-            query.get_time(len(observations)),
-        )
+        time = query.get_time(len(observations))
         observation, info = self.env.set_state(
             query,
             observations,
@@ -109,12 +105,19 @@ class Simulator:
             **self.config.params,
         )
 
+        logger.debug("Resetting agent policies for simulation...")
+        for policy in self.agent_policies.values():
+            obs, infs = observations[:time], infos[:time]
+            if not obs and not infs:
+                obs, infs = [observation], [info]
+            policy.reset(obs, infs)
+
         if isinstance(self.env, QueryableWrapper):
             results = self.run_single_agent(macro_actions, observation, info)
         else:
             results = self.run_multi_agent(macro_actions)
 
-        return results
+        return self.env.process_results(query, **results)
 
     def run_single_agent(
         self,
@@ -134,6 +137,7 @@ class Simulator:
         sim_observations = []
         sim_infos = []
         sim_actions = []
+        sim_rewards = []
 
         current_macro = None
         if macro_actions and macro_actions[agent_id]:
@@ -149,15 +153,16 @@ class Simulator:
 
             observation, rewards, terminated, truncated, info = self.env.step(action)
 
+            sim_observations.append(observation)
+            sim_infos.append(info)
+            sim_actions.append(action)
+            sim_rewards.append(rewards)
+
             # If macro is done then get next macro action or update policy to
             # account for any mismatch between the policy and environment state
             if current_macro and current_macro.done(observation, info):
                 current_macro = macro_actions.pop(0) if macro_actions else None
                 agent_policy.update(sim_observations, sim_infos)
-
-            sim_observations.append(observation)
-            sim_infos.append(info)
-            sim_actions.append(action)
 
             if terminated or truncated:
                 logger.debug("Simulator terminated in %d steps.", t)
@@ -165,9 +170,9 @@ class Simulator:
 
         return {
             "observations": {agent_id: sim_observations},
-            "macro_actions": {agent_id: sim_actions},
+            "actions": {agent_id: sim_actions},
             "infos": {agent_id: sim_infos},
-            "rewards": {agent_id: rewards},
+            "rewards": {agent_id: sim_rewards},
         }
 
     def run_multi_agent(
@@ -193,14 +198,6 @@ class Simulator:
         for agent in self.env.agent_iter():
             observation, rewards, termination, truncation, info = self.env.last()
 
-            if current_macros[agent] and current_macros[agent].done(observation, info):
-                current_macros[agent] = (
-                    macro_actions[agent].pop(0) if macro_actions[agent] else None
-                )
-                self.agent_policies[agent].update(
-                    sim_observations[agent], sim_infos[agent],
-                )
-
             if termination or truncation:
                 action = None
                 logger.debug("Agent %d terminated or truncated.", agent)
@@ -220,13 +217,22 @@ class Simulator:
             sim_actions[agent].append(action)
             sim_rewards[agent].append(rewards)
 
+            if current_macros[agent] and current_macros[agent].done(observation, info):
+                current_macros[agent] = (
+                    macro_actions[agent].pop(0) if macro_actions[agent] else None
+                )
+                self.agent_policies[agent].update(
+                    sim_observations[agent],
+                    sim_infos[agent],
+                )
+
             self.env.step(action)
 
         logger.debug("Simulator terminated.")
 
         return {
             "observations": sim_observations,
-            "macro_actions": sim_actions,
+            "actions": sim_actions,
             "infos": sim_infos,
-            "rewards": rewards,
+            "rewards": sim_rewards,
         }
