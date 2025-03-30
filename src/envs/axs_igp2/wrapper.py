@@ -49,7 +49,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
         time = query.get_time(current_time=len(observations))
         time = max(0, min(len(observations), time) - 1)
-        logger.debug("Setting simulation state to timestep %d", time)
+        logger.debug("Setting simulation state to timestep %d", time + 1)
 
         info = {}
         if time == 0:
@@ -189,7 +189,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                             ip.Maneuver.MAX_SPEED,
                         ],
                         "box": {
-                            "center": location,
+                            "center": query.params["location"],
                             "length": 1,
                             "width": 1,
                             "heading": 0.0,

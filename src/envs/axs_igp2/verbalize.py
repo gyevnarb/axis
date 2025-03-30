@@ -35,6 +35,16 @@ Intersections:
   Intersections are made up of connections between incoming and connecting roads.
 """
 
+REWARD_NAME_MAP = {
+    "jerk": "Jolt",
+    "coll": "Collision",
+    "curvature": "Curvature",
+    "term": "Out-of-Compute",
+    "angular_velocity": "Steering",
+    "time": "Time-to-Goal",
+    "dead": "Goal-not-Reached",
+}
+
 
 class IGP2Verbalizer(axs.Verbalizer):
     """Verbalize the environment, observations, and state for IGP2."""
@@ -115,12 +125,14 @@ class IGP2Verbalizer(axs.Verbalizer):
                     context += f"    - {signal}: {data}\n"
             context += "  - Actions: "
             if kwargs.get("add_macro_actions", True):
-                context += f"{actions_dict[aid]}\n"
+                context += f"[{actions_dict[aid]}]\n"
             if kwargs.get("add_actions", True):
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
-            if rewards is not None and kwargs.get("add_rewards", True):
-                context += "  - Rewards: "
+            if rewards is not None and kwargs.get("add_rewards", True) and aid in rewards:
+                context += "  - Rewards:\n"
+                reward_str = IGP2Verbalizer._convert_reward(rewards[aid], **kwargs)
+                context += f"{reward_str}\n"
             context += "\n\n"
         context = context[:-3]  # Remove trailing newlines
 
@@ -136,7 +148,38 @@ class IGP2Verbalizer(axs.Verbalizer):
 
     @staticmethod
     def convert_rewards(rewards, **kwargs):
-        return super().convert_rewards(rewards, **kwargs)
+        """Verbalize the rewards of the agents.
+
+        Args:
+            rewards (dict[str, float] | None): Any rewards to verbalize.
+            kwargs: Optional keyword arguments.
+
+        """
+        ret = "Rewards:\n"
+        for agent_id, reward in rewards.items():
+            reward_str = IGP2Verbalizer._verbalize_reward(reward, **kwargs)
+            ret += f"  Vehicle {agent_id}: {reward_str}\n"
+        return ret[:-1]
+
+    @staticmethod
+    def _convert_reward(reward: ip.Reward, **kwargs: dict[str, Any]) -> str:
+        """Verbalize the IGP2 reward class of an agent.
+
+        Args:
+            reward (dict[str, float]): The reward to verbalize.
+            kwargs: Optional keyword arguments.
+                - rounding (int): Number of decimal places to round the values to.
+                - exclude_rewards (list[str]): List of reward signals to exclude.
+
+        """
+        ret = ""
+        for key, value in reward.reward_components.items():
+            if key in kwargs.get("exclude_rewards", []) or value is None:
+                continue
+            reward_name = REWARD_NAME_MAP.get(key, key)
+            rounded_value = np.round(value, kwargs.get("rounding", 3))
+            ret += f"    - {reward_name}: {rounded_value}\n"
+        return ret[:-1]
 
     @staticmethod
     def convert_infos(infos: list[dict[str, Any]], **kwargs: dict[str, Any]) -> str:

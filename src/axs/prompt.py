@@ -30,6 +30,15 @@ class Prompt:
         self.template = template
         self.time = time
 
+    def __repr__(self) -> str:
+        """Return a string representation of the Prompt object."""
+        placeholders = ", ".join(self.placeholders)
+        return f"Prompt({placeholders})"
+
+    def __str__(self) -> str:
+        """Return the string representation of the Prompt object."""
+        return repr(self)
+
     def fill(
         self, context_dict: dict[str, str] | None = None, **content: dict[str, Any],
     ) -> str:

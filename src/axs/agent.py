@@ -11,7 +11,7 @@ from axs.macroaction import MacroAction
 from axs.memory import EpisodicMemory, SemanticMemory
 from axs.policy import Policy
 from axs.prompt import Prompt
-from axs.query import Query
+from axs.query import Query, QueryError
 from axs.simulator import SimulationError, Simulator
 from axs.verbalize import Verbalizer
 
@@ -63,20 +63,18 @@ class AXSAgent:
         self.config = config
 
         # Prompting components
-        self._system_prompt = Prompt(config.axs.system_template)
-        self._query_prompt = Prompt(config.axs.query_template)
-        self._explanation_prompt = Prompt(config.axs.explanation_template)
+        self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
 
         # Memory components
         self._semantic_memory = SemanticMemory(
-            {"observations": [], "actions": [], "infos": []},
+            {"observations": [], "actions": [], "infos": [], "prompts": []},
         )
         self._episodic_memory = EpisodicMemory()
 
         # Procedural components
         self._simulator = Simulator(config.env, agent_policies, simulator_env)
         self._llm = LLMWrapper(config.llm)
-        self._distance = lambda x, y: True  # TODO: Placeholder
+        self._distance = None
 
         # Utility components
         if "macro_type" in kwargs:
@@ -118,8 +116,10 @@ class AXSAgent:
             user_prompt (str): The user's prompt to the agent.
 
         """
-        self.episodic_memory._mem = []  # TODO: Remove
         logger.info("Explaining behaviour based on user prompt: %s", user_prompt)
+
+        self.semantic_memory.learn(prompts=user_prompt)
+        self.episodic_memory.reset()
 
         observations = self._semantic_memory.retrieve("observations")
         actions = self._semantic_memory.retrieve("actions")
@@ -143,33 +143,70 @@ class AXSAgent:
             **self.config.axs.verbalizer.params,
         )
 
-        system_prompt = self._system_prompt.fill(
+        system_prompt = self._prompts["system"].fill(
             n_max=self.config.axs.n_max,
         )
+        self.episodic_memory.learn(LLMWrapper.wrap("system", system_prompt))
 
-        messages = [{"role": "developer", "content": system_prompt}]
-
-        query_prompt = self._query_prompt.fill(
+        context_prompt = self._prompts["context"].fill(
             context_dict,
             macro_names=self._macro_action.macro_names,
             user_prompt=user_prompt,
-            n=1,
-            n_max=self.config.axs.n_max,
         )
-        messages.append({"role": "user", "content": query_prompt})
+        self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
 
-        n = 0
+        n = 1
         n_max = self.config.axs.n_max
         explanation, prev_explanation = None, None
         while (
-            n < n_max
-            and self._distance(explanation, prev_explanation) > self.config.axs.delta
+            n <= n_max
+            # and self._distance(explanation, prev_explanation) > self.config.axs.delta
         ):
             logger.info("Explanation iteration %d/%d", n, n_max)
 
-            query_output = self._llm.chat(messages)[0]
-            messages.append(query_output)
+            simulation_results = self._interrogate(
+                observations,
+                actions,
+                macro_actions,
+                infos,
+                n,
+            )
+            explanation = self._explanation(user_prompt, simulation_results, n)
+            if explanation is not None:
+                break
+
+            prev_explanation = explanation
+            n += 1
+
+        return explanation
+
+    def _interrogate(
+        self,
+        observations: Any,
+        actions: list[Any],
+        macro_actions: dict[int, MacroAction],
+        infos: list[dict[str, Any]],
+        n: int = 0,
+    ) -> dict[str, Any] | None:
+        """Perform a single round of simulator interrogation with the LLM.
+
+        Returns:
+            dict[str, Any] | None: The simulation results or a boolean indicating
+                if the simulation is done or failed.
+
+        """
+        interrogation_prompt = self._prompts["interrogation"].fill(
+            n=n, n_max=self.config.axs.n_max,
+        )
+        self.episodic_memory.learn(LLMWrapper.wrap("user", interrogation_prompt))
+
+        for _ in range(self.config.axs.n_tries):
+            query_output = self._llm.chat(self.episodic_memory.memory)[0]
+            self.episodic_memory.learn(query_output)
             query_content = query_output["content"]
+            if "DONE" in query_content:
+                return None
+
             try:
                 simulation_query = self._query.parse(query_content)
                 simulation_query.verify(
@@ -179,55 +216,56 @@ class AXSAgent:
                     macro_actions,
                     infos[-1],
                 )
-            except ValueError as e:
-                logger.info(
-                    "LLM-generated query was not valid. Query: %s",
-                    query_content,
-                )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            f"The generated query is invalid. {e}. Generate a different query."
-                        ),
-                    },
-                )
-                continue
 
-            try:
-                # q = self._query.parse("add(location=[-25, -1.5], goal=[20, 1.5])")
-                # q = self._query.parse("add(location=[-205, -1.5], goal=[1000, 1000])")
-                # q = self._query.parse("remove(vehicle=1)")
-                # q = self._query.parse("whatif(vehicle=0, actions=[GoStraightJunction], time=41)")
-                # q = self._query.parse("whatif(vehicle=1, actions=[ChangeLaneLeft], time=0)")
-                # q = self._query.parse("whatif(vehicle=1, actions=[GoStraightJunction], time=0)")
-                # q = self._query.parse("what(vehicle=2, time=100)")
                 simulation_results = self._simulator.run(
                     simulation_query,
                     observations,
                     infos,
                 )
-                self._episodic_memory.learn(simulation_results)
-            except (SimulationError, ValueError) as e:
-                error_msg = f"The simulation failed: {e}"
-                logger.exception(error_msg)
-                messages.append({"role": "user", "content": error_msg})
-                continue
+                break
 
-            # Explanation synthesis
+            except QueryError as e:
+                error_msg = (
+                    f"The generated query is invalid: {e} Generate a different query."
+                )
+            except SimulationError as e:
+                error_msg = f"The simulation failed: {e}"
+            logger.exception(error_msg)
+            self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
+
+        else:
+            error_msg = "The simulation failed after multiple attempts."
+            raise RuntimeError(error_msg)
+
+        return simulation_results
+
+    def _explanation(
+        self,
+        user_prompt: str,
+        results: dict[str, Any],
+        n: int,
+    ) -> str:
+        """Synthesise an explanation based on the simulation results."""
+        if results is None:
+            explanation_prompt = self._prompts["final"].fill()
+        else:
             simulation_context = self._verbalizer.convert(
-                **simulation_results,
+                **results,
+                query=None,
                 env=self._simulator.env.unwrapped,
                 **self.config.axs.verbalizer.params,
             )
 
-            explanation_prompt = self._explanation_prompt.fill(simulation_context)
-            messages.append(explanation_prompt)
+            explanation_prompt = self._prompts["explanation"].fill(
+                simulation_context,
+                user_prompt=user_prompt,
+                n=n,
+                n_max=self.config.axs.n_max,
+            )
 
-            explanation_output = self._llm.chat(messages)[0]
-            explanation = explanation_output["content"]
-            prev_explanation = explanation
-            n += 1
+        self.episodic_memory.learn(LLMWrapper.wrap("user", explanation_prompt))
+        explanation_output = self._llm.chat(self.episodic_memory.memory)[0]
+        return explanation_output["content"]
 
     def reset(self) -> None:
         """Reset the agent."""

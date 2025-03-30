@@ -31,7 +31,7 @@ class IGP2Query(axs.Query):
         super().__init__(name, params)
         if name == "remove" and params["vehicle"] == 0:
             error_msg = "Cannot remove the ego vehicle."
-            raise ValueError(error_msg)
+            raise axs.QueryError(error_msg)
 
     def verify(
         self,
@@ -41,15 +41,24 @@ class IGP2Query(axs.Query):
         macro_actions: dict[str, list[IGP2MacroAction]] | None = None,
         info: dict[str, Any] | None = None,
     ) -> bool:
-        """Verify the query is valid."""
+        """Verify the query is valid.
+
+        Args:
+            env (ip.simplesim.SimulationEnv): The simulation environment.
+            observation (Any): The observation from the environment.
+            action (Any): The action taken by the agent.
+            macro_actions (dict[str, list[IGP2MacroAction]]): Macros for each vehicle.
+            info (dict[str, Any]): Additional information about the simulation.
+
+        """
         if self.query_name == "remove":
             vid = self.params["vehicle"]
             if vid == 0:
                 error_msg = "Cannot remove the ego vehicle."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
             if vid not in info:
                 error_msg = f"Vehicle {vid} does not exist."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
 
         if self.query_name == "add":
             location = self.params["location"]
@@ -65,13 +74,13 @@ class IGP2Query(axs.Query):
                     goal_intersects = True
             if not spawn_intersects or not goal_intersects:
                 error_msg = "Spawn and goal locations must be on a road."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
 
         if self.query_name == "whatif":
             vehicle = self.params["vehicle"]
             if vehicle not in info:
                 error_msg = f"Vehicle {vehicle} does not exist."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
             actions = self.params["actions"]
             time = self.get_time(info[vehicle].time)
             macro_at_time = next(
@@ -79,13 +88,13 @@ class IGP2Query(axs.Query):
             ).macro_name
             if len(actions) == 1 and actions[0].macro_name == macro_at_time:
                 error_msg = "Cannot test the same action as the last action."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
 
         if self.query_name == "what":
             vehicle = self.params["vehicle"]
             if vehicle not in info:
                 error_msg = f"Vehicle {vehicle} does not exist."
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
             self.get_time(0)  # Check time parameter
 
         return True
@@ -101,13 +110,13 @@ class IGP2Query(axs.Query):
                 time = current_time
             else:
                 error_msg = f"Time parameter not found for query: {self.query_name}"
-                raise ValueError(error_msg)
+                raise axs.QueryError(error_msg)
         elif time < 0:
             error_msg = f"Time parameter cannot be negative: {time}"
-            raise ValueError(error_msg)
+            raise axs.QueryError(error_msg)
         elif time > current_time and self.query_name != "what":
             error_msg = f"Time {time} is in the future for query type {self.query_name}"
-            raise ValueError(error_msg)
+            raise axs.QueryError(error_msg)
 
         return time
 
@@ -119,10 +128,10 @@ class IGP2Query(axs.Query):
         These descriptions are used to generate the user prompt for the LLM.
         """
         return {
-            "add": "What would happen if a new vehicle was present at <location> with goal <goal> from the start?",  # noqa: E501
-            "remove": "What would happen if <vehicle> was removed from the road?",
-            "whatif": "What would happen if <vehicle> took <actions> starting from <time>?",  # noqa: E501
-            "what": "What will <vehicle> be doing at <time>?",
+            "add": "What would happen if a new vehicle was present at $location with $goal from the start?",  # noqa: E501
+            "remove": "What would happen if $vehicle was removed from the road?",
+            "whatif": "What would happen if $vehicle took $actions starting from $time?",  # noqa: E501
+            "what": "What will $vehicle be doing at $time?",
         }
 
     @classmethod

@@ -1,7 +1,3 @@
-This is round {n}/{n_max}.
-This is the Interrogation stage.
-
-
 You explain why a vehicle took a certain action at a given time in a particular scenario. You learn more about how the scenario could have happened differently by asking me queries with keyword arguments which have the form: 'query(arg1=value1, arg2=value2, ...)'. The valid queries available are:
 {query_descriptions}
 
@@ -16,6 +12,3 @@ You are given the following initial context about the observations and actions o
 
 I want you to answer the following question:
 {user_prompt}
-
-
-Give your answer as a single query, specifying concrete values for the keyword arguments. Do not give anything else as an answer. If you know don't need more information, answer 'done()'.

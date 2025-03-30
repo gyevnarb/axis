@@ -89,6 +89,10 @@ class EpisodicMemory(Memory):
         super().__init__()
         self._mem = []
 
+    def reset(self) -> None:
+        """Set internal memory to an empty list."""
+        self._mem = []
+
     def retrieve(self, key: int) -> Any:
         """Retrieve experience from memory with lookup index.
 
@@ -100,7 +104,7 @@ class EpisodicMemory(Memory):
         """
         return self._mem[key]
 
-    def learn(self, *args: list[Any], **kwargs: dict[str, Any]) -> None:  # noqa: ARG002
+    def learn(self, *args: list[Any], **kwargs: dict[str, Any]) -> None:
         """Append the experience to memory. Kwargs are ignored.
 
         Args:

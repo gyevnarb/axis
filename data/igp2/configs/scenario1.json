@@ -30,9 +30,7 @@
         "query": {
             "type_name": "IGP2Query"
         },
-        "system_template": "data/igp2/prompts/system.txt",
-        "query_template": "data/igp2/prompts/query.txt",
-        "explanation_template": "data/igp2/prompts/explanation.txt",
+        "prompts_dir": "data/igp2/prompts",
         "user_prompts": [
             {
                 "time": 80,

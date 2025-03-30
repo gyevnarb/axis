@@ -115,3 +115,17 @@ class LLMWrapper:
     def mode(self) -> str:
         """Get the current inference mode."""
         return self._mode
+
+    @staticmethod
+    def wrap(
+        role: str, content: str, **kwargs: dict[str, str],
+    ) -> dict[str, str]:
+        """Wrap the message for submission to an OpenAI style chat API.
+
+        Args:
+            role (str): The role of the message sender.
+            content (str): The content of the message.
+            kwargs: Additional keyword arguments.
+
+        """
+        return {"role": role, "content": content, **kwargs}

@@ -154,6 +154,8 @@ class IGP2MacroAction(axs.MacroAction):
             observation (np.ndarray): The observation to create the macro action.
             info (dict[str, ip.AgentState] | None): Optional info dict.
             kwargs (dict[str, Any]): Additional optional keyword arguments.
+                - fps: The frames per second of the simulation.
+                - stop_len: The length of the stop action.
 
         """
         if not self._ip_macro_applicable(observation, info, **kwargs):
@@ -173,7 +175,7 @@ class IGP2MacroAction(axs.MacroAction):
         elif ma == "GoStraight":
             ip_macro = ip.Continue
 
-        macro = self._get_ip_macro(ip_macro, info, kwargs["fps"])
+        macro = self._get_ip_macro(ip_macro, info, **kwargs)
         self.action_segments = [macro]
         return self
 
@@ -238,18 +240,35 @@ class IGP2MacroAction(axs.MacroAction):
         self,
         ip_macro: ip.MacroAction,
         info: dict[int, ip.AgentState],
-        fps: int,
+        **kwargs: dict[str, Any],
     ) -> ip.MacroAction:
         """Get the IGP2 macro action object based on the macro name.
 
         Args:
             ip_macro (ip.MacroAction): The IGP2 macro action class to instantiate.
             info (dict[int, ip.AgentState]): The environment info dict.
-            fps (int): The frames per second of the simulation.
+            kwargs (dict[str, Any]): Additional optional keyword arguments.
 
         """
+        fps = kwargs["fps"]
         agent_state = info[self.agent_id]
-        ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map)
+        goal = None
+        macro = None
+
+        if self.macro_name == "Stop":
+            stop_len = kwargs.get("stop_len", 10)
+            current_lane = self.scenario_map.best_road_at(
+                agent_state.position, agent_state.heading,
+            )
+            lane_len = current_lane.length
+            current_ds = current_lane.distance_at(agent_state.position)
+            if lane_len - current_ds < stop_len:
+                error_msg = "Cannot stop at the current position."
+                raise axs.SimulationError(error_msg)
+            stop_position = current_lane.point_at(current_ds + stop_len)
+            goal = ip.StoppingGoal(stop_position, stop_len)
+
+        ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map, goal)
         for config_dict in ip_ma_args:
             if "GiveWay" in agent_state.maneuver and self.macro_name != "GiveWay":
                 config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
@@ -265,6 +284,9 @@ class IGP2MacroAction(axs.MacroAction):
                 direction = 1 if ma == "TurnLeft" else -1 if ma == "TurnRight" else 0
                 if direction == macro.orientation:
                     break
+        if macro is None:
+            error_msg = f"Could not create {self.macro_name} macro action."
+            raise ValueError(error_msg)
         return macro
 
     @classmethod

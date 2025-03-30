@@ -29,7 +29,7 @@ from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
 from .policy import Policy
 from .prompt import Prompt
-from .query import Query, QueryTypeMap
+from .query import Query, QueryError, QueryTypeMap
 from .simulator import SimulationError, Simulator
 from .verbalize import Verbalizer
 from .wrapper import QueryableAECWrapper, QueryableWrapper
@@ -47,6 +47,7 @@ __all__ = [
     "Policy",
     "Prompt",
     "Query",
+    "QueryError",
     "QueryTypeMap",
     "QueryableAECWrapper",
     "QueryableWrapper",

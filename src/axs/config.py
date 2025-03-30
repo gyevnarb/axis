@@ -46,8 +46,7 @@ class Registerable:
         """
         if name not in _registry:
             error_msg = (
-                f"Type {name} not found in the registry "
-                f"with {_registry.keys()}."
+                f"Type {name} not found in the registry with {_registry.keys()}."
             )
             raise ValueError(error_msg)
         return _registry[name]
@@ -78,7 +77,6 @@ class EnvConfig(ConfigBase):
     def wrapper_type(self) -> str:
         """QueryableWrapper type for the simulator to use."""
         return self._config["wrapper_type"]
-
 
     @property
     def env_type(self) -> str | None:
@@ -137,8 +135,10 @@ class LLMConfig(ConfigBase):
         """
         value = self._config.get("inference_mode", "online")
         if value not in ["online", "offline", "localhost"]:
-            error_msg = (f"Invalid LLM inference mode: {value}; "
-                         f"must be 'online', 'offline', or 'localhost'.")
+            error_msg = (
+                f"Invalid LLM inference mode: {value}; "
+                f"must be 'online', 'offline', or 'localhost'."
+            )
             raise ValueError(error_msg)
         return value
 
@@ -207,6 +207,7 @@ class QueryConfig(ConfigBase):
         """Additional parameters for the query."""
         return self._config.get("params", {})
 
+
 class AXSConfig(ConfigBase):
     """Configuration class for the AXS agent parameters."""
 
@@ -250,58 +251,41 @@ class AXSConfig(ConfigBase):
         return QueryConfig(self._config["query"])
 
     @property
+    def n_tries(self) -> int:
+        """The number of tries for the AXSAgent to generate an explanation.
+
+        Default: 5.
+        """
+        return self._config.get("n_tries", 5)
+
+    @property
+    def prompts_dir(self) -> str:
+        """The directory for the AXSAgent prompts."""
+        return self._config["prompts_dir"]
+
+    @property
+    def prompts(self) -> dict[str, str]:
+        """The name of prompt template types to template text.
+
+        Prompts should be stored as a *.txt file in the prompts directory.
+        The AXS agent relies on five prompt templates:
+        'system', 'context', 'interrogation', 'explanation', and 'final'.
+        """
+        value = {
+            path.stem: path.read_text() for path in Path(self.prompts_dir).glob("*.txt")
+        }
+        if not all(
+            key in ["system", "context", "interrogation", "explanation", "final"]
+            for key in value
+        ):
+            error_msg = "Missing prompt templates in the prompts directory."
+            raise ValueError(error_msg)
+        return value
+
+    @property
     def user_prompts(self) -> list[dict[str, Any]]:
         """The prompts the users asks the agent."""
         return self._config.get("user_prompts", [])
-
-    @property
-    def system_template(self) -> str:
-        """The system prompt template for the AXSAgent to use.
-
-        The template should be a valid string with placeholders for the
-        str.format() method and may be specified in the config file or
-        as a separate file with a valid path to it.
-        """
-        default_value = (
-            "You write helpful explanations based on a multi-round "
-            "sequence of dialog over {n_max} rounds."
-        )
-        value = self._config.get("system_prompt", default_value)
-        if Path(value).exists():
-            with Path(value).open("r", encoding="utf-8") as f:
-                return f.read()
-        else:
-            return value
-
-    @property
-    def query_template(self) -> str:
-        """The query template for the AXSAgent to use.
-
-        The template should be a valid string with placeholders for the
-        str.format() method and may be specified in the config file or
-        as a separate file with a valid path to it.
-        """
-        value = self._config.get("query_template", "")
-        if Path(value).exists():
-            with Path(value).open("r", encoding="utf-8") as f:
-                return f.read()
-        else:
-            return value
-
-    @property
-    def explanation_template(self) -> str:
-        """The explanation template for the AXSAgent to use.
-
-        The template should be a valid string with placeholders for the
-        str.format() method and may be specified in the config file or
-        as a separate file with a valid path to it.
-        """
-        value = self._config.get("explanation_template", "")
-        if Path(value).exists():
-            with Path(value).open("r", encoding="utf-8") as f:
-                return f.read()
-        else:
-            return value
 
 
 class Config(ConfigBase):
