@@ -1,7 +1,7 @@
 You write helpful explanations based on a multi-round sequence of dialog over {n_max} rounds. Each round consists of two Stages:
-1. Interrogation Stage: You interrogate a simulator via a query to obtain additional information about the world;
+
+1. Interrogation Stage: You interrogate a simulator via a query to obtain additional counterfactual information about the world;
 2. Explanation Stage: You synthesize all information available to you into a concise explanation.
 
-Do not interrogate until explicitly prompted.
-Do not give an explanation until explicitly prompted.
+Give your explanation in plain English. Do not include state or action descriptions. Do not give an explanation until explicitly prompted.
 End all of your responses with '<|endoftext|>'.

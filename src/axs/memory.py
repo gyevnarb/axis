@@ -1,15 +1,22 @@
 """Memory module for storing facts about the environment and iterative experience."""
 
 import abc
+import logging
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class Memory(abc.ABC):
     """Base class for memory components."""
 
-    def __init__(self, memory: Iterable | None = None) -> "Memory":
+    def __init__(
+        self, memory: Iterable | None = None, cache: Path | None = None,
+    ) -> "Memory":
         """Initialize memory with optional memory object."""
+        self.cache = cache
         if memory is not None:
             self._mem = memory
         else:
@@ -28,6 +35,13 @@ class Memory(abc.ABC):
     def reset(self) -> None:
         """Remove all data from memory."""
         self._mem = {}
+
+    def cache_memory(self) -> Path | None:
+        """Cache the memory to a file."""
+        if self.cache is not None:
+            with self.cache.open("wb") as f:
+                f.write(self._mem)
+                logger.debug("Memory cached to %s", self.cache)
 
     @property
     def memory(self) -> Iterable:
@@ -74,6 +88,7 @@ class SemanticMemory(Memory):
                     self._mem[key] = [self._mem[key], value]
             else:
                 self._mem[key] = value
+        self.cache_memory()
 
     @property
     def keys(self) -> list[str]:
@@ -84,10 +99,13 @@ class SemanticMemory(Memory):
 class EpisodicMemory(Memory):
     """Episodic memory stores the iterative experiences of the agent."""
 
-    def __init__(self) -> "EpisodicMemory":
+    def __init__(
+        self, memory: Iterable | None = None, cache: Path | None = None,
+    ) -> "EpisodicMemory":
         """Initialize episodic memory as a list."""
-        super().__init__()
-        self._mem = []
+        super().__init__(memory, cache)
+        if memory is None:
+            self._mem = []
 
     def reset(self) -> None:
         """Set internal memory to an empty list."""
@@ -114,3 +132,4 @@ class EpisodicMemory(Memory):
         """
         for value in args:
             self._mem.append(value)
+        self.cache_memory()

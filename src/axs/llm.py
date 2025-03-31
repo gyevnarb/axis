@@ -59,13 +59,15 @@ class LLMWrapper:
             messages (List[Dict[str, str]]): List of messages to send to the LLM model.
 
         """
+        _messages = self.merge_consecutive_messages(messages)
+
         logger.debug(
-            "[bold yellow]Latest message:[/bold yellow]\n%s", messages[-1]["content"],
+            "[bold yellow]Latest message:[/bold yellow]\n%s", _messages[-1]["content"],
             extra={"markup": True},
         )
 
         if self._mode == "offline":
-            outputs = self._llm.chat(messages, sampling_params=self._sampling_params)
+            outputs = self._llm.chat(_messages, sampling_params=self._sampling_params)
             return [
                 {"role": "assistant", "content": ot.outputs[0].text} for ot in outputs
             ]
@@ -87,7 +89,7 @@ class LLMWrapper:
             raise ValueError(error_msg)
         completions = self._llm.chat.completions.create(
             model=internal_name[0],
-            messages=messages,
+            messages=_messages,
             stream=False,
             seed=self._sampling_params.seed,
             n=self._sampling_params.n,
@@ -115,6 +117,24 @@ class LLMWrapper:
     def mode(self) -> str:
         """Get the current inference mode."""
         return self._mode
+
+    @staticmethod
+    def merge_consecutive_messages(
+        messages: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        """Merge consecutive messages with the same role.
+
+        Args:
+            messages (List[Dict[str, str]]): List of messages to merge.
+
+        """
+        merged_messages = []
+        for message in messages:
+            if not merged_messages or message["role"] != merged_messages[-1]["role"]:
+                merged_messages.append(message)
+            else:
+                merged_messages[-1]["content"] += "\n\n" + message["content"]
+        return merged_messages
 
     @staticmethod
     def wrap(

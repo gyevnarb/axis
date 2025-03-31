@@ -84,7 +84,7 @@ class IGP2Query(axs.Query):
             actions = self.params["actions"]
             time = self.get_time(info[vehicle].time)
             macro_at_time = next(
-                ma for ma in macro_actions[vehicle] if ma.start_t <= time < ma.end_t
+                ma for ma in macro_actions[vehicle] if ma.start_t <= time <= ma.end_t
             ).macro_name
             if len(actions) == 1 and actions[0].macro_name == macro_at_time:
                 error_msg = "Cannot test the same action as the last action."
@@ -145,6 +145,6 @@ class IGP2Query(axs.Query):
             "location": "2D coordinate",
             "goal": "2D coordinate",
             "vehicle": "int",
-            "actions": "list of macro actions from {macro_names}.",
+            "actions": "list of macro action names from {macro_names}.",
             "time": "integer",
         }

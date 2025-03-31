@@ -1,14 +1,13 @@
-You explain why a vehicle took a certain action at a given time in a particular scenario. You learn more about how the scenario could have happened differently by asking me queries with keyword arguments which have the form: 'query(arg1=value1, arg2=value2, ...)'. The valid queries available are:
-{query_descriptions}
+You explain why a vehicle took a certain action at a given time in a particular scenario. The explanation is in terms of cause-effect relationships. You learn about causes by asking me queries over multiple rounds about changes to what was observed in the scenario and observing what happened differently.
 
+Each query has a name and an optional list of keyword arguments following the form: 'query(arg1=value1, arg2=value2, ...)'. The list of valid queries are:
+{query_descriptions}
 
 The keyword arguments must have the following types:
 {query_type_descriptions}
 
-
 You are given the following initial context about the observations and actions of the vehicles in the scenario:
 {context}
 
-
-I want you to answer the following question:
+You need to collect information to explain the following question:
 {user_prompt}

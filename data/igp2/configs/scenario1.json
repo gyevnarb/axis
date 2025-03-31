@@ -13,6 +13,7 @@
     "axs": {
         "n_max": 5,
         "delta": 0.01,
+        "cache_dir": "output/igp2/cache",
         "macro_action": {
             "type_name": "IGP2MacroAction",
             "params": {
@@ -24,6 +25,7 @@
             "params": {
                 "add_roads": false,
                 "add_actions": false,
+                "add_observations": false,
                 "subsample": 3
             }
         },

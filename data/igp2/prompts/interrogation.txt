@@ -1,4 +1,3 @@
-This is round {n}/{n_max}.
-This is the Interrogation stage.
+This is round {n}/{n_max}. This is the Interrogation stage.
 
-Give your answer as a single query, specifying concrete values for the keyword arguments. Do not give anything else as an answer. If you do not need more information, answer DONE.
+Give your answer as a single query, specifying concrete values for the keyword arguments. Only reply with a query and do not add anything else in your answer. If you do not need more information, answer DONE.

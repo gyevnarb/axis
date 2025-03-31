@@ -236,6 +236,11 @@ class AXSConfig(ConfigBase):
         return value
 
     @property
+    def cache_dir(self) -> str | None:
+        """The directory for the AXSAgent cache."""
+        return self._config.get("cache_dir", None)
+
+    @property
     def macro_action(self) -> MacroActionConfig:
         """The macro action configuration for the AXSAgent."""
         return MacroActionConfig(self._config["macro_action"])

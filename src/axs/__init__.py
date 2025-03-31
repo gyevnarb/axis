@@ -1,9 +1,17 @@
-"""The axs package allows users to asks questions and generate explanations for RL envs.
+"""AXS: Agetnic eXplanations with Simulations for RL Environments.
 
+The axs package allows users to asks questions and generate explanations for RL envs.
 AXS currently supports gymnasium and pettingzoo environments using an agentic workflow.
 
 Most of the functionality is encapsulated in the AXSAgent class, which
-is the main agent class for the AXS framework.
+is the main agent class for the AXS framework. Other classes may be overriden
+to support different environments or use cases.
+
+MacroAction:
+Verbalize:
+Query:
+Policy:
+Wrapper:
 """
 
 import datetime

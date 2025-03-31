@@ -1,9 +1,7 @@
-This is round {n}/{n_max}.
-This is the Explanation Stage.
+This is round {n}/{n_max}. This is the Explanation Stage.
 
 After running the simulation for your query, the following was observed:
 {context}
 
-
-Give your explanation in plain English to the user question below. Do not include state or action descriptions.
+I want you to give an explanation to the following question:
 {user_prompt}

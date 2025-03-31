@@ -159,7 +159,7 @@ class IGP2MacroAction(axs.MacroAction):
 
         """
         if not self._ip_macro_applicable(observation, info, **kwargs):
-            error_msg = f"{self} is not a valid action."
+            error_msg = f"{self} is not applicable."
             raise axs.SimulationError(error_msg)
 
         ma = self.macro_name
@@ -173,7 +173,13 @@ class IGP2MacroAction(axs.MacroAction):
         elif ma in ["TurnLeft", "TurnRight", "GoStraightJunction", "GiveWay"]:
             ip_macro = ip.Exit
         elif ma == "GoStraight":
-            ip_macro = ip.Continue
+            if not ip.Continue.applicable(
+                info[self.agent_id],
+                self.scenario_map,
+            ):
+                ip_macro = ip.Exit
+            else:
+                ip_macro = ip.Continue
 
         macro = self._get_ip_macro(ip_macro, info, **kwargs)
         self.action_segments = [macro]
@@ -255,10 +261,12 @@ class IGP2MacroAction(axs.MacroAction):
         goal = None
         macro = None
 
+        # Handle stopping without a goal over a set distance
         if self.macro_name == "Stop":
             stop_len = kwargs.get("stop_len", 10)
             current_lane = self.scenario_map.best_road_at(
-                agent_state.position, agent_state.heading,
+                agent_state.position,
+                agent_state.heading,
             )
             lane_len = current_lane.length
             current_ds = current_lane.distance_at(agent_state.position)
@@ -270,23 +278,36 @@ class IGP2MacroAction(axs.MacroAction):
 
         ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map, goal)
         for config_dict in ip_ma_args:
-            if "GiveWay" in agent_state.maneuver and self.macro_name != "GiveWay":
+            if (
+                agent_state.maneuver is not None
+                and "GiveWay" in agent_state.maneuver
+                and self.macro_name != "GiveWay"
+            ):
                 config_dict["stop"] = False  # If GiveWay is being overriden, don't stop
             config_dict["open_loop"] = False
             config_dict["fps"] = fps
-            macro = ip_macro(
+            _macro = ip_macro(
                 ip.MacroActionConfig(config_dict),
                 agent_id=self.agent_id,
                 frame=info,
                 scenario_map=self.scenario_map,
             )
             if ip_macro == ip.Exit:
-                direction = 1 if ma == "TurnLeft" else -1 if ma == "TurnRight" else 0
-                if direction == macro.orientation:
+                direction = (
+                    1
+                    if self.macro_name == "TurnLeft"
+                    else -1
+                    if self.macro_name == "TurnRight"
+                    else 0
+                )
+                if direction == _macro.orientation:
+                    macro = _macro
                     break
+            else:
+                macro = _macro
         if macro is None:
-            error_msg = f"Could not create {self.macro_name} macro action."
-            raise ValueError(error_msg)
+            error_msg = f"Cannot create {self.macro_name} macro action."
+            raise axs.SimulationError(error_msg)
         return macro
 
     @classmethod

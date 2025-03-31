@@ -1,6 +1,7 @@
 """Utility functions for the IGP2 AXSAgent implementation."""
 
 from collections import defaultdict
+
 import igp2 as ip
 import numpy as np
 

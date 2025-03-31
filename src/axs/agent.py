@@ -1,5 +1,6 @@
 """Contains the main agent class for the AXS framework."""
 
+import datetime
 import logging
 import pickle
 from pathlib import Path
@@ -66,10 +67,17 @@ class AXSAgent:
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
 
         # Memory components
+        cache_file = None
+        if config.axs.cache_dir is not None:
+            cache_dir = Path(config.axs.cache_dir)
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+            cache_file = cache_dir.joinpath(f"memory_{date_time}.pkl")
         self._semantic_memory = SemanticMemory(
             {"observations": [], "actions": [], "infos": [], "prompts": []},
+            cache=cache_file,
         )
-        self._episodic_memory = EpisodicMemory()
+        self._episodic_memory = EpisodicMemory(cache=cache_file)
 
         # Procedural components
         self._simulator = Simulator(config.env, agent_policies, simulator_env)
@@ -146,6 +154,7 @@ class AXSAgent:
         system_prompt = self._prompts["system"].fill(
             n_max=self.config.axs.n_max,
         )
+        logger.debug("System prompt: %s", system_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("system", system_prompt))
 
         context_prompt = self._prompts["context"].fill(
@@ -153,6 +162,7 @@ class AXSAgent:
             macro_names=self._macro_action.macro_names,
             user_prompt=user_prompt,
         )
+        logger.debug("Context prompt: %s", context_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
 
         n = 1
@@ -172,7 +182,7 @@ class AXSAgent:
                 n,
             )
             explanation = self._explanation(user_prompt, simulation_results, n)
-            if explanation is not None:
+            if simulation_results == "DONE":
                 break
 
             prev_explanation = explanation
@@ -187,16 +197,17 @@ class AXSAgent:
         macro_actions: dict[int, MacroAction],
         infos: list[dict[str, Any]],
         n: int = 0,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any] | str:
         """Perform a single round of simulator interrogation with the LLM.
 
         Returns:
-            dict[str, Any] | None: The simulation results or a boolean indicating
+            dict[str, Any] | str: The simulation results or a string indicating
                 if the simulation is done or failed.
 
         """
         interrogation_prompt = self._prompts["interrogation"].fill(
-            n=n, n_max=self.config.axs.n_max,
+            n=n,
+            n_max=self.config.axs.n_max,
         )
         self.episodic_memory.learn(LLMWrapper.wrap("user", interrogation_prompt))
 
@@ -205,7 +216,7 @@ class AXSAgent:
             self.episodic_memory.learn(query_output)
             query_content = query_output["content"]
             if "DONE" in query_content:
-                return None
+                return "DONE"
 
             try:
                 simulation_query = self._query.parse(query_content)
@@ -229,7 +240,7 @@ class AXSAgent:
                     f"The generated query is invalid: {e} Generate a different query."
                 )
             except SimulationError as e:
-                error_msg = f"The simulation failed: {e}"
+                error_msg = f"The simulation failed: {e} Generate a different query."
             logger.exception(error_msg)
             self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
 
@@ -246,7 +257,7 @@ class AXSAgent:
         n: int,
     ) -> str:
         """Synthesise an explanation based on the simulation results."""
-        if results is None:
+        if results == "DONE":
             explanation_prompt = self._prompts["final"].fill()
         else:
             simulation_context = self._verbalizer.convert(
@@ -262,9 +273,11 @@ class AXSAgent:
                 n=n,
                 n_max=self.config.axs.n_max,
             )
-
         self.episodic_memory.learn(LLMWrapper.wrap("user", explanation_prompt))
+
         explanation_output = self._llm.chat(self.episodic_memory.memory)[0]
+        self.episodic_memory.learn(explanation_output)
+
         return explanation_output["content"]
 
     def reset(self) -> None:
@@ -277,7 +290,6 @@ class AXSAgent:
         statedict = {
             "semantic_memory": self._semantic_memory,
             "episodic_memory": self._episodic_memory,
-            # "simulator": self._simulator,
         }
 
         with Path(path).open("wb") as f:

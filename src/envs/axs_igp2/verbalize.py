@@ -73,7 +73,6 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - add_actions: Whether to add raw steering and acceleration values.
                 - add_macro_actions: Whether to add macro action descriptions.
                 - add_observations: Whether to add observation descriptions.
-                - add_infos: Whether to add agent information.
                 - add_rewards: Whether to add reward descriptions.
                 - subsample (int): Frequency of subsampling observations.
                         Use this to decrease the complexity of the verbalization.
@@ -117,37 +116,43 @@ class IGP2Verbalizer(axs.Verbalizer):
 
         for aid in actions_dict:
             context += f"- Vehicle {aid}:\n"
-            context += "  - Observations:\n"
-            if kwargs.get("add_infos", True):
+            if kwargs.get("add_observations", True):
+                context += "  - Observations:\n"
                 for signal, data in infos_dict[aid].items():
                     if signal in ["Steering", "Acceleration"]:
                         continue  # Do not include actions here
                     context += f"    - {signal}: {data}\n"
-            context += "  - Actions: "
             if kwargs.get("add_macro_actions", True):
+                context += "  - Macro actions (as macro[from-to]): "
                 context += f"[{actions_dict[aid]}]\n"
             if kwargs.get("add_actions", True):
+                context += "  - Actions:\n"
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
-            if rewards is not None and kwargs.get("add_rewards", True) and aid in rewards:
+            if (
+                rewards is not None
+                and kwargs.get("add_rewards", True)
+                and aid in rewards
+            ):
                 context += "  - Rewards:\n"
                 reward_str = IGP2Verbalizer._convert_reward(rewards[aid], **kwargs)
                 context += f"{reward_str}\n"
-            context += "\n\n"
-        context = context[:-3]  # Remove trailing newlines
+            context += "\n"
+        context = context[:-2]  # Remove trailing newlines
 
         ret["context"] = context
 
         if query is not None:
-            query_descriptions, query_type_descriptions = \
-                IGP2Verbalizer.convert_query(query)
+            query_descriptions, query_type_descriptions = IGP2Verbalizer.convert_query(
+                query
+            )
             ret["query_descriptions"] = query_descriptions
             ret["query_type_descriptions"] = query_type_descriptions
 
         return ret
 
     @staticmethod
-    def convert_rewards(rewards, **kwargs):
+    def convert_rewards(rewards: ip.Reward, **kwargs: dict[str, Any]) -> str:
         """Verbalize the rewards of the agents.
 
         Args:
