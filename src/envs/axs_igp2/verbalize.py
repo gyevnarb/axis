@@ -15,24 +15,28 @@ from envs.axs_igp2.macroaction import IGP2MacroAction
 logger = logging.getLogger(__name__)
 
 
-ROAD_LAYOUT_PRETEXT = """Below metadata to parse the elements of the road layout.
+ROAD_LAYOUT_PRETEXT = """- Metadata:
 
-Coordinate system:
-  We are using a 2D Cartesian coordinate system.
-  Coordinates are in units of meters and written as (x, y).
-  Angles are in radians in the range [-pi, pi].
+  - Traffic rules:
+    - Vehicles drive on the right side of the road.
+    - The maximum speed limit is 10 m/s.
 
-Roads and Lanes:
-  The road layout consists of roads which are given a unique numeric ID.
-  Roads are made up of lanes which are identified as 'road ID:lane ID'.
-  Lanes are oriented in the direction of the road midline.
-  Lanes are divided into left and right lanes.
-  Right lanes have a negative ID and left lanes have a positive ID.
-  Lanes are 3.5 meters wide.
+  - Coordinate system:
+    - Coordinates are on a 2D Cartesian plane.
+    - Coordinates are written as [x y].
+    - Distances are in meters.
+    - Angles are in radians in the range [-pi, pi].
 
-Intersections:
-  Roads are connected at intersections.
-  Intersections are made up of connections between incoming and connecting roads.
+  - Road layout:
+    - The road layout consists of roads identified by a numeric ID.
+    - Roads are made up of lanes identified as 'road ID:lane ID'.
+    - Lanes are divided into left and right lanes.
+    - Right lanes have a negative ID and left lanes have a positive ID.
+    - Lanes are 3.5 meters wide.
+
+  - Intersections:
+    - Roads are connected by intersections.
+    - Intersections are made up of connections between incoming and connecting roads.
 """
 
 REWARD_NAME_MAP = {
@@ -143,11 +147,9 @@ class IGP2Verbalizer(axs.Verbalizer):
         ret["context"] = context
 
         if query is not None:
-            query_descriptions, query_type_descriptions = IGP2Verbalizer.convert_query(
-                query
-            )
-            ret["query_descriptions"] = query_descriptions
-            ret["query_type_descriptions"] = query_type_descriptions
+            q_descriptions, q_type_descriptions = IGP2Verbalizer.convert_query(query)
+            ret["query_descriptions"] = q_descriptions
+            ret["query_type_descriptions"] = q_type_descriptions
 
         return ret
 
