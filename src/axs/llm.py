@@ -6,7 +6,6 @@ Supports offline, localhost, and online LLM models.
 import logging
 
 import openai
-from vllm import SamplingParams
 
 from axs.config import LLMConfig
 
@@ -28,11 +27,12 @@ class LLMWrapper:
         self._llm = None
         if "stop" not in config.sampling_params:
             config.sampling_params["stop"] = ["<|endoftext|>"]
-        self._sampling_params = SamplingParams(**config.sampling_params)
+        self._sampling_params = config.sampling_params
         self._mode = config.inference_mode
 
         if self._mode == "offline":
-            from vllm import LLM
+            from vllm import LLM, SamplingParams
+            self._sampling_params = SamplingParams(**self._sampling_params)
             self._llm = LLM(
                 config.model,
                 seed=self._sampling_params.seed,
@@ -59,6 +59,10 @@ class LLMWrapper:
             messages (List[Dict[str, str]]): List of messages to send to the LLM model.
 
         """
+        if isinstance(self._sampling_params, dict):
+            from vllm import SamplingParams
+            self._sampling_params = SamplingParams(**self._sampling_params)
+
         _messages = self.merge_consecutive_messages(messages)
 
         logger.debug(

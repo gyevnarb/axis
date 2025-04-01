@@ -7,14 +7,10 @@ path = "src/__about__.py"
 
 [project]
 name = "axs"
-dynamic = [
- "version",
-]
+dynamic = ["version"]
 description = "Generating agentic explanations for multi-agent systems with simulator grounding"
 readme = "README.md"
-authors = [
-    { name = "Balint Gyevnar", email = "balint.gyevnar@ed.ac.uk" }
-]
+authors = [{ name = "Balint Gyevnar", email = "balint.gyevnar@ed.ac.uk" }]
 requires-python = ">=3.11"
 dependencies = [
     "gymnasium>=1.1.1",
@@ -24,7 +20,14 @@ dependencies = [
     "typer>=0.15.2",
     "vllm>=0.7.3",
 ]
-keywords = ["Explainable Agent", "Reinforcement Learning", "Explainable AI", "Agentic System", "LLM", "Simulator"]
+keywords = [
+    "Explainable Agent",
+    "Reinforcement Learning",
+    "Explainable AI",
+    "Agentic System",
+    "LLM",
+    "Simulator",
+]
 classifiers = [
     "Development Status :: 1 - Planning",
     "License :: OSI Approved :: MIT License",
@@ -33,7 +36,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12"
+    "Programming Language :: Python :: 3.12",
 ]
 license = "MIT"
 
@@ -41,17 +44,10 @@ license = "MIT"
 axs = "axs:run"
 
 [project.optional-dependencies]
-igp2 = [
-    "igp2",
-    "gofi",
-]
+igp2 = ["igp2", "gofi"]
 
 [dependency-groups]
-dev = [
-    "bitsandbytes>=0.45.3",
-    "minigrid>=3.0.0",
-    "hatch>=1.14.0",
-]
+dev = ["bitsandbytes>=0.45.3", "minigrid>=3.0.0", "hatch>=1.14.0"]
 
 [tool.uv.sources]
 gofi = { git = "https://github.com/gyevnarb/gofi" }
@@ -59,4 +55,13 @@ igp2 = { git = "https://github.com/uoe-agents/IGP2" }
 
 [tool.ruff]
 select = ["ALL"]
-ignore = ["S301", "ANN401", "ERA001", "PLR0912", "C901", "ARG002", "SLF001"]
+ignore = [
+    "S301",
+    "ANN401",
+    "ERA001",
+    "PLR0912",
+    "C901",
+    "ARG002",
+    "SLF001",
+    "FBT002",
+]

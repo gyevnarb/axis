@@ -30,7 +30,7 @@ class IGP2Policy(axs.Policy):
     ) -> None:
         """Reset the internal state of the policy."""
         self.agent.reset()
-        if observations and infos:
+        if observations or infos:
             self.update(observations, infos)
 
     def update(
@@ -75,4 +75,22 @@ class IGP2Policy(axs.Policy):
                 self.agent.current_macro,
                 self.agent.current_macro.current_maneuver,
             ),
+        }
+
+    @classmethod
+    def create(
+        cls,
+        env: axs.SupportedEnv | None = None,
+    ) -> dict[int, "IGP2Policy"]:
+        """Create a policy for each agent in the environment.
+
+        Args:
+            env (SupportedEnv): The environment to create policies for.
+
+        """
+        if env is None:
+            raise ValueError("Environment must be provided.")
+        return {
+            aid: cls(agent, env.unwrapped.scenario_map)
+            for aid, agent in env.unwrapped.simulation.agents.items()
         }

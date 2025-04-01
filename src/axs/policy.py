@@ -3,8 +3,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from axs.config import Registerable, SupportedEnv
 
-class Policy(ABC):
+
+class Policy(ABC, Registerable, class_type=None):
     """Interface class for agent policies.
 
     You can either subclass this interface or wrap an existing policy in it.
@@ -50,6 +52,17 @@ class Policy(ABC):
         Args:
             observation (Any): The observation from the environment.
             info (dict[str, Any] | None): The info dict from the environment.
+
+        """
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def create(cls, env: SupportedEnv | None = None) -> dict[int, "Policy"]:
+        """Create a policy for each agent in the environment.
+
+        Args:
+            env (SupportedEnv): The environment to create policies for.
 
         """
         raise NotImplementedError

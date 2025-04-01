@@ -68,8 +68,8 @@ class AXSAgent:
 
         # Memory components
         cache_file = None
-        if config.axs.cache_dir is not None:
-            cache_dir = Path(config.axs.cache_dir)
+        if config.axs.cache:
+            cache_dir = Path(config.axs.output_dir, "cache")
             cache_dir.mkdir(parents=True, exist_ok=True)
             date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
             cache_file = cache_dir.joinpath(f"memory_{date_time}.pkl")
@@ -80,6 +80,7 @@ class AXSAgent:
         self._episodic_memory = EpisodicMemory(cache=cache_file)
 
         # Procedural components
+        self._agent_policies = agent_policies
         self._simulator = Simulator(config.env, agent_policies, simulator_env)
         self._llm = LLMWrapper(config.llm)
         self._distance = None

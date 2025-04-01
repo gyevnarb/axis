@@ -15,6 +15,7 @@ with contextlib.suppress(ImportError):
     from envs import axs_igp2
 
 axs.init_logging(
+    "DEBUG",
     ["igp2.core.velocitysmoother", "matplotlib", "httpcore", "openai", "httpx"],
     # log_dir="output/logs",
     # log_name="test",
@@ -35,10 +36,7 @@ config = axs.Config(CONFIG_FILE)
 env = gym.make(config.env.name, render_mode=config.env.render_mode, **config.env.params)
 observation, info = env.reset(seed=config.env.seed)
 
-agent_policies = {
-    aid: axs_igp2.IGP2Policy(agent, env.unwrapped.scenario_map)
-    for aid, agent in env.unwrapped.simulation.agents.items()
-}
+agent_policies = axs_igp2.IGP2Policy.create(env)
 axs_agent = axs.AXSAgent(config, agent_policies)
 
 if Path(f"{OUTPUT}/agent.pkl").exists():

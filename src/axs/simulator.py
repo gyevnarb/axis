@@ -12,6 +12,7 @@ from axs.config import EnvConfig, SupportedEnv
 from axs.macroaction import MacroAction
 from axs.policy import Policy
 from axs.query import Query
+from axs.util import load_env
 from axs.wrapper import QueryableAECWrapper, QueryableWrapper
 
 logger = logging.getLogger(__name__)
@@ -50,24 +51,12 @@ class Simulator:
                 error_msg = "Environment must be a supported environment."
                 raise TypeError(error_msg)
             self.env = env
-        elif config.name in gym.registry:
-            self.env = gym.make(config.name, render_mode="human", **config.params)
-            self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
-        elif config.env_type:
-            if config.env_type == "aec":
-                self.env = pettingzoo.AECEnv(**config.params)
-            elif config.env_type == "parallel":
-                self.env = pettingzoo.ParallelEnv(**config.params)
-                self.env = parallel_to_aec(self.env)
-            else:
-                error_msg = (
-                    f"Environment simulator {config.name} cannot be initialized."
-                )
-                raise ValueError(error_msg)
-            self.env = QueryableAECWrapper.get(config.wrapper_type)(self.env)
         else:
-            error_msg = f"Environment simulator {config.name} cannot be initialized."
-            raise ValueError(error_msg)
+            self.env = load_env(config)
+            if isinstance(self.env, gym.Env):
+                self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
+            else:
+                self.env = QueryableAECWrapper.get(config.wrapper_type)(self.env)
 
     def run(
         self,

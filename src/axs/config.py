@@ -10,7 +10,7 @@ import pettingzoo
 SupportedEnv = Union[gym.Env, pettingzoo.ParallelEnv, pettingzoo.AECEnv]  # noqa: UP007
 SupportedEnv.__doc__ = "The supported environment types for the AXS agent."
 
-_registry: dict[str, "type[Registerable]"] = {}
+registry: dict[str, "type[Registerable]"] = {}
 
 
 class Registerable:
@@ -31,10 +31,10 @@ class Registerable:
         if not issubclass(cls, class_type):
             error_msg = f"Type {cls} is not a subclass of {class_type}."
             raise TypeError(error_msg)
-        if name in _registry:
+        if name in registry:
             error_msg = f"Type {name} already registered in the registry."
             raise ValueError(error_msg)
-        _registry[name] = cls
+        registry[name] = cls
 
     @classmethod
     def get(cls, name: str) -> type:
@@ -44,12 +44,12 @@ class Registerable:
             name (str): The name of the type.
 
         """
-        if name not in _registry:
+        if name not in registry:
             error_msg = (
-                f"Type {name} not found in the registry with {_registry.keys()}."
+                f"Type {name} not found in the registry with {registry.keys()}."
             )
             raise ValueError(error_msg)
-        return _registry[name]
+        return registry[name]
 
 
 class ConfigBase:
@@ -75,16 +75,23 @@ class EnvConfig(ConfigBase):
 
     @property
     def wrapper_type(self) -> str:
-        """QueryableWrapper type for the simulator to use."""
+        """Name of the QueryableWrapper type for the simulator to use."""
         return self._config["wrapper_type"]
 
     @property
-    def env_type(self) -> str | None:
-        """Optional environment type used for pettingzoo environments.
+    def policy_type(self) -> str:
+        """Name of the policy type for the simulator to use."""
+        return self._config["policy_type"]
 
-        Either 'parallel' or 'aec'.
+    @property
+    def pettingzoo_import(self) -> str:
+        """Import path of the environment type when using pettingzoo.
+
+        This should be specified as an entry point to a class
+        as a string following the setuptools syntax:
+        >>> <name> = <package_or_module>:<object>
         """
-        return self._config.get("env_type", None)
+        return self._config["pettingzoo_import"]
 
     @property
     def max_iter(self) -> int:
@@ -236,9 +243,21 @@ class AXSConfig(ConfigBase):
         return value
 
     @property
-    def cache_dir(self) -> str | None:
-        """The directory for the AXSAgent cache."""
-        return self._config.get("cache_dir", None)
+    def cache(self) -> bool:
+        """Whether to cache the AXSAgent memory."""
+        return self._config.get("cache", False)
+
+    @property
+    def output_dir(self) -> Path | None:
+        """The directory for the AXSAgent output."""
+        if "output_dir" not in self._config:
+            return None
+        return Path(self._config["output_dir"])
+
+    @output_dir.setter
+    def output_dir(self, value: str) -> None:
+        """Set the output directory for the AXSAgent."""
+        self._config["output_dir"] = Path(value)
 
     @property
     def macro_action(self) -> MacroActionConfig:

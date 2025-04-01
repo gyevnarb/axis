@@ -14,15 +14,14 @@ Policy:
 Wrapper:
 """
 
-import datetime
 import logging
 from pathlib import Path
 from typing import Annotated
 
 import gymnasium as gym
 import typer
-from rich.logging import RichHandler
 
+from . import util
 from .agent import AXSAgent
 from .config import (
     AXSConfig,
@@ -32,6 +31,7 @@ from .config import (
     MacroActionConfig,
     SupportedEnv,
     VerbalizerConfig,
+    registry,
 )
 from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
@@ -65,112 +65,72 @@ __all__ = [
     "SupportedEnv",
     "Verbalizer",
     "VerbalizerConfig",
+    "axs_registry",
     "init_logging",
+    "util",
 ]
 
 logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-def init_logging(
-    warning_only: list[str] | None = None,
-    log_dir: str | None = None,
-    log_name: str | None = None,
-) -> None:
-    """Initialize logging.
-
-    Args:
-        warning_only (List[str]): List of loggers whose level is set to WARNING.
-        log_dir (str): Directory to save logs.
-        log_name (str): Name base of the log file.
-
-    """
-    logging.basicConfig(
-        level="NOTSET",
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)],
-    )
-
-    for mute in warning_only:
-        logging.getLogger(mute).setLevel(logging.WARNING)
-
-    # Add saving to file if arguments are provided
-    if log_dir and log_name:
-        if not Path(log_dir).exists():
-            Path(log_dir).mkdir(parents=True)
-        date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
-        log_path = Path(f"{log_dir}/{log_name}_{date_time}.log")
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(
-            logging.Formatter(
-                "[%(threadName)-10.10s:%(name)-20.20s] [%(levelname)-6.6s] %(message)s",
-            ),
-        )
-        logging.getLogger().addHandler(file_handler)
-
-
 @app.command()
 def main(
     config_file: Annotated[
-        str, typer.Option(help="The path to the configuration file.")
+        str,
+        typer.Option(help="The path to the configuration file."),
     ] = "data/config.json",
-    output: Annotated[
+    output_dir: Annotated[
         str,
         typer.Option(help="The path to the output directory."),
     ] = "output/",
+    debug: Annotated[
+        bool,
+        typer.Option(help="Enable debug mode.", is_eager=True),
+    ] = False,
 ) -> None:
-    """Execute the AXS agent according to the configuration file."""
+    """Run an AXS agent according to a configuration file."""
+    util.init_logging(
+        level="DEBUG" if debug else "INFO",
+        warning_only=[
+            "igp2.core.velocitysmoother",
+            "matplotlib",
+            "httpcore",
+            "openai",
+            "httpx",
+        ],
+    )
+
     if not Path(config_file).exists():
         error_msg = f"Configuration file not found: {config_file}"
         raise FileNotFoundError(error_msg)
-    if not Path(output).exists():
-        Path(output).mkdir(parents=True)
 
-    config_file = "data/igp2/configs/scenario1.json"
     config = Config(config_file)
-    env = gym.make(
-        config.env.name, render_mode=config.env.render_mode, **config.env.params,
-    )
-    observation, info = env.reset(seed=config.env.seed)
 
-    axs_agent = AXSAgent(config)
-    ego_agent = None  # TODO: Add loading of environment agent(s) here
+    if config.axs.output_dir is None:
+        config.axs.output_dir = output_dir
+    output_dir = config.axs.output_dir
+    if not output_dir.exists():
+        logger.info("Creating output directory %s", output_dir)
+        output_dir.mkdir(parents=True)
 
-    for n in range(config.env.n_episodes):
-        logger.info("Running episode %d...", n)
+    env = util.load_env(config.env)
+    initial_state = env.reset(seed=config.env.seed)
 
-        axs_agent.reset()
+    agent_policies = registry.get(config.env.policy_type).create(env)
+    axs_agent = AXSAgent(config, agent_policies)
 
-        # Execute external environment as normal
-        for t in range(config.env.max_iter):
-            action = None  # ego_agent.next_action(observation)
-
-            # Learning and explanation phase
-            axs_agent.semantic_memory.learn(
-                observations=observation, actions=action, infos=info
-            )
-            for prompt in config.axs.user_prompts:
-                if t > 0 and prompt.time == t - 1:
-                    user_query = prompt.generate()
-                    axs_agent.explain(user_query)
-
-            # Perform environment step
-            observation, reward, terminated, truncated, info = env.step(action)
-            if terminated or truncated:
-                logger.info("Episode terminated.")
-                observation, info = env.reset(seed=config.env.seed)
-                break
-
-    env.close()
+    if config.env.name in gym.registry:
+        util.run_gym_env(env, axs_agent, config, *initial_state)
+    else:
+        util.run_aec_env(env, axs_agent, config)
 
 
-def run():
-    """Entry-point for CLI."""
-    init_logging()
+def run() -> None:
+    """Entry-point for CLI.
+
+    This function may be called from any package that implements the AXS framework.
+    It is the main entry point for the AXS package and should be called
+    when the package is run as a script.
+    """
     app()
-
-
-if __name__ == "__main__":
-    run()
