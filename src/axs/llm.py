@@ -65,11 +65,6 @@ class LLMWrapper:
 
         _messages = self.merge_consecutive_messages(messages)
 
-        logger.debug(
-            "[bold yellow]Latest message:[/bold yellow]\n%s", _messages[-1]["content"],
-            extra={"markup": True},
-        )
-
         if self._mode == "offline":
             outputs = self._llm.chat(_messages, sampling_params=self._sampling_params)
             return [
@@ -111,7 +106,7 @@ class LLMWrapper:
             for c in completions.choices
         ]
 
-        logger.debug(
+        logger.info(
             "[bold yellow]LLM response:[/bold yellow]\n%s", responses[0]["content"],
             extra={"markup": True},
         )

@@ -68,17 +68,22 @@ class AXSAgent:
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
 
         # Memory components
-        save_file = None
+        save_dir = None
         if config.save_results:
             save_dir = Path(config.output_dir, "cache")
             save_dir.mkdir(parents=True, exist_ok=True)
             date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
-            save_file = save_dir.joinpath(f"memory_{date_time}.pkl")
         self._semantic_memory = SemanticMemory(
             {"observations": [], "actions": [], "infos": []},
-            save_file=save_file,
+            save_file=save_dir.joinpath(f"semantic_{date_time}.pkl")
+            if save_dir
+            else None,
         )
-        self._episodic_memory = EpisodicMemory(save_file=save_file)
+        self._episodic_memory = EpisodicMemory(
+            save_file=save_dir.joinpath(f"episodic_{date_time}.pkl")
+            if save_dir
+            else None,
+        )
 
         # Procedural components
         self._agent_policies = agent_policies
@@ -332,7 +337,7 @@ class AXSAgent:
         with path.open("rb") as f:
             statedict = pickle.load(f)
         for key, value in statedict.items():
-            setattr(self, "_" + key, value)
+            setattr(self, f"_{key}", value)
 
     @property
     def agent_policies(self) -> dict[int, Policy]:

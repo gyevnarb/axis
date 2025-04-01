@@ -65,12 +65,12 @@ class Query(Registerable, class_type=None):
         query_descriptions = cls.query_descriptions()
         for query_name, description in query_descriptions.items():
             if query_name not in cls.args_and_types:
-                error_msg = f"Invalid query name: {query_name}"
+                error_msg = f"Invalid query name: {query_name}."
                 raise QueryError(error_msg)
             for match in desc_arg_re.findall(description):
                 if match not in cls.args_and_types[query_name]:
                     error_msg = (
-                        f"Invalid query variable: {match} in description: {description}"
+                        f"Invalid query variable: {match} in description: {description}."
                     )
                     raise QueryError(error_msg)
 
@@ -173,13 +173,13 @@ class Query(Registerable, class_type=None):
         # Check if the query string is valid
         match = syntax_re.search(query_str)
         if not match:
-            error_msg = f"Invalid query syntax: {query_str}"
+            error_msg = f"Invalid query syntax: {query_str}."
             raise QueryError(error_msg)
 
         # Check if the query name is valid
         query_name = match.group(1)
         if query_name not in cls.args_and_types:
-            error_msg = f"Invalid query name: {query_name}"
+            error_msg = f"Invalid query name: {query_name}."
             raise QueryError(error_msg)
 
         # Extract the query parameters
@@ -192,7 +192,7 @@ class Query(Registerable, class_type=None):
             elif arg_tuple:
                 params[arg] = [v.strip().replace("'", "") for v in arg_tuple.split(",")]
             else:
-                error_msg = f"Invalid argument syntax: {(arg, arg_val, arg_list)}"
+                error_msg = f"Invalid argument syntax: {(arg, arg_val, arg_list)}."
                 raise QueryError(error_msg)
 
         # Convert all parameters to the correct types
@@ -228,5 +228,5 @@ class Query(Registerable, class_type=None):
                                "Wrapping in list manually.", params)
                 return [args[0](params)]
             return [args[0](x) for x in params]
-        error_msg = f"Invalid argument type: {arg_type}"
+        error_msg = f"Invalid argument type: {arg_type}."
         raise QueryError(error_msg)
