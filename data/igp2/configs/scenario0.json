@@ -39,7 +39,7 @@
                 "template": "Why did vehicle 0 change lanes right?"
             },
             {
-                "time": 140,
+                "time": 180,
                 "template": "Why didn't vehicle 0 go straight in the junction?"
             }
         ]

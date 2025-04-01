@@ -2,7 +2,7 @@
 
 import igp2
 
-from axs import run
+from axs import cli
 
 if __name__ == "__main__":
-    run()
+    cli()

@@ -41,8 +41,8 @@ classifiers = [
 license = "MIT"
 
 [project.scripts]
-axs = "axs:run"
-axs-igp2 = "envs.axs_igp2:run"
+axs = "axs:cli"
+axs-igp2 = "envs.axs_igp2:cli"
 
 [project.optional-dependencies]
 igp2 = ["igp2", "gofi"]

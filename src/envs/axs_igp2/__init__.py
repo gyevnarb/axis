@@ -1,6 +1,6 @@
 """Implementation of AXS for IGP2."""
 
-from axs import run
+from axs import cli
 
 from .macroaction import IGP2MacroAction
 from .policy import IGP2Policy

@@ -41,3 +41,5 @@ fi
 # Login to huggingface-hub
 git config --global credential.helper store
 uv run huggingface-cli login
+
+echo "You should call $HOME/.local/bin/env to activate uv and use the virtual environment"

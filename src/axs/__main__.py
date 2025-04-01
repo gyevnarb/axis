@@ -1,4 +1,4 @@
 """Run the AXS agent."""
-from . import run
+from . import cli
 
-run()
+cli()
