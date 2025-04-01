@@ -75,21 +75,52 @@ app = typer.Typer()
 
 
 @app.command()
-def main(
+def main(  # noqa: PLR0913
     config_file: Annotated[
         str,
         typer.Option(help="The path to the configuration file."),
-    ] = "data/config.json",
+    ],
     output_dir: Annotated[
-        str,
+        str | None,
         typer.Option(help="The path to the output directory."),
-    ] = "output/",
-    debug: Annotated[
+    ] = None,
+    save_logs: Annotated[
         bool,
-        typer.Option(help="Enable debug mode.", is_eager=True),
+        typer.Option(help="Whether to save the logs of the run."),
     ] = False,
+    debug: Annotated[
+        bool | None,
+        typer.Option(help="Enable debug mode.", is_eager=True),
+    ] = None,
+    save_results: Annotated[
+        bool | None,
+        typer.Option(help="Whether to save all run information to disk."),
+    ] = None,
+    dryrun: Annotated[
+        bool | None,
+        typer.Option(help="Run the environment without executing any explanations."),
+    ] = None,
 ) -> None:
     """Run an AXS agent according to a configuration file."""
+    if not Path(config_file).exists():
+        error_msg = f"Configuration file not found: {config_file}"
+        raise FileNotFoundError(error_msg)
+
+    config = Config(config_file)
+    if debug is not None:
+        config.config_dict["debug"] = debug
+    if dryrun is not None:
+        config.config_dict["dryrun"] = dryrun
+    if save_results is not None:
+        config.config_dict["save_results"] = save_results
+    if output_dir is not None:
+        config.config_dict["output_dir"] = output_dir
+
+    output_dir = config.output_dir
+    if not output_dir.exists():
+        logger.info("Creating output directory %s", output_dir)
+        output_dir.mkdir(parents=True)
+
     util.init_logging(
         level="DEBUG" if debug else "INFO",
         warning_only=[
@@ -99,30 +130,22 @@ def main(
             "openai",
             "httpx",
         ],
+        log_dir=Path(output_dir, "logs") if save_logs else None,
+        log_name="axs",
     )
-
-    if not Path(config_file).exists():
-        error_msg = f"Configuration file not found: {config_file}"
-        raise FileNotFoundError(error_msg)
-
-    config = Config(config_file)
-
-    if config.axs.output_dir is None:
-        config.axs.output_dir = output_dir
-    output_dir = config.axs.output_dir
-    if not output_dir.exists():
-        logger.info("Creating output directory %s", output_dir)
-        output_dir.mkdir(parents=True)
 
     env = util.load_env(config.env)
     initial_state = env.reset(seed=config.env.seed)
+    logger.info("Created environment %s", config.env.name)
 
     agent_policies = registry.get(config.env.policy_type).create(env)
     axs_agent = AXSAgent(config, agent_policies)
 
     if config.env.name in gym.registry:
+        logger.info("Running gym environment %s", config.env.name)
         util.run_gym_env(env, axs_agent, config, *initial_state)
     else:
+        logger.info("Running pettingzoo environment %s", config.env.name)
         util.run_aec_env(env, axs_agent, config)
 
 

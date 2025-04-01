@@ -1,5 +1,7 @@
 """Implementation of AXS for IGP2."""
 
+from axs import run
+
 from .macroaction import IGP2MacroAction
 from .policy import IGP2Policy
 from .query import IGP2Query

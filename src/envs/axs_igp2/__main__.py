@@ -4,4 +4,5 @@ import igp2
 
 from axs import run
 
-run()
+if __name__ == "__main__":
+    run()

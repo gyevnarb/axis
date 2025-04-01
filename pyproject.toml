@@ -42,6 +42,7 @@ license = "MIT"
 
 [project.scripts]
 axs = "axs:run"
+axs-igp2 = "envs.axs_igp2:run"
 
 [project.optional-dependencies]
 igp2 = ["igp2", "gofi"]

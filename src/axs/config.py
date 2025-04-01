@@ -243,23 +243,6 @@ class AXSConfig(ConfigBase):
         return value
 
     @property
-    def cache(self) -> bool:
-        """Whether to cache the AXSAgent memory."""
-        return self._config.get("cache", False)
-
-    @property
-    def output_dir(self) -> Path | None:
-        """The directory for the AXSAgent output."""
-        if "output_dir" not in self._config:
-            return None
-        return Path(self._config["output_dir"])
-
-    @output_dir.setter
-    def output_dir(self, value: str) -> None:
-        """Set the output directory for the AXSAgent."""
-        self._config["output_dir"] = Path(value)
-
-    @property
     def macro_action(self) -> MacroActionConfig:
         """The macro action configuration for the AXSAgent."""
         return MacroActionConfig(self._config["macro_action"])
@@ -338,3 +321,32 @@ class Config(ConfigBase):
     def axs(self) -> AXSConfig:
         """Return the AXS agent configuration."""
         return AXSConfig(self._config["axs"])
+
+    @property
+    def save_results(self) -> bool:
+        """Whether to save all run information to disk.
+
+        Default: False.
+        """
+        return self._config.get("save_results", False)
+
+    @property
+    def debug(self) -> bool:
+        """Whether to use DEBUG level for logging.
+
+        Default: False.
+        """
+        return self._config.get("debug", False)
+
+    @property
+    def dryrun(self) -> bool:
+        """Whether to run environment without explanation.
+
+        Default: False.
+        """
+        return self._config.get("dryrun", False)
+
+    @property
+    def output_dir(self) -> Path:
+        """The directory for the AXSAgent output."""
+        return Path(self._config["output_dir"])

@@ -3,6 +3,7 @@
 import datetime
 import importlib
 import logging
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,8 @@ import gymnasium as gym
 import pettingzoo
 from rich.logging import RichHandler
 
-from axs.config import EnvConfig, SupportedEnv
+from axs.config import Config, EnvConfig, SupportedEnv
+from axs.prompt import Prompt
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +101,8 @@ def load_env(config: EnvConfig) -> SupportedEnv:
 
 def run_gym_env(
     env: gym.Env,
-    axs_agent: "AXSAgent",
-    config: EnvConfig,
+    axs_agent: "AXSAgent",  # noqa: F821
+    config: Config,
     observation: Any,
     info: dict[str, Any],
 ) -> list[str]:
@@ -128,24 +130,112 @@ def run_gym_env(
         for t in range(config.env.max_iter):
             action = ego_agent.next_action(observation, info)
 
-            # Learning and explanation phase
+            # Learn observations and action
             axs_agent.semantic_memory.learn(
-                observations=observation, actions=action, infos=info
+                observations=observation,
+                actions=action,
+                infos=info,
             )
-            for prompt in config.axs.user_prompts:
-                if t > 0 and prompt.time == t - 1:
-                    user_query = prompt.generate()
-                    axs_agent.explain(user_query)
+
+            # Check whether there is anything to explain
+            if not config.dryrun:
+                if config.save_results:
+                    save_file = Path(config.output_dir, f"agent_ep{n}_t{t}.pkl")
+                    axs_agent.save_state(save_file)
+
+                for prompt_dict in config.axs.user_prompts:
+                    user_prompt = Prompt(**prompt_dict)
+                    if t == 0 or user_prompt.time != t:
+                        continue
+                    axs_agent.explain(user_prompt)
 
             # Perform environment step
             observation, reward, terminated, truncated, info = env.step(action)
+
+            # Learn step outcomes
+            axs_agent.semantic_memory.learn(
+                rewards=reward,
+                terminated=terminated,
+                truncated=truncated,
+            )
+
             if terminated or truncated:
-                logger.info("Episode terminated.")
+                logger.info("Episode %d terminated.", n + 1)
                 observation, info = env.reset(seed=config.env.seed)
                 break
 
+        if config.save_results:
+            save_file = Path(config.output_dir, f"agent_ep{n}.pkl")
+            axs_agent.save_state(save_file)
+
     env.close()
+    return axs_agent.semantic_memory["explanations"]
 
 
-def run_aec_env(env, axs_agent, config):
-    pass
+def run_aec_env(
+    env: pettingzoo.AECEnv,
+    axs_agent: "AXSAgent",
+    config: Config,
+) -> list[str]:
+    """Run a PettingZoo AEC environment with the AXS agent.
+
+    Args:
+        env: The PettingZoo AEC environment to run.
+        axs_agent: The AXS agent to run.
+        config: The configuration for the environment.
+
+    """
+    agent_policies = axs_agent.agent_policies
+
+    for n in range(config.env.n_episodes):
+        logger.info("Running episode %d/%d", n + 1, config.env.n_episodes)
+
+        axs_agent.reset()
+        agent_times = defaultdict(int)
+
+        for agent in env.agent_iter():
+            t = agent_times[agent]
+
+            observation, rewards, termination, truncation, info = env.last()
+
+            axs_agent.semantic_memory.learn(
+                agent=agent,
+                observations=observation,
+                infos=info,
+                rewards=rewards,
+                terminated=termination,
+                truncated=truncation,
+            )
+
+            if termination or truncation:
+                action = None
+                logger.debug("Agent %d terminated or truncated.", agent)
+            else:
+                action = agent_policies[agent].next_action(observation, info)
+
+            axs_agent.semantic_memory.learn(actions=action)
+
+            # Check whether there is anything to explain
+            if not config.dryrun:
+                if config.save_results:
+                    save_file = Path(
+                        config.output_dir, f"agent_ep{n}_ag{agent}_t{t}.pkl",
+                    )
+                    axs_agent.save_state(save_file)
+
+                for prompt_dict in config.axs.user_prompts:
+                    user_prompt = Prompt(**prompt_dict)
+                    if t == 0 or user_prompt.time != t:
+                        continue
+                    axs_agent.explain(user_prompt)
+
+            env.step(action)
+            agent_times[agent] += 1
+
+        if config.save_results:
+            save_file = Path(config.output_dir, f"agent_ep{n}.pkl")
+            axs_agent.save_state(save_file)
+        logger.debug("Episode %d terminated.", n + 1)
+
+    env.close()
+    return axs_agent.semantic_memory["explanations"]

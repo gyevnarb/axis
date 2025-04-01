@@ -2,6 +2,7 @@
 
 import abc
 import logging
+import pickle
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -13,14 +14,32 @@ class Memory(abc.ABC):
     """Base class for memory components."""
 
     def __init__(
-        self, memory: Iterable | None = None, cache: Path | None = None,
+        self, memory: Iterable | None = None, save_file: Path | None = None,
     ) -> "Memory":
-        """Initialize memory with optional memory object."""
-        self.cache = cache
+        """Initialize memory with optional memory object.
+
+        Default memory is an empty dictionary. The memory object can be
+        overriden to use a different data structure.
+
+        To turn on automatic memory saving, set save_file to a Path object and
+        set self.saving to True. The memory will be saved to the file when
+        the learn method is called.
+
+        Args:
+            memory (Iterable | None): Optional initial memory object.
+            save_file (Path | None): Optional file path to save memory.
+
+        """
+        self.save_file = save_file
+        self.saving = False
         if memory is not None:
             self._mem = memory
         else:
             self._mem = {}
+
+    def __getitem__(self, key: int | str) -> Any:
+        """Get item from memory using the key."""
+        return self.retrieve(key)
 
     @abc.abstractmethod
     def retrieve(self, key: int | str) -> Any:
@@ -36,12 +55,12 @@ class Memory(abc.ABC):
         """Remove all data from memory."""
         self._mem = {}
 
-    def cache_memory(self) -> Path | None:
-        """Cache the memory to a file."""
-        if self.cache is not None:
-            with self.cache.open("wb") as f:
-                f.write(self._mem)
-                logger.debug("Memory cached to %s", self.cache)
+    def save_memory(self) -> Path | None:
+        """Save the memory to file if config.save_results is True."""
+        if self.save_file is not None and self.saving:
+            with self.save_file.open("wb") as f:
+                pickle.dump(self._mem, f)
+                logger.debug("Memory saved to %s", self.save_file)
 
     @property
     def memory(self) -> Iterable:
@@ -88,7 +107,7 @@ class SemanticMemory(Memory):
                     self._mem[key] = [self._mem[key], value]
             else:
                 self._mem[key] = value
-        self.cache_memory()
+        self.save_memory()
 
     @property
     def keys(self) -> list[str]:
@@ -100,10 +119,10 @@ class EpisodicMemory(Memory):
     """Episodic memory stores the iterative experiences of the agent."""
 
     def __init__(
-        self, memory: Iterable | None = None, cache: Path | None = None,
+        self, memory: Iterable | None = None, save_file: Path | None = None,
     ) -> "EpisodicMemory":
         """Initialize episodic memory as a list."""
-        super().__init__(memory, cache)
+        super().__init__(memory, save_file)
         if memory is None:
             self._mem = []
 
@@ -132,4 +151,4 @@ class EpisodicMemory(Memory):
         """
         for value in args:
             self._mem.append(value)
-        self.cache_memory()
+        self.save_memory()
