@@ -86,10 +86,10 @@ class Query(Registerable, class_type=None):
     def verify(
         self,
         simulation_env: SupportedEnv | None = None,
-        observation: Any | None = None,
-        action: Any | None = None,
+        observations: Any | None = None,
+        actions: Any | None = None,
         macro_actions: dict[str, list[MacroAction]] | None = None,
-        info: dict[str, Any] | None = None,
+        infos: dict[str, Any] | None = None,
     ) -> bool:
         """Verify the query is valid for the simulator.
 
@@ -101,13 +101,12 @@ class Query(Registerable, class_type=None):
         Args:
             simulation_env (SupportedEnv | None): The simulation environment
                  to verify the query against.
-            observation (Any | None): The final observation of the environment
+            observations (Any | None): The observations of the environment
                 to verify the query against.
-            action (Any | None): The final action to verify the query against.
+            actions (Any | None): The actions to verify the query against.
             macro_actions (dict[str, list[MacroAction]] | None): The macro actions
                 to verify against.
-            info (dict[str, Any] | None): The final info dict to verify the
-                query against.
+            infos (dict[str, Any] | None): The info dicts to verify the query against.
 
         """
         return True

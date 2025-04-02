@@ -1,3 +1,3 @@
 This is round {n}/{n_max}. This is the Interrogation stage.
 
-Give your answer as a single query with the syntax 'query(arg1=value1, arg2=value2, ...)' and specify concrete values for the keyword arguments. Only reply with a query and do not add anything else in your answer. You may also answer DONE if you do not need more information.
+Give your answer as a single query and specify concrete values for the keyword arguments. Only reply with a query and do not add anything else in your answer. You may also answer DONE if you do not need more information.

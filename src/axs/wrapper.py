@@ -47,7 +47,7 @@ class QueryableWrapperBase(ABC):
         observation: Any,
         info: dict[str, Any],
         **kwargs: dict[str, Any],
-    ) -> tuple[Any, dict[str, Any], dict[int, list[MacroAction]]]:
+    ) -> tuple[Any, dict[str, Any], dict[int, list[MacroAction]], bool]:
         """Apply changes to the simulation based on the query.
 
         Args:
@@ -57,7 +57,8 @@ class QueryableWrapperBase(ABC):
             kwargs: Additional optional keyword arguments from config file.
 
         Returns:
-            A 3-tuple containing observations, info dict, and macro actions.
+            A 4-tuple containing observations, info dict, macro actions, and whether
+                running a simulation is needed.
 
         """
         raise NotImplementedError

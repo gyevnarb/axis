@@ -14,6 +14,7 @@
         }
     },
     "axs": {
+        "no_context": true,
         "macro_action": {
             "type_name": "IGP2MacroAction",
             "params": {
@@ -26,6 +27,7 @@
                 "add_roads": false,
                 "add_actions": false,
                 "add_observations": false,
+                "add_macro_actions": true,
                 "subsample": 3
             }
         },
@@ -110,7 +112,7 @@
                             "reward_factors": {
                                 "time": 1.0,
                                 "jerk": -0.01,
-                                "angular_velocity": -0.03,
+                                "angular_velocity": -0.1,
                                 "curvature": -0.01
                             }
                         },

@@ -36,19 +36,19 @@ class IGP2Query(axs.Query):
     def verify(
         self,
         env: ip.simplesim.SimulationEnv | None = None,
-        observation: Any | None = None,
-        action: Any | None = None,
+        observations: list[Any] | None = None,
+        actions: list[Any] | None = None,
         macro_actions: dict[str, list[IGP2MacroAction]] | None = None,
-        info: dict[str, Any] | None = None,
+        infos: list[dict[str, Any]] | None = None,
     ) -> bool:
         """Verify the query is valid.
 
         Args:
             env (ip.simplesim.SimulationEnv): The simulation environment.
-            observation (Any): The observation from the environment.
-            action (Any): The action taken by the agent.
+            observations (Any): The observations from the environment.
+            actions (Any): The actions taken by the agent.
             macro_actions (dict[str, list[IGP2MacroAction]]): Macros for each vehicle.
-            info (dict[str, Any]): Additional information about the simulation.
+            infos (dict[str, Any]): Additional informations about the simulation.
 
         """
         if self.query_name == "remove":
@@ -56,7 +56,7 @@ class IGP2Query(axs.Query):
             if vid == 0:
                 error_msg = "Cannot remove the ego vehicle."
                 raise axs.QueryError(error_msg)
-            if vid not in info:
+            if vid not in infos[0]:
                 error_msg = f"Vehicle {vid} does not exist."
                 raise axs.QueryError(error_msg)
 
@@ -76,13 +76,26 @@ class IGP2Query(axs.Query):
                 error_msg = "Spawn and goal locations must be on a road."
                 raise axs.QueryError(error_msg)
 
+            for state in infos[0].values():
+                vehicle_box = Polygon(
+                    ip.Box(
+                        state.position,
+                        state.metadata.length,
+                        state.metadata.width,
+                        state.heading,
+                    ).boundary,
+                )
+                if spawn_box.intersects(vehicle_box):
+                    error_msg = "Spawn location intersects with another vehicle."
+                    raise axs.QueryError(error_msg)
+
         if self.query_name == "whatif":
             vehicle = self.params["vehicle"]
-            if vehicle not in info:
+            time = min(max(0, len(infos) - 1), self.get_time(infos[-1][vehicle].time))
+            if vehicle not in infos[time]:
                 error_msg = f"Vehicle {vehicle} does not exist."
                 raise axs.QueryError(error_msg)
             actions = self.params["actions"]
-            time = self.get_time(info[vehicle].time)
             macro_at_time = next(
                 ma for ma in macro_actions[vehicle] if ma.start_t <= time <= ma.end_t
             ).macro_name
@@ -92,7 +105,7 @@ class IGP2Query(axs.Query):
 
         if self.query_name == "what":
             vehicle = self.params["vehicle"]
-            if vehicle not in info:
+            if vehicle not in infos[-1]:
                 error_msg = f"Vehicle {vehicle} does not exist."
                 raise axs.QueryError(error_msg)
             self.get_time(0)  # Check time parameter

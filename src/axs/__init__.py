@@ -14,6 +14,7 @@ Policy:
 Wrapper:
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -74,7 +75,14 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-def _init_axs(config_file, debug, dryrun, save_results, output_dir, save_logs) -> None:
+def _init_axs(  # noqa: PLR0913
+    config_file: str,
+    debug: bool,
+    dryrun: bool,
+    save_results: bool,
+    output_dir: str,
+    save_logs: bool,
+) -> None:
     """Initialize the AXS package."""
     if not Path(config_file).exists():
         error_msg = f"Configuration file not found: {config_file}"
@@ -157,7 +165,7 @@ def run(  # noqa: PLR0913
 
 
 @app.command()
-def evaluate(
+def evaluate(  # noqa: PLR0913
     config_file: Annotated[
         str,
         typer.Option(help="The path to the configuration file."),
@@ -178,6 +186,18 @@ def evaluate(
         bool | None,
         typer.Option(help="Enable debug mode.", is_eager=True),
     ] = None,
+    no_context: Annotated[
+        bool | None,
+        typer.Option(
+            help="Do not add initial context to the LLM.",
+        ),
+    ] = None,
+    llm_kwargs: Annotated[
+        str | None,
+        typer.Option(
+            help="Keyword arguments for the LLM formatted as a valid JSON string.",
+        ),
+    ] = None,
 ) -> None:
     """Evaluate the AXS agent on all explanations in a configuration file.
 
@@ -185,6 +205,10 @@ def evaluate(
     with the observation and info data saved to disk (with --save_results flag).
     """
     config = _init_axs(config_file, debug, None, save_results, output_dir, save_logs)
+    if llm_kwargs is not None:
+        config.config_dict["llm"].update(json.loads(llm_kwargs))
+    if no_context is not None:
+        config.config_dict["axs"]["no_context"] = no_context
 
     # Find all save files with the prefix "agent_ep"
     # and the suffix ".pkl" in the output directory
@@ -214,7 +238,7 @@ def evaluate(
             if prompt.time is not None:
                 semantic_memory = axs_agent.semantic_memory.memory
                 for key in axs_agent.semantic_memory.memory:
-                    semantic_memory[key] = semantic_memory[key][:prompt.time]
+                    semantic_memory[key] = semantic_memory[key][: prompt.time]
 
             user_query = prompt.fill()
             axs_agent.explain(user_query)

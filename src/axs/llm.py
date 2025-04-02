@@ -28,7 +28,7 @@ class LLMWrapper:
         if "stop" not in config.sampling_params:
             config.sampling_params["stop"] = ["<|endoftext|>"]
         self._sampling_params = config.sampling_params
-        self._mode = config.inference_mode
+        self._mode = config.host_location
 
         if self._mode == "offline":
             from vllm import LLM, SamplingParams
@@ -106,11 +106,18 @@ class LLMWrapper:
             for c in completions.choices
         ]
 
+        usage = {
+            "prompt_tokens": completions.usage.prompt_tokens,
+            "completion_tokens": completions.usage.completion_tokens,
+            "total_tokens": completions.usage.total_tokens,
+        }
+
         logger.info(
             "[bold yellow]LLM response:[/bold yellow]\n%s", responses[0]["content"],
             extra={"markup": True},
         )
-        return responses
+
+        return responses, usage
 
     @property
     def mode(self) -> str:

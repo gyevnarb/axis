@@ -62,6 +62,7 @@ class Simulator:
         self,
         query: Query,
         observations: list[Any],
+        actions: list[Any],
         infos: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Run the simulation with the given query.
@@ -87,7 +88,7 @@ class Simulator:
         )
 
         logger.debug("Applying %s(...) to simulation.", query.query_name)
-        observation, info, macro_actions = self.env.apply_query(
+        observation, info, macro_actions, simulation_needed = self.env.apply_query(
             query,
             observation,
             info,
@@ -101,10 +102,18 @@ class Simulator:
                 obs, infs = [observation], [info]
             policy.reset(obs, infs)
 
-        if isinstance(self.env, QueryableWrapper):
-            results = self.run_single_agent(macro_actions, observation, info)
+        if simulation_needed:
+            if isinstance(self.env, QueryableWrapper):
+                results = self.run_single_agent(macro_actions, observation, info)
+            else:
+                results = self.run_multi_agent(macro_actions)
         else:
-            results = self.run_multi_agent(macro_actions)
+            results = {
+                "observations": {aid: observations for aid in self.agent_policies},
+                "infos": {aid: infos for aid in self.agent_policies},
+                "actions": {aid: actions for aid in self.agent_policies},
+                "rewards": None,
+            }
 
         return self.env.process_results(query, **results)
 

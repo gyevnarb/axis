@@ -12,6 +12,15 @@ SupportedEnv.__doc__ = "The supported environment types for the AXS agent."
 
 registry: dict[str, "type[Registerable]"] = {}
 
+POSSIBLE_PROMPTS = [
+    "system",
+    "context",
+    "no_context",
+    "interrogation",
+    "explanation",
+    "final",
+]
+
 
 class Registerable:
     """Abstract base class for registerable classes."""
@@ -45,9 +54,7 @@ class Registerable:
 
         """
         if name not in registry:
-            error_msg = (
-                f"Type {name} not found in the registry with {registry.keys()}."
-            )
+            error_msg = f"Type {name} not found in the registry with {registry.keys()}."
             raise ValueError(error_msg)
         return registry[name]
 
@@ -135,8 +142,8 @@ class LLMConfig(ConfigBase):
     """Configuration class for LLM model parameters."""
 
     @property
-    def inference_mode(self) -> str:
-        """Inference mode for the LLM model.
+    def host_location(self) -> str:
+        """Get where the LLM is hosted.
 
         Default: 'localhost'
         """
@@ -243,6 +250,14 @@ class AXSConfig(ConfigBase):
         return value
 
     @property
+    def no_context(self) -> bool:
+        """Whether to add initial context to the LLM.
+
+        Default: True.
+        """
+        return self._config.get("no_context", True)
+
+    @property
     def macro_action(self) -> MacroActionConfig:
         """The macro action configuration for the AXSAgent."""
         return MacroActionConfig(self._config["macro_action"])
@@ -281,10 +296,7 @@ class AXSConfig(ConfigBase):
         value = {
             path.stem: path.read_text() for path in Path(self.prompts_dir).glob("*.txt")
         }
-        if not all(
-            key in ["system", "context", "interrogation", "explanation", "final"]
-            for key in value
-        ):
+        if not all(key in POSSIBLE_PROMPTS for key in value):
             error_msg = "Missing prompt templates in the prompts directory."
             raise ValueError(error_msg)
         return value

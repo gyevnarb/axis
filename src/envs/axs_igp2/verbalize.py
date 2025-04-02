@@ -236,7 +236,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         state_signals.extend(["angular_velocity", "acceleration"])
         for agent_id, trajectory in trajectories.items():
             sampled_trajectory = trajectory
-            if subsample > 1:
+            if subsample > 1 and len(trajectory) > subsample:
                 sampled_trajectory = util.subsample_trajectory(trajectory, subsample)
 
             ret[agent_id] = dict(

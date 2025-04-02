@@ -82,7 +82,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         observation: np.ndarray,
         info: dict[int, ip.AgentState],
         **kwargs: dict[str, Any],
-    ) -> tuple[Any, dict[str, Any], dict[int, list[IGP2MacroAction]]]:
+    ) -> tuple[Any, dict[str, Any], dict[int, list[IGP2MacroAction]], bool]:
         """Apply the query to the simulation.
 
         Args:
@@ -92,11 +92,17 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             kwargs: Additional optional keyword arguments from config.
 
         Returns:
-            A 3-tuple containing observations, info dict, and macro actions.
+            A 4-tuple containing observations, info dict, and macro actions, and
+                whether running a simulation is needed.
 
         """
         info, macros = getattr(self, "_" + query.query_name)(query, info)
-        return self.env.unwrapped._get_obs(), info, macros
+        simulation_needed = not (
+            query.query_name == "what"
+            and query.params["vehicle"] in info
+            and info[query.params["vehicle"]].time <= query.params["time"]
+        )
+        return self.env.unwrapped._get_obs(), info, macros, simulation_needed
 
     def process_results(
         self,
@@ -130,11 +136,12 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         observations = observations[agent_id]
         actions = actions[agent_id]
         infos = infos[agent_id]
-        rewards = rewards[agent_id]
 
-        ego_reward = infos[-1].pop("reward")
+        ego_reward = None
+        if "reward" in infos[-1]:
+            ego_reward = infos[-1].pop("reward")
         time = query.get_time(len(observations))
-        vehicle_id = query.params.get("vehicle", agent_id)
+        vid = query.params.get("vehicle", agent_id)
 
         ma_config = axs.MacroActionConfig({"params": {"eps": 0.1}})
         macros = IGP2MacroAction.wrap(
@@ -146,23 +153,34 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         )
         if query.query_name == "what":
             current_macros = {
-                aid: macro
+                aid: [macro]
                 for aid, macros in macros.items()
                 for macro in macros
                 if macro.start_t <= time < macro.end_t
             }
-            return {
-                "observations": [observations[time]],
+            start_t = max(0, time - 1)
+            end_t = min(len(observations), time + 1)
+            if start_t == 0:
+                end_t = start_t + 3
+            if end_t == len(observations):
+                start_t = end_t - 3
+            ret = {
+                "observations": observations[start_t:end_t],
                 "macro_actions": current_macros,
-                "infos": [infos[time]],
-                "rewards": {vehicle_id: ego_reward if vehicle_id == agent_id else None},
+                "infos": infos[start_t:end_t],
             }
-        return {
+            if ego_reward is not None:
+                ret["rewards"] = {vid: ego_reward if vid == agent_id else None}
+            return ret
+
+        ret = {
             "observations": observations,
             "macro_actions": macros,
             "infos": infos,
-            "rewards": {agent_id: ego_reward},
         }
+        if ego_reward is not None:
+            ret["rewards"] = {agent_id: ego_reward}
+        return ret
 
     def _add(
         self,
@@ -225,7 +243,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         """
         agent_id = query.params["vehicle"]
         self.env.unwrapped.simulation.remove_agent(agent_id)
-        info.pop(agent_id)
+        info = {aid: state for aid, state in info.items() if aid != agent_id}
         return info, {}
 
     def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:

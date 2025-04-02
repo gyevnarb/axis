@@ -1,4 +1,7 @@
 {
+    "output_dir": "output/igp2/scenario0",
+    "save_results": true,
+    "debug": true,
     "llm": {
         "inference_mode": "localhost",
         "model": "meta-llama/Llama-3.2-3B-Instruct",
@@ -11,7 +14,6 @@
         }
     },
     "axs": {
-        "cache_dir": "output/igp2/cache",
         "macro_action": {
             "type_name": "IGP2MacroAction",
             "params": {
@@ -41,6 +43,7 @@
     "env": {
         "name": "igp2-v0",
         "wrapper_type": "IGP2QueryableWrapper",
+        "policy_type": "IGP2Policy",
         "max_iter": 300,
         "n_epsiodes": 1,
         "seed": 28,
@@ -53,7 +56,7 @@
                     "fps": 20,
                     "seed": 28,
                     "max_steps": 250,
-                    "separate_ego": true
+                    "separate_ego": false
                 },
                 "agents": [
                     {

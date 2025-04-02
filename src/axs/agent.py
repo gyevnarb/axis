@@ -66,6 +66,8 @@ class AXSAgent:
 
         # Prompting components
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
+        if config.axs.no_context:
+            self._prompts["context"] = self._prompts["no_context"]
 
         # Memory components
         save_dir = None
@@ -186,7 +188,13 @@ class AXSAgent:
         n_max = self.config.axs.n_max
         distance = float("inf")
         explanation, prev_explanation = None, None
-        statistics = {"n_tries": [], "n": n, "distances": [], "simulation_results": []}
+        statistics = {
+            "n_tries": [],
+            "n": n,
+            "distances": [],
+            "simulation_results": [],
+            "usage": [],
+        }
         while n <= n_max and distance > self.config.axs.delta:
             logger.info("Explanation iteration %d/%d", n, n_max)
 
@@ -206,7 +214,7 @@ class AXSAgent:
                 break
 
             prev_explanation = explanation
-            distance = 0.0  # self._distance(explanation, prev_explanation)
+            distance = float("inf")  # self._distance(explanation, prev_explanation)
             n += 1
 
             # Store statistics of the iteration
@@ -219,7 +227,6 @@ class AXSAgent:
             statistics=statistics,
         )
         logger.info("Final explanation: %s", explanation)
-        logger.debug("Statistics: %s", statistics)
 
         # Turn off constantly saving the episodic and semantic memory.
         self.semantic_memory.saving = False
@@ -249,25 +256,29 @@ class AXSAgent:
         self.episodic_memory.learn(LLMWrapper.wrap("user", interrogation_prompt))
 
         for n_tries in range(1, self.config.axs.n_tries + 1):  # noqa: B007
-            query_output = self._llm.chat(self.episodic_memory.memory)[0]
+            query_outputs, usage = self._llm.chat(self.episodic_memory.memory)
+            query_output = query_outputs[0]
             self.episodic_memory.learn(query_output)
+            statistics["usage"].append(usage)
+
             query_content = query_output["content"]
-            if "DONE" in query_content:
+            if query_content == "DONE":
                 return "DONE"
 
             try:
                 simulation_query = self._query.parse(query_content)
                 simulation_query.verify(
                     self._simulator.env.unwrapped,
-                    observations[-1],
-                    actions[-1],
+                    observations,
+                    actions,
                     macro_actions,
-                    infos[-1],
+                    infos,
                 )
 
                 simulation_results = self._simulator.run(
                     simulation_query,
                     observations,
+                    actions,
                     infos,
                 )
                 break
@@ -312,9 +323,12 @@ class AXSAgent:
                 n_max=self.config.axs.n_max,
             )
         self.episodic_memory.learn(LLMWrapper.wrap("user", explanation_prompt))
+        logger.debug("Explanation prompt: %s", explanation_prompt)
 
-        explanation_output = self._llm.chat(self.episodic_memory.memory)[0]
+        explanation_outputs, usage = self._llm.chat(self.episodic_memory.memory)
+        explanation_output = explanation_outputs[0]
         self.episodic_memory.learn(explanation_output)
+        statistics["usage"].append(usage)
 
         return explanation_output["content"]
 
