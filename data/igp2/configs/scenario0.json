@@ -14,7 +14,7 @@
         }
     },
     "axs": {
-        "no_context": true,
+        "use_context": true,
         "macro_action": {
             "type_name": "IGP2MacroAction",
             "params": {

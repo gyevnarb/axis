@@ -250,12 +250,12 @@ class AXSConfig(ConfigBase):
         return value
 
     @property
-    def no_context(self) -> bool:
+    def use_context(self) -> bool:
         """Whether to add initial context to the LLM.
 
         Default: True.
         """
-        return self._config.get("no_context", True)
+        return self._config.get("use_context", True)
 
     @property
     def macro_action(self) -> MacroActionConfig:

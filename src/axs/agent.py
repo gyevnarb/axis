@@ -66,7 +66,7 @@ class AXSAgent:
 
         # Prompting components
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
-        if config.axs.no_context:
+        if not config.axs.use_context:
             self._prompts["context"] = self._prompts["no_context"]
 
         # Memory components

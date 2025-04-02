@@ -184,14 +184,15 @@ def evaluate(  # noqa: PLR0913
     ] = None,
     debug: Annotated[
         bool | None,
-        typer.Option(help="Enable debug mode.", is_eager=True),
+        typer.Option(help="Enable debug mode for logging.", is_eager=True),
     ] = None,
-    no_context: Annotated[
+    context: Annotated[
         bool | None,
         typer.Option(
-            help="Do not add initial context to the LLM.",
+            help="Whether to add initial context to the LLM. Requires specifying a "
+                 "'no_context.txt' file in the prompts directory.",
         ),
-    ] = None,
+    ] = True,
     llm_kwargs: Annotated[
         str | None,
         typer.Option(
@@ -207,8 +208,8 @@ def evaluate(  # noqa: PLR0913
     config = _init_axs(config_file, debug, None, save_results, output_dir, save_logs)
     if llm_kwargs is not None:
         config.config_dict["llm"].update(json.loads(llm_kwargs))
-    if no_context is not None:
-        config.config_dict["axs"]["no_context"] = no_context
+    if context is not None:
+        config.config_dict["axs"]["use_context"] = context
 
     # Find all save files with the prefix "agent_ep"
     # and the suffix ".pkl" in the output directory
