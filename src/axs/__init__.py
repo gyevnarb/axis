@@ -103,6 +103,9 @@ def _init_axs(  # noqa: PLR0913
     if not output_dir.exists():
         logger.info("Creating output directory %s", output_dir)
         output_dir.mkdir(parents=True)
+    agents_dir = Path(output_dir, "agents")
+    if not agents_dir.exists():
+        agents_dir.mkdir(parents=True, exist_ok=True)
 
     util.init_logging(
         level="DEBUG" if debug else "INFO",
@@ -218,7 +221,7 @@ def evaluate(  # noqa: PLR0913
 
     # Find all save files with the prefix "agent_ep"
     # and the suffix ".pkl" in the output directory
-    save_files = list(Path(config.output_dir).glob("agent_ep*.pkl"))
+    save_files = list(Path(config.output_dir, "agents").glob("agent_ep*.pkl"))
     if not save_files:
         error_msg = f"No save files found in {config.output_dir}"
         raise FileNotFoundError(error_msg)

@@ -253,6 +253,12 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
     def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
         """Set the macro action of the selected agent."""
+
+        def _adjust_final_position(state: ip.AgentState, eps: float = 1e-6) -> None:
+            """Adjust the final position of the agent to avoid border errors."""
+            direction = np.array([np.cos(state.heading), np.sin(state.heading)])
+            state.position += eps * direction
+
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         observation = env._get_obs()
         agent_id = query.params["vehicle"]
@@ -263,6 +269,8 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             macro_action.scenario_map = env.scenario_map
             ip_macro = macro_action.from_observation(observation, info, fps=env.fps)
             info = ip_macro.action_segments[-1].final_frame
+            for state in info.values():
+                _adjust_final_position(state)
             macro_actions.append(ip_macro)
         env.simulation.agents[agent_id].set_macro_actions(
             [macro.action_segments[0] for macro in macro_actions],

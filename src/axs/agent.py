@@ -3,7 +3,7 @@
 import datetime
 import logging
 import pickle
-from copy import copy
+from copy import copy, deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -283,7 +283,7 @@ class AXSAgent:
                                 f"Generate a different query.")
                     self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
                     continue
-                self._query_memory.learn(simulation_query)
+                self._query_memory.learn(deepcopy(simulation_query))
 
                 simulation_results = self._simulator.run(
                     simulation_query,
