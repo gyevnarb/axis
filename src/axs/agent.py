@@ -99,7 +99,7 @@ class AXSAgent:
             macro_type: type[MacroAction] = kwargs["macro_type"]
             if not issubclass(macro_type, MacroAction):
                 error_msg = (
-                    f"Macro type must be a subclass of MacroAction. Got: {macro_type}"
+                    f"Macro type must be a subclass of MacroAction. Got: {macro_type}."
                 )
                 raise ValueError(error_msg)
             self._macro_action = macro_type
@@ -111,7 +111,7 @@ class AXSAgent:
             if not issubclass(verbalizer_type, Verbalizer):
                 error_msg = (
                     f"Verbalizer type must be a subclass of Verbalizer. "
-                    f"Got: {verbalizer_type}"
+                    f"Got: {verbalizer_type}."
                 )
                 raise ValueError(error_msg)
             self._verbalizer = verbalizer_type
@@ -121,7 +121,7 @@ class AXSAgent:
         if "query_type" in kwargs:
             query_type: type[Query] = kwargs["query_type"]
             if not issubclass(query_type, Query):
-                error_msg = f"Query type must be a subclass of Query. Got: {query_type}"
+                error_msg = f"Query type must be subclass of Query. Got: {query_type}."
                 raise ValueError(error_msg)
             self._query = query_type
         else:

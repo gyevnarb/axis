@@ -76,13 +76,12 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-def _init_axs(  # noqa: PLR0913
+def _init_axs(
     config_file: str,
     debug: bool,
     dryrun: bool,
     save_results: bool,
     output_dir: str,
-    save_logs: str | None = None,
 ) -> Config:
     """Initialize the AXS package."""
     if not Path(config_file).exists():
@@ -107,55 +106,15 @@ def _init_axs(  # noqa: PLR0913
     if not agents_dir.exists():
         agents_dir.mkdir(parents=True, exist_ok=True)
 
-    util.init_logging(
-        level="DEBUG" if debug else "INFO",
-        warning_only=[
-            "igp2.core.velocitysmoother",
-            "matplotlib",
-            "httpcore",
-            "openai",
-            "httpx",
-        ],
-        log_dir=Path(output_dir, "logs") if save_logs else None,
-        log_name=save_logs,
-    )
-
     return config
 
 
 @app.command()
-def run(  # noqa: PLR0913
-    config_file: Annotated[
-        str,
-        typer.Option(help="The path to the configuration file."),
-    ],
-    output_dir: Annotated[
-        str | None,
-        typer.Option(help="The path to the output directory."),
-    ] = None,
-    save_logs: Annotated[
-        bool,
-        typer.Option(help="Whether to save the logs of the run."),
-    ] = False,
-    save_results: Annotated[
-        bool | None,
-        typer.Option(help="Whether to save all run information to disk."),
-    ] = None,
-    debug: Annotated[
-        bool | None,
-        typer.Option(help="Enable debug mode.", is_eager=True),
-    ] = None,
-    dryrun: Annotated[
-        bool | None,
-        typer.Option(help="Run the environment without executing any explanations."),
-    ] = None,
-) -> None:
+def run(ctx: typer.Context) -> None:
     """Run an AXS agent according to a configuration file."""
-    if save_logs is not None:
-        save_logs = "run"
-    config = _init_axs(config_file, debug, dryrun, save_results, output_dir, save_logs)
+    config = ctx.obj["config"]
 
-    env = util.load_env(config.env)
+    env = util.load_env(config.env, config.env.render_mode)
     initial_state = env.reset(seed=config.env.seed)
     logger.info("Created environment %s", config.env.name)
 
@@ -171,53 +130,13 @@ def run(  # noqa: PLR0913
 
 
 @app.command()
-def evaluate(  # noqa: PLR0913
-    config_file: Annotated[
-        str,
-        typer.Option(help="The path to the configuration file."),
-    ],
-    output_dir: Annotated[
-        str | None,
-        typer.Option(help="The path to the output directory."),
-    ] = None,
-    save_logs: Annotated[
-        bool,
-        typer.Option(help="Whether to save the logs of the run."),
-    ] = False,
-    save_results: Annotated[
-        bool | None,
-        typer.Option(help="Whether to save all run information to disk."),
-    ] = None,
-    debug: Annotated[
-        bool | None,
-        typer.Option(help="Enable debug mode for logging.", is_eager=True),
-    ] = None,
-    context: Annotated[
-        bool | None,
-        typer.Option(
-            help="Whether to add initial context to the LLM. Requires specifying a "
-                 "'no_context.txt' file in the prompts directory.",
-        ),
-    ] = True,
-    llm_kwargs: Annotated[
-        str | None,
-        typer.Option(
-            help="Keyword arguments for the LLM formatted as a valid JSON string.",
-        ),
-    ] = None,
-) -> None:
+def evaluate(ctx: typer.Context) -> None:
     """Evaluate the AXS agent on all explanations in a configuration file.
 
     The scenario must have been run (either completely or using the --dryrun flag),
     with the observation and info data saved to disk (with --save_results flag).
     """
-    if save_logs is not None:
-        save_logs = "eval"
-    config = _init_axs(config_file, debug, None, save_results, output_dir, save_logs)
-    if llm_kwargs is not None:
-        config.config_dict["llm"].update(json.loads(llm_kwargs))
-    if context is not None:
-        config.config_dict["axs"]["use_context"] = context
+    config = ctx.obj["config"]
 
     # Find all save files with the prefix "agent_ep"
     # and the suffix ".pkl" in the output directory
@@ -226,7 +145,7 @@ def evaluate(  # noqa: PLR0913
         error_msg = f"No save files found in {config.output_dir}"
         raise FileNotFoundError(error_msg)
 
-    env = util.load_env(config.env)
+    env = util.load_env(config.env, config.env.render_mode)
     env.reset(seed=config.env.seed)
     logger.info("Created environment %s", config.env.name)
 
@@ -234,8 +153,9 @@ def evaluate(  # noqa: PLR0913
     axs_agent = AXSAgent(config, agent_policies)
 
     # Iterate over all save files
+    start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
     for save_file in save_files:
-        # Run all explanations. TODO: Accumulate results
+        # Run all explanations.
         for prompt_dict in config.axs.user_prompts:
             prompt = Prompt(**prompt_dict)
 
@@ -247,15 +167,70 @@ def evaluate(  # noqa: PLR0913
             if prompt.time is not None:
                 semantic_memory = axs_agent.semantic_memory.memory
                 for key in axs_agent.semantic_memory.memory:
-                    semantic_memory[key] = semantic_memory[key][:prompt.time]
+                    semantic_memory[key] = semantic_memory[key][: prompt.time]
 
             user_query = prompt.fill()
             axs_agent.explain(user_query)
 
+        if config.save_results:
+            save_path = Path(config.output_dir, f"checkpoint_{start_dt}.pkl")
+            axs_agent.save_state(save_path)
+
     if config.save_results:
-        date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
-        save_path = Path(config.output_dir, f"results_{date_time}.pkl")
+        save_path = Path(config.output_dir, f"results_{start_dt}.pkl")
         axs_agent.save_state(save_path)
+
+
+@app.callback()
+def main(  # noqa: PLR0913
+    ctx: typer.Context,
+    config_file: Annotated[
+        str,
+        typer.Option("-c", "--config-file", help="The path to the configuration file."),
+    ],
+    output_dir: Annotated[
+        str | None,
+        typer.Option("-o", "--output-dir", help="The path to the output directory."),
+    ] = None,
+    save_results: Annotated[
+        bool | None,
+        typer.Option(
+            "-s",
+            "--save-results",
+            help="Whether to save all run information to disk.",
+        ),
+    ] = None,
+    debug: Annotated[
+        bool | None,
+        typer.Option(help="Enable debug mode for logging.", is_eager=True),
+    ] = None,
+    dryrun: Annotated[
+        bool | None,
+        typer.Option(help="Run the environment without executing any explanations."),
+    ] = None,
+    context: Annotated[
+        bool | None,
+        typer.Option(
+            help="Whether to add initial context to the LLM. Requires specifying a "
+            "'no_context.txt' file in the prompts directory.",
+        ),
+    ] = True,
+    llm_kwargs: Annotated[
+        str | None,
+        typer.Option(
+            help="Keyword arguments for the LLM formatted as a valid JSON string.",
+        ),
+    ] = None,
+) -> None:
+    """Run an AXS agent."""
+    config = _init_axs(config_file, debug, dryrun, save_results, output_dir)
+    if llm_kwargs is not None:
+        config.config_dict["llm"].update(json.loads(llm_kwargs))
+    if context is not None:
+        config.config_dict["axs"]["use_context"] = context
+
+    ctx.obj = {"config": config}
+
 
 def cli() -> None:
     """Entry-point for CLI.

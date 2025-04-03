@@ -27,7 +27,7 @@ class IGP2MacroAction(axs.MacroAction):
         "TurnRight",
         "GoStraightJunction",
         "GiveWay",
-        "GoStraight",
+        "FollowLane",
     ]
 
     def __init__(
@@ -178,7 +178,7 @@ class IGP2MacroAction(axs.MacroAction):
             ip_macro = ip.ChangeLaneRight
         elif ma in ["TurnLeft", "TurnRight", "GoStraightJunction", "GiveWay"]:
             ip_macro = ip.Exit
-        elif ma == "GoStraight":
+        elif ma == "FollowLane":
             if not ip.Continue.applicable(
                 info[self.agent_id],
                 self.scenario_map,
@@ -244,7 +244,7 @@ class IGP2MacroAction(axs.MacroAction):
             ret = ip.Turn.applicable(*state)
         elif self.macro_name == "GiveWay":
             ret = ip.GiveWay.applicable(*state)
-        elif self.macro_name == "GoStraight":
+        elif self.macro_name == "FollowLane":
             ret = ip.FollowLane.applicable(*state)
         return ret
 
@@ -312,7 +312,7 @@ class IGP2MacroAction(axs.MacroAction):
             else:
                 macro = _macro
         if macro is None:
-            error_msg = f"Cannot create {self.macro_name} macro action."
+            error_msg = f"Macro {self.macro_name} is not applicable."
             raise axs.SimulationError(error_msg)
         return macro
 
@@ -422,7 +422,7 @@ class IGP2MacroAction(axs.MacroAction):
         elif trajectory.acceleration[inx] > eps:
             action_names.append("Accelerate")
 
-        if trajectory.velocity[inx] < trajectory.VELOCITY_STOP:
+        if trajectory.velocity[inx] <= trajectory.VELOCITY_STOP:
             action_names.append("Stop")
 
         if state.macro_action is not None:
@@ -448,8 +448,11 @@ class IGP2MacroAction(axs.MacroAction):
                     action_names.append("GoStraightJunction")
             elif "GiveWay" in state.maneuver:
                 action_names.append("GiveWay")
-            elif "FollowLane" in state.maneuver:
-                action_names.append("GoStraight")
+            elif "FollowLane" in state.maneuver or (
+                "StopCL" in state.maneuver
+                and trajectory.velocity[inx] > trajectory.VELOCITY_STOP
+            ):
+                action_names.append("FollowLane")
         raw_action = np.array(
             [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
         )

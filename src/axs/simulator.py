@@ -52,7 +52,7 @@ class Simulator:
                 raise TypeError(error_msg)
             self.env = env
         else:
-            self.env = load_env(config)
+            self.env = load_env(config, render_mode=config.render_mode)
             if isinstance(self.env, gym.Env):
                 self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
             else:
@@ -102,6 +102,7 @@ class Simulator:
                 obs, infs = [observation], [info]
             policy.reset(obs, infs)
 
+        logger.info("Running simulation with %d agents...", len(self.agent_policies))
         if simulation_needed:
             if isinstance(self.env, QueryableWrapper):
                 results = self.run_single_agent(macro_actions, observation, info)

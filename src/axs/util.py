@@ -58,7 +58,7 @@ def init_logging(
         logging.getLogger().addHandler(file_handler)
 
 
-def load_env(config: EnvConfig) -> SupportedEnv:
+def load_env(config: EnvConfig, render_mode: str | None = None) -> SupportedEnv:
     """Load an environment based on the configuration.
 
     This function determines from the config whether to load a gymnasium or
@@ -68,6 +68,8 @@ def load_env(config: EnvConfig) -> SupportedEnv:
 
     Args:
         config (Config): The configuration for the environment.
+        render_mode (str | None): The render mode for the environment.
+            If None, the default 'human' render mode is used.
 
     Returns:
         SupportedEnv: The loaded environment.
@@ -77,7 +79,7 @@ def load_env(config: EnvConfig) -> SupportedEnv:
     if config.name in gym.registry:
         env = gym.make(
             config.name,
-            render_mode=config.render_mode,
+            render_mode=render_mode,
             **config.params,
         )
     else:
