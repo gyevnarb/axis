@@ -83,6 +83,11 @@ class Query(Registerable, class_type=None):
         """Return the string representation of the Query."""
         return repr(self)
 
+    def __eq__(self, value: "Query") -> bool:
+        """Return true if the name and params of the compared object are the same."""
+        return (value.query_name == self.query_name
+                and str(value.params) == str(self.params))
+
     def verify(
         self,
         simulation_env: SupportedEnv | None = None,

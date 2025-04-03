@@ -109,9 +109,9 @@ class Simulator:
                 results = self.run_multi_agent(macro_actions)
         else:
             results = {
-                "observations": {aid: observations for aid in self.agent_policies},
-                "infos": {aid: infos for aid in self.agent_policies},
-                "actions": {aid: actions for aid in self.agent_policies},
+                "observations": dict.fromkeys(self.agent_policies, observations),
+                "infos": dict.fromkeys(self.agent_policies, infos),
+                "actions": dict.fromkeys(self.agent_policies, actions),
                 "rewards": None,
             }
 

@@ -62,6 +62,12 @@ class Memory(abc.ABC):
                 pickle.dump(self._mem, f)
                 logger.debug("Memory saved to %s", self.save_file)
 
+    def load_memory(self, path: str | Path) -> None:
+        """Load memory from file."""
+        with Path(path).open("rb") as f:
+            self._mem = pickle.load(f)
+            logger.debug("Memory loaded from %s", path)
+
     @property
     def memory(self) -> Iterable:
         """Return the memory object."""

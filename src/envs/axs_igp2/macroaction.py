@@ -100,12 +100,18 @@ class IGP2MacroAction(axs.MacroAction):
                 trajectory,
                 action_sequences,
             )
-            ret[agent_id] = cls._group_actions(
+            groups = cls._group_actions(
                 action_segmentations,
                 agent_id,
                 config,
                 scenario_map,
             )
+
+            # Sometimes a single length macro action may appear at the start
+            # due to the way the simulation is set up. We remove that here.
+            if len(groups) > 1 and groups[0].start_t == groups[0].end_t:
+                groups.pop(0)
+            ret[agent_id] = groups
         return ret
 
     def applicable(

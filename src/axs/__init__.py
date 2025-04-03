@@ -14,6 +14,7 @@ Policy:
 Wrapper:
 """
 
+import datetime
 import json
 import logging
 from pathlib import Path
@@ -81,8 +82,8 @@ def _init_axs(  # noqa: PLR0913
     dryrun: bool,
     save_results: bool,
     output_dir: str,
-    save_logs: bool,
-) -> None:
+    save_logs: str | None = None,
+) -> Config:
     """Initialize the AXS package."""
     if not Path(config_file).exists():
         error_msg = f"Configuration file not found: {config_file}"
@@ -113,7 +114,7 @@ def _init_axs(  # noqa: PLR0913
             "httpx",
         ],
         log_dir=Path(output_dir, "logs") if save_logs else None,
-        log_name="axs",
+        log_name=save_logs,
     )
 
     return config
@@ -147,6 +148,8 @@ def run(  # noqa: PLR0913
     ] = None,
 ) -> None:
     """Run an AXS agent according to a configuration file."""
+    if save_logs is not None:
+        save_logs = "run"
     config = _init_axs(config_file, debug, dryrun, save_results, output_dir, save_logs)
 
     env = util.load_env(config.env)
@@ -205,6 +208,8 @@ def evaluate(  # noqa: PLR0913
     The scenario must have been run (either completely or using the --dryrun flag),
     with the observation and info data saved to disk (with --save_results flag).
     """
+    if save_logs is not None:
+        save_logs = "eval"
     config = _init_axs(config_file, debug, None, save_results, output_dir, save_logs)
     if llm_kwargs is not None:
         config.config_dict["llm"].update(json.loads(llm_kwargs))
@@ -244,6 +249,10 @@ def evaluate(  # noqa: PLR0913
             user_query = prompt.fill()
             axs_agent.explain(user_query)
 
+    if config.save_results:
+        date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        save_path = Path(config.output_dir, f"results_{date_time}.pkl")
+        axs_agent.save_state(save_path)
 
 def cli() -> None:
     """Entry-point for CLI.

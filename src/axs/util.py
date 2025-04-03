@@ -140,7 +140,9 @@ def run_gym_env(
             # Check whether there is anything to explain
             if not config.dryrun:
                 if config.save_results:
-                    save_file = Path(config.output_dir, f"agent_ep{n}_t{t}.pkl")
+                    save_file = Path(
+                        config.output_dir, "agents", f"agent_ep{n}_t{t}.pkl",
+                    )
                     axs_agent.save_state(save_file)
 
                 for prompt_dict in config.axs.user_prompts:
@@ -165,7 +167,7 @@ def run_gym_env(
                 break
 
         if config.save_results:
-            save_file = Path(config.output_dir, f"agent_ep{n}.pkl")
+            save_file = Path(config.output_dir, "agents", f"agent_ep{n}.pkl")
             axs_agent.save_state(save_file)
 
     env.close()
@@ -219,7 +221,9 @@ def run_aec_env(
             if not config.dryrun:
                 if config.save_results:
                     save_file = Path(
-                        config.output_dir, f"agent_ep{n}_ag{agent}_t{t}.pkl",
+                        config.output_dir,
+                        "agents",
+                        f"agent_ep{n}_ag{agent}_t{t}.pkl",
                     )
                     axs_agent.save_state(save_file)
 
@@ -233,7 +237,7 @@ def run_aec_env(
             agent_times[agent] += 1
 
         if config.save_results:
-            save_file = Path(config.output_dir, f"agent_ep{n}.pkl")
+            save_file = Path(config.output_dir, "agents", f"agent_ep{n}.pkl")
             axs_agent.save_state(save_file)
         logger.debug("Episode %d terminated.", n + 1)
 

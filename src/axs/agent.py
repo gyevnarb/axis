@@ -86,6 +86,7 @@ class AXSAgent:
             if save_dir
             else None,
         )
+        self._query_memory = EpisodicMemory()
 
         # Procedural components
         self._agent_policies = agent_policies
@@ -258,10 +259,11 @@ class AXSAgent:
         for n_tries in range(1, self.config.axs.n_tries + 1):  # noqa: B007
             query_outputs, usage = self._llm.chat(self.episodic_memory.memory)
             query_output = query_outputs[0]
+            query_content = query_output["content"]
+
             self.episodic_memory.learn(query_output)
             statistics["usage"].append(usage)
 
-            query_content = query_output["content"]
             if query_content == "DONE":
                 return "DONE"
 
@@ -274,6 +276,14 @@ class AXSAgent:
                     macro_actions,
                     infos,
                 )
+
+                # Check whether the query has been called before
+                if simulation_query in self._query_memory.memory:
+                    error_msg = (f"The query {query_content} was already tested. "
+                                f"Generate a different query.")
+                    self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
+                    continue
+                self._query_memory.learn(simulation_query)
 
                 simulation_results = self._simulator.run(
                     simulation_query,
@@ -337,21 +347,21 @@ class AXSAgent:
         self._semantic_memory.reset()
         self._episodic_memory.reset()
 
-    def save_state(self, path: Path) -> None:
+    def save_state(self, path: str | Path) -> None:
         """Save the agent's state to a file except the LLM."""
         statedict = {
-            "semantic_memory": self._semantic_memory,
-            "episodic_memory": self._episodic_memory,
+            "semantic_memory": self._semantic_memory.memory,
+            "episodic_memory": self._episodic_memory.memory,
         }
-        with path.open("wb") as f:
+        with Path(path).open("wb") as f:
             pickle.dump(statedict, f)
 
-    def load_state(self, path: Path) -> None:
+    def load_state(self, path: str | Path) -> None:
         """Load the agent's state from a file except for the LLM."""
-        with path.open("rb") as f:
+        with Path(path).open("rb") as f:
             statedict = pickle.load(f)
-        for key, value in statedict.items():
-            setattr(self, f"_{key}", value)
+        self._semantic_memory._mem = statedict["semantic_memory"]
+        self._episodic_memory._mem = statedict["episodic_memory"]
 
     @property
     def agent_policies(self) -> dict[int, Policy]:

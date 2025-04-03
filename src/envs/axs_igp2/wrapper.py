@@ -51,6 +51,9 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         time = max(0, min(len(observations), time) - 1)
         logger.debug("Setting simulation state to timestep %d", time + 1)
 
+        if time < len(observations) and query.query_name == "what":
+            time = len(observations) - 1
+
         info = {}
         if time == 0:
             info = infos[0]
@@ -100,7 +103,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         simulation_needed = not (
             query.query_name == "what"
             and query.params["vehicle"] in info
-            and info[query.params["vehicle"]].time <= query.params["time"]
+            and info[query.params["vehicle"]].time > query.params["time"]
         )
         return self.env.unwrapped._get_obs(), info, macros, simulation_needed
 
@@ -132,16 +135,17 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 corresponding results.
 
         """
-        agent_id = next(iter(observations.keys()))
-        observations = observations[agent_id]
-        actions = actions[agent_id]
-        infos = infos[agent_id]
+        ego_id = next(iter(observations.keys()))
+        vid = query.params.get("vehicle", ego_id)
 
-        ego_reward = None
+        observations = observations[ego_id]
+        actions = actions[ego_id]
+        infos = infos[ego_id]
+        rewards = None
+
         if "reward" in infos[-1]:
             ego_reward = infos[-1].pop("reward")
-        time = query.get_time(len(observations))
-        vid = query.params.get("vehicle", agent_id)
+            rewards = {ego_id: ego_reward}
 
         ma_config = axs.MacroActionConfig({"params": {"eps": 0.1}})
         macros = IGP2MacroAction.wrap(
@@ -151,35 +155,36 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             infos,
             self.env.unwrapped,
         )
+
         if query.query_name == "what":
-            current_macros = {
+            time = query.get_time(len(observations))
+            macros = {
                 aid: [macro]
                 for aid, macros in macros.items()
                 for macro in macros
-                if macro.start_t <= time < macro.end_t
+                if macro.start_t <= time <= macro.end_t
+                and aid == vid
             }
+
             start_t = max(0, time - 1)
-            end_t = min(len(observations), time + 1)
+            end_t = min(len(observations), time + 2)
             if start_t == 0:
                 end_t = start_t + 3
             if end_t == len(observations):
                 start_t = end_t - 3
-            ret = {
-                "observations": observations[start_t:end_t],
-                "macro_actions": current_macros,
-                "infos": infos[start_t:end_t],
-            }
-            if ego_reward is not None:
-                ret["rewards"] = {vid: ego_reward if vid == agent_id else None}
-            return ret
+
+            observations = observations[start_t:end_t]
+            infos = [{vid: info[vid]} for info in infos[start_t:end_t]]
+            if vid != ego_id or time < end_t - 1:
+                rewards = None
 
         ret = {
             "observations": observations,
             "macro_actions": macros,
             "infos": infos,
         }
-        if ego_reward is not None:
-            ret["rewards"] = {agent_id: ego_reward}
+        if rewards is not None:
+            ret["rewards"] = rewards
         return ret
 
     def _add(

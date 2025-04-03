@@ -102,7 +102,7 @@ class LLMWrapper:
             top_p=self._sampling_params.top_p,
         )
         responses = [
-            {"role": c.message.role, "content": c.message.content}
+            {"role": c.message.role, "content": c.message.content.strip()}
             for c in completions.choices
         ]
 

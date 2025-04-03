@@ -52,8 +52,8 @@ class QueryableWrapperBase(ABC):
 
         Args:
             query (Query): The query to apply.
-            observation (Any): The observation to apply the query to.
-            info (dict[str, Any]): The info dict to apply the query to.
+            observation (Any): The observation after set_state() has been called.
+            info (dict[str, Any]): The info dict after set_state() has been called.
             kwargs: Additional optional keyword arguments from config file.
 
         Returns:
