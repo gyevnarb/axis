@@ -173,7 +173,7 @@ class AXSAgent:
         system_prompt = self._prompts["system"].fill(
             n_max=self.config.axs.n_max,
         )
-        logger.debug("System prompt: %s", system_prompt)
+        logger.info("System prompt: %s", system_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("system", system_prompt))
 
         # Create context prompt
@@ -182,7 +182,7 @@ class AXSAgent:
             macro_names=self._macro_action.macro_names,
             user_prompt=user_prompt,
         )
-        logger.debug("Context prompt: %s", context_prompt)
+        logger.info("Context prompt: %s", context_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
 
         n = 1
@@ -299,7 +299,7 @@ class AXSAgent:
                 )
             except SimulationError as e:
                 error_msg = f"The simulation failed: {e} Generate a different query."
-            logger.exception(error_msg)
+            logger.warning(error_msg)
             self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
 
         else:
@@ -333,7 +333,7 @@ class AXSAgent:
                 n_max=self.config.axs.n_max,
             )
         self.episodic_memory.learn(LLMWrapper.wrap("user", explanation_prompt))
-        logger.debug("Explanation prompt: %s", explanation_prompt)
+        logger.info("Explanation prompt: %s", explanation_prompt)
 
         explanation_outputs, usage = self._llm.chat(self.episodic_memory.memory)
         explanation_output = explanation_outputs[0]

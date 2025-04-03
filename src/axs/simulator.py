@@ -5,8 +5,6 @@ from collections import defaultdict
 from typing import Any
 
 import gymnasium as gym
-import pettingzoo
-from pettingzoo.utils.conversions import parallel_to_aec
 
 from axs.config import EnvConfig, SupportedEnv
 from axs.macroaction import MacroAction

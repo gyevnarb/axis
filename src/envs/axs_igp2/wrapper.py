@@ -264,12 +264,13 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         agent_id = query.params["vehicle"]
 
         macro_actions = []
+        new_info = info
         for macro_action in query.params["actions"]:
             macro_action.agent_id = agent_id
             macro_action.scenario_map = env.scenario_map
-            ip_macro = macro_action.from_observation(observation, info, fps=env.fps)
-            info = ip_macro.action_segments[-1].final_frame
-            for state in info.values():
+            ip_macro = macro_action.from_observation(observation, new_info, fps=env.fps)
+            new_info = ip_macro.action_segments[-1].final_frame
+            for state in new_info.values():
                 _adjust_final_position(state)
             macro_actions.append(ip_macro)
         env.simulation.agents[agent_id].set_macro_actions(
