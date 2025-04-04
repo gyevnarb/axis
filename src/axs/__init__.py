@@ -154,8 +154,8 @@ def evaluate(ctx: typer.Context) -> None:
     axs_agent = AXSAgent(config, agent_policies)
 
     # Iterate over all save files
-    from datetime import datetime
-    start_dt = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+    import datetime
+    start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
     del datetime
     for save_file in save_files:
         # Run all explanations.

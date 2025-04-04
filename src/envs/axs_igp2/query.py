@@ -30,7 +30,7 @@ class IGP2Query(axs.Query):
         """
         super().__init__(name, params)
         if name == "remove" and params["vehicle"] == 0:
-            error_msg = "Cannot remove the ego vehicle."
+            error_msg = "Cannot remove vehicle 0."
             raise axs.QueryError(error_msg)
 
     def verify(

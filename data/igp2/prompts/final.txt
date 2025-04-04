@@ -1,1 +1,2 @@
-Generate your final explanation using all information available to you. Be concise. Do not include state or action descriptions.
+Generate your final explanation using all previous information in response to the question: {user_prompt}
+Do not include state or action descriptions. Be specific and concise, focusing on causal relationships.

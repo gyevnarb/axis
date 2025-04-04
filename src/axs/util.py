@@ -141,17 +141,16 @@ def run_gym_env(
 
             # Check whether there is anything to explain
             if not config.dryrun:
-                if config.save_results:
-                    save_file = Path(
-                        config.output_dir, "agents", f"agent_ep{n}_t{t}.pkl",
-                    )
-                    axs_agent.save_state(save_file)
-
                 for prompt_dict in config.axs.user_prompts:
                     user_prompt = Prompt(**prompt_dict)
                     if t == 0 or user_prompt.time != t:
                         continue
                     axs_agent.explain(user_prompt)
+                    if config.save_results:
+                        save_file = Path(
+                            config.output_dir, "agents", f"agent_ep{n}_t{t}.pkl",
+                        )
+                        axs_agent.save_state(save_file)
 
             # Perform environment step
             observation, reward, terminated, truncated, info = env.step(action)
@@ -221,19 +220,18 @@ def run_aec_env(
 
             # Check whether there is anything to explain
             if not config.dryrun:
-                if config.save_results:
-                    save_file = Path(
-                        config.output_dir,
-                        "agents",
-                        f"agent_ep{n}_ag{agent}_t{t}.pkl",
-                    )
-                    axs_agent.save_state(save_file)
-
                 for prompt_dict in config.axs.user_prompts:
                     user_prompt = Prompt(**prompt_dict)
                     if t == 0 or user_prompt.time != t:
                         continue
                     axs_agent.explain(user_prompt)
+                    if config.save_results:
+                        save_file = Path(
+                            config.output_dir,
+                            "agents",
+                            f"agent_ep{n}_ag{agent}_t{t}.pkl",
+                        )
+                        axs_agent.save_state(save_file)
 
             env.step(action)
             agent_times[agent] += 1

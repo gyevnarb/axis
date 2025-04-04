@@ -1,7 +1,6 @@
 {
     "output_dir": "output/igp2/scenario2",
     "save_results": true,
-    "debug": true,
     "llm": {
         "inference_mode": "localhost",
         "model": "meta-llama/Llama-3.3-70B-Instruct",
@@ -36,16 +35,16 @@
         "prompts_dir": "data/igp2/prompts",
         "user_prompts": [
             {
-                "time": 120,
-                "template": "What if vehicle 1 had gone through the junction instead of stopping?"
-            },
-            {
-                "time": 140,
-                "template": "Why did vehicle 0 stop?"
+                "time": 160,
+                "template": "What would have happened if vehicle 1 had gone through the junction instead of stopping?"
             },
             {
                 "time": 160,
-                "template": "What if vehicle 0 had not stopped?"
+                "template": "Why did vehicle 0 not stop?"
+            },
+            {
+                "time": 160,
+                "template": "What would have happened if vehicle 0 had stopped?"
             }
         ]
     },
@@ -60,7 +59,7 @@
         "params": {
             "config": {
                 "scenario": {
-                    "map_path": "scenarios/maps/scenario2.xodr",
+                    "map_path": "data/igp2/maps/scenario2.xodr",
                     "max_speed": 10.0,
                     "fps": 20,
                     "seed": 21,

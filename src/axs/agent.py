@@ -93,6 +93,7 @@ class AXSAgent:
         self._query_memory = EpisodicMemory()
 
         # Procedural components
+        self._agent_policies = agent_policies
         self._simulator = Simulator(config.env, agent_policies, simulator_env)
         self._llm = LLMWrapper(config.llm)
         self._distance = None
@@ -371,6 +372,11 @@ class AXSAgent:
             statedict = pickle.load(f)
         self._semantic_memory._mem = statedict["semantic_memory"]
         self._episodic_memory._mem = statedict["episodic_memory"]
+
+    @property
+    def agent_policies(self) -> dict[int, Policy] | None:
+        """The agent's policies."""
+        return self._agent_policies
 
     @property
     def episodic_memory(self) -> EpisodicMemory:

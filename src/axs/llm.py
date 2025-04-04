@@ -52,7 +52,7 @@ class LLMWrapper:
             error_msg = f"Invalid inference mode: {self._mode}"
             raise ValueError(error_msg)
 
-    def chat(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    def chat(self, messages: list[dict[str, str]]) -> tuple[list[dict[str, str]], dict]:
         """Chat with the LLM model using the given messages.
 
         Args:
