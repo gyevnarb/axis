@@ -14,13 +14,10 @@ Policy:
 Wrapper:
 """
 
-import datetime
-import json
 import logging
 from pathlib import Path
 from typing import Annotated
 
-import gymnasium as gym
 import typer
 
 from . import util
@@ -35,6 +32,7 @@ from .config import (
     VerbalizerConfig,
     registry,
 )
+from .llm import LLMWrapper
 from .macroaction import ActionSegment, MacroAction
 from .memory import EpisodicMemory, SemanticMemory
 from .policy import Policy
@@ -52,6 +50,7 @@ __all__ = [
     "EnvConfig",
     "EpisodicMemory",
     "LLMConfig",
+    "LLMWrapper",
     "MacroAction",
     "MacroActionConfig",
     "Policy",
@@ -121,12 +120,14 @@ def run(ctx: typer.Context) -> None:
     agent_policies = registry.get(config.env.policy_type).create(env)
     axs_agent = AXSAgent(config, agent_policies)
 
+    import gymnasium as gym
     if config.env.name in gym.registry:
         logger.info("Running gym environment %s", config.env.name)
         util.run_gym_env(env, axs_agent, config, *initial_state)
     else:
         logger.info("Running pettingzoo environment %s", config.env.name)
         util.run_aec_env(env, axs_agent, config)
+    del gym
 
 
 @app.command()
@@ -153,7 +154,9 @@ def evaluate(ctx: typer.Context) -> None:
     axs_agent = AXSAgent(config, agent_policies)
 
     # Iterate over all save files
-    start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+    from datetime import datetime
+    start_dt = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+    del datetime
     for save_file in save_files:
         # Run all explanations.
         for prompt_dict in config.axs.user_prompts:
@@ -225,7 +228,9 @@ def main(  # noqa: PLR0913
     """Run an AXS agent."""
     config = _init_axs(config_file, debug, dryrun, save_results, output_dir)
     if llm_kwargs is not None:
+        import json
         config.config_dict["llm"].update(json.loads(llm_kwargs))
+        del json
     if context is not None:
         config.config_dict["axs"]["use_context"] = context
 

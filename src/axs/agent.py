@@ -3,7 +3,7 @@
 import datetime
 import logging
 import pickle
-from copy import copy, deepcopy
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ class AXSAgent:
     def __init__(
         self,
         config: Config,
-        agent_policies: dict[int, Policy],
+        agent_policies: dict[int, Policy] | None = None,
         simulator_env: SupportedEnv | None = None,
         **kwargs: dict[str, Any],
     ) -> "AXSAgent":
@@ -38,7 +38,8 @@ class AXSAgent:
 
         Args:
             config (Config): The configuration object for the agent.
-            agent_policies (dict[int, Policy]): Agent policies used in the simulator.
+            agent_policies (dict[int, Policy] | None): Agent policies used in simulator.
+                If not given, then the Simulator will be disabled.
             simulator_env (SupportedEnv): Optional environment to use for simulation.
                 If not given, a new internal environment will be created.
                 Note, if an existing environment is passed then
@@ -53,9 +54,12 @@ class AXSAgent:
         if not isinstance(config, Config):
             error_msg = f"Config must be an instance of Config. Got: {config}"
             raise TypeError(error_msg)
-        if not isinstance(agent_policies, dict) or not all(
-            isinstance(k, int) and isinstance(v, Policy)
-            for k, v in agent_policies.items()
+        if agent_policies is not None and (
+            not isinstance(agent_policies, dict)
+            or not all(
+                isinstance(k, int) and isinstance(v, Policy)
+                for k, v in agent_policies.items()
+            )
         ):
             error_msg = (
                 f"Agent policies must be a dictionary with "
@@ -89,7 +93,6 @@ class AXSAgent:
         self._query_memory = EpisodicMemory()
 
         # Procedural components
-        self._agent_policies = agent_policies
         self._simulator = Simulator(config.env, agent_policies, simulator_env)
         self._llm = LLMWrapper(config.llm)
         self._distance = None
@@ -134,6 +137,7 @@ class AXSAgent:
             user_prompt (str): The user's prompt to the agent.
 
         """
+        logger.info("#" * 70)
         logger.info("Explaining behaviour based on user prompt: %s", user_prompt)
 
         # Turn on saving the episodic and semantic memory on each learn call.
@@ -179,6 +183,7 @@ class AXSAgent:
         # Create context prompt
         context_prompt = self._prompts["context"].fill(
             context_dict,
+            n_max=self.config.axs.n_max,
             macro_names=self._macro_action.macro_names,
             user_prompt=user_prompt,
         )
@@ -223,7 +228,7 @@ class AXSAgent:
             statistics["distances"].append(distance)
 
         self.semantic_memory.learn(
-            messages=copy(self.episodic_memory.memory),
+            messages=deepcopy(self.episodic_memory.memory),
             explanations=explanation,
             statistics=statistics,
         )
@@ -279,9 +284,12 @@ class AXSAgent:
 
                 # Check whether the query has been called before
                 if simulation_query in self._query_memory.memory:
-                    error_msg = (f"The query {query_content} was already tested. "
-                                f"Generate a different query.")
+                    error_msg = (
+                        f"The query {query_content} was already tested. "
+                        f"Generate a different query."
+                    )
                     self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
+                    logger.warning(error_msg)
                     continue
                 self._query_memory.learn(deepcopy(simulation_query))
 
@@ -304,6 +312,7 @@ class AXSAgent:
 
         else:
             error_msg = "The simulation failed after multiple attempts."
+            statistics["n_tries"].append(n_tries)
             raise RuntimeError(error_msg)
 
         statistics["n_tries"].append(n_tries)
@@ -362,11 +371,6 @@ class AXSAgent:
             statedict = pickle.load(f)
         self._semantic_memory._mem = statedict["semantic_memory"]
         self._episodic_memory._mem = statedict["episodic_memory"]
-
-    @property
-    def agent_policies(self) -> dict[int, Policy]:
-        """The agents' policies."""
-        return self._agent_policies
 
     @property
     def episodic_memory(self) -> EpisodicMemory:

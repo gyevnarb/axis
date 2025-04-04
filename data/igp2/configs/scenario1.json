@@ -1,7 +1,6 @@
 {
     "output_dir": "output/igp2/scenario1",
     "save_results": true,
-    "debug": true,
     "llm": {
         "inference_mode": "localhost",
         "model": "meta-llama/Llama-3.3-70B-Instruct",
@@ -38,7 +37,7 @@
             {
                 "time": 80,
                 "template": "Why did vehicle 0 not go straight?"
-            },            
+            },
             {
                 "time": 90,
                 "template": "Why did vehicle 0 change lanes left?"
@@ -46,7 +45,7 @@
             {
                 "time": 100,
                 "template": "What if vehicle 1 hadn't changed lanes right?"
-            }      
+            }
         ]
     },
     "env": {

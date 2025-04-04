@@ -1,1 +1,1 @@
-Generate your final explanation. Give your explanation in plain English. Do not include state or action descriptions.
+Generate your final explanation using all information available to you. Be concise. Do not include state or action descriptions.

@@ -1,11 +1,13 @@
 """Implementation of AXS for IGP2."""
 
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 import axs
+from axs import cli
 
 from .macroaction import IGP2MacroAction
 from .policy import IGP2Policy
@@ -21,12 +23,17 @@ __all__ = [
     "IGP2Verbalizer",
 ]
 
+class FunctionNames(str, Enum):
+    """Function names for IGP2."""
+
+    run = "run"
+    evaluate = "evaluate"
 
 @axs.app.command()
 def igp2(
     ctx: typer.Context,
     function: Annotated[
-        str, typer.Argument(help="Function to run. Either 'run' or 'evaluate'."),
+        FunctionNames, typer.Argument(help="Function to run."),
     ],
     save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
 ) -> None:

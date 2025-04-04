@@ -40,21 +40,25 @@ class Simulator:
         """
         self.config = config
         self.agent_policies = agent_policies
+        self.env = None
 
-        if len(agent_policies) > 1 and env is not None and not isinstance(env, gym.Env):
-            logger.warning("Running multi-agent simulation using one agent policy!")
-
-        if env is not None:
-            if not isinstance(env, SupportedEnv):
-                error_msg = "Environment must be a supported environment."
-                raise TypeError(error_msg)
-            self.env = env
+        if agent_policies is None:
+            logger.warning("No agent policies provided. Simulator is disabled.")
         else:
-            self.env = load_env(config, render_mode=config.render_mode)
-            if isinstance(self.env, gym.Env):
-                self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
+            if len(agent_policies) > 1 and env is not None and not isinstance(env, gym.Env):
+                logger.warning("Running multi-agent simulation using one agent policy!")
+
+            if env is not None:
+                if not isinstance(env, SupportedEnv):
+                    error_msg = "Environment must be a supported environment."
+                    raise TypeError(error_msg)
+                self.env = env
             else:
-                self.env = QueryableAECWrapper.get(config.wrapper_type)(self.env)
+                self.env = load_env(config, render_mode=config.render_mode)
+                if isinstance(self.env, gym.Env):
+                    self.env = QueryableWrapper.get(config.wrapper_type)(self.env)
+                else:
+                    self.env = QueryableAECWrapper.get(config.wrapper_type)(self.env)
 
     def run(
         self,
@@ -72,6 +76,10 @@ class Simulator:
             infos (list[dict[str, Any]]): Info dicts used to set initial state.
 
         """
+        if self.env is None:
+            error_msg = "Simulator is not initialized with an environment."
+            raise ValueError(error_msg)
+
         logger.info("Running internal simulation with: %s", query)
 
         logger.debug("Resetting internal simulator state.")

@@ -54,7 +54,8 @@ class Registerable:
 
         """
         if name not in registry:
-            error_msg = f"Type {name} not found in the registry with {registry.keys()}."
+            error_msg = (f"Type {name} not found in registry with {registry.keys()}. "
+                         f"Maybe you have forgotten an import.")
             raise ValueError(error_msg)
         return registry[name]
 

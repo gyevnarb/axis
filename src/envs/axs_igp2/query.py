@@ -95,13 +95,14 @@ class IGP2Query(axs.Query):
             if vehicle not in infos[time]:
                 error_msg = f"Vehicle {vehicle} does not exist."
                 raise axs.QueryError(error_msg)
-            actions = self.params["actions"]
-            macro_at_time = next(
-                ma for ma in macro_actions[vehicle] if ma.start_t <= time <= ma.end_t
-            ).macro_name
-            if len(actions) == 1 and actions[0].macro_name == macro_at_time:
-                error_msg = "Cannot test the same action as the last action."
-                raise axs.QueryError(error_msg)
+            # Uncomment this to check if the action is the same as the last action.
+            # actions = self.params["actions"]
+            # macro_at_time = next(
+            #     ma for ma in macro_actions[vehicle] if ma.start_t <= time <= ma.end_t
+            # ).macro_name
+            # if len(actions) == 1 and actions[0].macro_name == macro_at_time:
+            #     error_msg = "Cannot test the same action as the last action."
+            #     raise axs.QueryError(error_msg)
 
         if self.query_name == "what":
             vehicle = self.params["vehicle"]

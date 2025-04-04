@@ -111,6 +111,8 @@ class SemanticMemory(Memory):
                     self._mem[key].append(value)
                 else:
                     self._mem[key] = [self._mem[key], value]
+            elif isinstance(value, list):
+                self._mem[key] = [value]
             else:
                 self._mem[key] = value
         self.save_memory()
