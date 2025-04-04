@@ -170,7 +170,7 @@ def evaluate(ctx: typer.Context) -> None:
             if prompt.time is not None:
                 semantic_memory = axs_agent.semantic_memory.memory
                 for key in axs_agent.semantic_memory.memory:
-                    semantic_memory[key] = semantic_memory[key][: prompt.time]
+                    semantic_memory[key] = semantic_memory[key][:prompt.time]
 
             user_query = prompt.fill()
             axs_agent.explain(user_query)

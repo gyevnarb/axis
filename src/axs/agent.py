@@ -304,7 +304,7 @@ class AXSAgent:
 
             except QueryError as e:
                 error_msg = (
-                    f"The generated query is invalid: {e} Generate a different query."
+                    f"The query is invalid: {e} Generate a different query."
                 )
             except SimulationError as e:
                 error_msg = f"The simulation failed: {e} Generate a different query."
@@ -327,7 +327,7 @@ class AXSAgent:
     ) -> str:
         """Synthesise an explanation based on the simulation results."""
         if results == "DONE":
-            explanation_prompt = self._prompts["final"].fill()
+            explanation_prompt = self._prompts["final"].fill(user_prompt=user_prompt)
         else:
             simulation_context = self._verbalizer.convert(
                 **results,

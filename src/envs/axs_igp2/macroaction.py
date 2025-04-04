@@ -269,7 +269,7 @@ class IGP2MacroAction(axs.MacroAction):
 
         # Handle stopping without a goal over a set distance
         if self.macro_name == "Stop":
-            stop_len = kwargs.get("stop_len", 10)
+            stop_len = kwargs.get("stop_len", min(agent_state.speed * 2, 20))
             current_lane = self.scenario_map.best_road_at(
                 agent_state.position,
                 agent_state.heading,
@@ -277,7 +277,8 @@ class IGP2MacroAction(axs.MacroAction):
             lane_len = current_lane.length
             current_ds = current_lane.distance_at(agent_state.position)
             if lane_len - current_ds < stop_len:
-                error_msg = "Cannot stop at the current position."
+                error_msg = ("Cannot stop at the current position. "
+                             "Too close to end of lane.")
                 raise axs.SimulationError(error_msg)
             stop_position = current_lane.point_at(current_ds + stop_len)
             goal = ip.StoppingGoal(stop_position, stop_len)
