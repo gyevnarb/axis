@@ -166,8 +166,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 aid: [macro]
                 for aid, macros in macros.items()
                 for macro in macros
-                if macro.start_t <= time <= macro.end_t
-                and aid == vid
+                if macro.start_t <= time <= macro.end_t and aid == vid
             }
 
             start_t = max(0, time - 1)
@@ -267,16 +266,49 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         observation = env._get_obs()
         agent_id = query.params["vehicle"]
 
+        query_actions = query.params["actions"]
+        skip_next = False
         macro_actions = []
         new_info = info
-        for macro_action in query.params["actions"]:
+        for i, macro_action in enumerate(query_actions):
+            turn_direction = None
+            if macro_action.macro_name == "GiveWay":
+                if i == len(query_actions) - 1 or query_actions[
+                    i + 1
+                ].macro_name not in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
+                    error_msg = (
+                        "Action GiveWay must be followed by one of "
+                        "TurnLeft, TurnRight, or GoStraightJunction."
+                    )
+                    raise axs.SimulationError(error_msg)
+                turn_direction = query_actions[i + 1].get_turn_direction()
+
+            if skip_next:
+                logger.debug(
+                    "GiveWay and %s was given; skipping generation of %s as "
+                    "GiveWay already created the turn.",
+                    macro_action.macro_name,
+                    macro_action.macro_name,
+                )
+                skip_next = False
+                continue
+
             macro_action.agent_id = agent_id
             macro_action.scenario_map = env.scenario_map
-            ip_macro = macro_action.from_observation(observation, new_info, fps=env.fps)
+            ip_macro = macro_action.from_observation(
+                observation,
+                new_info,
+                fps=env.fps,
+                turn_direction=turn_direction,
+            )
             new_info = ip_macro.action_segments[-1].final_frame
             for state in new_info.values():
                 _adjust_final_position(state)
             macro_actions.append(ip_macro)
+
+            if turn_direction is not None:
+                skip_next = True
+
         env.simulation.agents[agent_id].set_macro_actions(
             [macro.action_segments[0] for macro in macro_actions],
         )

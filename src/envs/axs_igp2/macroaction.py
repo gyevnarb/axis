@@ -300,22 +300,46 @@ class IGP2MacroAction(axs.MacroAction):
                 scenario_map=self.scenario_map,
             )
             if ip_macro == ip.Exit:
-                direction = (
-                    1
-                    if self.macro_name == "TurnLeft"
-                    else -1
-                    if self.macro_name == "TurnRight"
-                    else 0
-                )
+                direction = kwargs.get("turn_direction")
+                if direction is None:
+                    direction = self.get_turn_direction()
                 if direction == _macro.orientation:
                     macro = _macro
                     break
             else:
                 macro = _macro
+
         if macro is None:
-            error_msg = f"Macro {self.macro_name} is not applicable."
+            macro_name = self.macro_name
+            if "turn_direction" in kwargs:
+                macro_name = {
+                    1: "TurnLeft",
+                    -1: "TurnRight",
+                    0: "GoStraightJunction",
+                }[kwargs["turn_direction"]]
+            error_msg = f"Macro {macro_name} is not applicable."
             raise axs.SimulationError(error_msg)
         return macro
+
+    def get_turn_direction(self) -> int:
+        """Get the turn direction based on the macro name.
+
+        Args:
+            macro_name (str): The name of the macro action.
+
+        Returns:
+            int: The turn direction (-1 for left, 1 for right, 0 for straight).
+
+        """
+        if self.macro_name not in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
+            error_msg = f"Macro {self.macro_name} has no turn direction."
+            raise ValueError(error_msg)
+
+        if self.macro_name == "TurnLeft":
+            return 1
+        if self.macro_name == "TurnRight":
+            return -1
+        return 0
 
     @classmethod
     def _group_actions(
