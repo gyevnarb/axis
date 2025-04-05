@@ -104,6 +104,12 @@ def _init_axs(
     agents_dir = Path(output_dir, "agents")
     if not agents_dir.exists():
         agents_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = Path(output_dir, "checkpoints")
+    if not checkpoint_dir.exists():
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    results_dir = Path(output_dir, "results")
+    if not results_dir.exists():
+        results_dir.mkdir(parents=True, exist_ok=True)
 
     return config
 
@@ -154,10 +160,14 @@ def evaluate(ctx: typer.Context) -> None:
 
     # Iterate over all save files
     import datetime
+    import pickle
     start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
-    for save_file in save_files:
+    results = {}
+    for ep_ix, save_file in enumerate(save_files):
+        ep_results = {}
+
         # Run all explanations.
-        for prompt_dict in config.axs.user_prompts:
+        for p_ix, prompt_dict in enumerate(config.axs.user_prompts):
             prompt = Prompt(**prompt_dict)
 
             # Load the state of the agent from the file
@@ -171,15 +181,30 @@ def evaluate(ctx: typer.Context) -> None:
                     semantic_memory[key] = semantic_memory[key][:prompt.time]
 
             user_query = prompt.fill()
-            axs_agent.explain(user_query)
+            _, p_results = axs_agent.explain(user_query)
+
+            if config.save_results:
+                save_name = f"checkpoint_{start_dt}_p{p_ix}.pkl"
+                save_path = Path(config.output_dir, "checkpoints", save_name)
+                with save_path.open("wb") as f:
+                    pickle.dump(p_results, f)
+                    logger.info("Episode %d checkpoint saved to %s", ep_ix, save_path)
+            ep_results[f"p{p_ix}"] = p_results
 
         if config.save_results:
-            save_path = Path(config.output_dir, f"checkpoint_{start_dt}.pkl")
-            axs_agent.save_state(save_path)
+            save_name = f"results_{start_dt}_ep{ep_ix}.pkl"
+            save_path = Path(config.output_dir, "results", save_name)
+            with save_path.open("wb") as f:
+                pickle.dump(ep_results, f)
+                logger.info("Episode %d results saved to %s", ep_ix, save_path)
+        results[f"ep{ep_ix}"] = ep_results
 
+    # Save the results to disk
     if config.save_results:
-        save_path = Path(config.output_dir, f"results_{start_dt}.pkl")
-        axs_agent.save_state(save_path)
+        save_path = Path(config.output_dir, f"final_{start_dt}.pkl")
+        with Path(save_path).open("wb") as f:
+            pickle.dump(results, f)
+            logger.info("Final results saved to %s", save_path)
 
 
 @app.callback()

@@ -131,15 +131,21 @@ class AXSAgent:
         else:
             self._query = Query.get(config.axs.query.type_name)
 
-    def explain(self, user_prompt: str) -> str:
+    def explain(self, user_prompt: str) -> tuple[str, dict]:
         """Explain behaviour based on the user's prompt.
 
         Args:
             user_prompt (str): The user's prompt to the agent.
 
+        Returns:
+            tuple[str, dict]: The explanation and the results of the explanation.
+                The explanation is a string and the results are a dictionary
+                containing the messages, explanations, and statistics.
+
         """
         logger.info("#" * 70)
-        logger.info("Explaining behaviour based on user prompt: %s", user_prompt)
+        logger.info("Explaining for user prompt: %s", user_prompt)
+        logger.info("#" * 70)
 
         # Turn on saving the episodic and semantic memory on each learn call.
         self.semantic_memory.saving = True
@@ -228,18 +234,29 @@ class AXSAgent:
             statistics["n"] = n
             statistics["distances"].append(distance)
 
-        self.semantic_memory.learn(
-            messages=deepcopy(self.episodic_memory.memory),
-            explanations=explanation,
-            statistics=statistics,
-        )
+        # Ask for the final explanation
+        final_prompt = self._prompts["final"].fill(user_prompt=user_prompt)
+        self.episodic_memory.learn(LLMWrapper.wrap("user", final_prompt))
+        logger.info("Final prompt: %s", final_prompt)
+
+        explanation_outputs, usage = self._llm.chat(self.episodic_memory.memory)
+        self.episodic_memory.learn(explanation_outputs[0])
+        statistics["usage"].append(usage)
+        explanation = explanation_outputs[0]["content"]
+
+        # Get run results
+        results = {
+            "messages": deepcopy(self.episodic_memory.memory),
+            "explanation": explanation,
+            "statistics": statistics,
+        }
         logger.info("Final explanation: %s", explanation)
 
-        # Turn off constantly saving the episodic and semantic memory.
+        # Turn off saving the episodic and semantic memory on learn() calls.
         self.semantic_memory.saving = False
         self.episodic_memory.saving = False
 
-        return explanation
+        return explanation, results
 
     def _interrogate(
         self,
@@ -261,6 +278,7 @@ class AXSAgent:
             n_max=self.config.axs.n_max,
         )
         self.episodic_memory.learn(LLMWrapper.wrap("user", interrogation_prompt))
+        logger.info("Interrogation prompt: %s", interrogation_prompt)
 
         for n_tries in range(1, self.config.axs.n_tries + 1):  # noqa: B007
             query_outputs, usage = self._llm.chat(self.episodic_memory.memory)
@@ -326,22 +344,19 @@ class AXSAgent:
         statistics: dict[str, Any],
     ) -> str:
         """Synthesise an explanation based on the simulation results."""
-        if results == "DONE":
-            explanation_prompt = self._prompts["final"].fill(user_prompt=user_prompt)
-        else:
-            simulation_context = self._verbalizer.convert(
-                **results,
-                query=None,
-                env=self._simulator.env.unwrapped,
-                **self.config.axs.verbalizer.params,
-            )
+        simulation_context = self._verbalizer.convert(
+            **results,
+            query=None,
+            env=self._simulator.env.unwrapped,
+            **self.config.axs.verbalizer.params,
+        )
 
-            explanation_prompt = self._prompts["explanation"].fill(
-                simulation_context,
-                user_prompt=user_prompt,
-                n=statistics["n"],
-                n_max=self.config.axs.n_max,
-            )
+        explanation_prompt = self._prompts["explanation"].fill(
+            simulation_context,
+            user_prompt=user_prompt,
+            n=statistics["n"],
+            n_max=self.config.axs.n_max,
+        )
         self.episodic_memory.learn(LLMWrapper.wrap("user", explanation_prompt))
         logger.info("Explanation prompt: %s", explanation_prompt)
 
@@ -359,6 +374,7 @@ class AXSAgent:
 
     def save_state(self, path: str | Path) -> None:
         """Save the agent's state to a file except the LLM."""
+        logger.info("Saving agent state to %s", path)
         statedict = {
             "semantic_memory": self._semantic_memory.memory,
             "episodic_memory": self._episodic_memory.memory,
@@ -372,6 +388,7 @@ class AXSAgent:
             statedict = pickle.load(f)
         self._semantic_memory._mem = statedict["semantic_memory"]
         self._episodic_memory._mem = statedict["episodic_memory"]
+        logger.info("Loaded agent state from %s", path)
 
     @property
     def agent_policies(self) -> dict[int, Policy] | None:
