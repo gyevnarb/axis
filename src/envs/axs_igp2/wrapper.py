@@ -158,6 +158,10 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
         if query.query_name == "what":
             time = query.get_time(len(observations))
+            if vid not in infos[time]:
+                error_msg = f"Vehicle {vid} does not exist at time {time}."
+                raise axs.SimulationError(error_msg)
+
             macros = {
                 aid: [macro]
                 for aid, macros in macros.items()

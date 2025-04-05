@@ -339,9 +339,9 @@ class Config(ConfigBase):
     def save_results(self) -> bool:
         """Whether to save all run information to disk.
 
-        Default: False.
+        Default: True.
         """
-        return self._config.get("save_results", False)
+        return self._config.get("save_results", True)
 
     @property
     def debug(self) -> bool:

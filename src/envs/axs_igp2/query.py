@@ -90,9 +90,9 @@ class IGP2Query(axs.Query):
                     raise axs.QueryError(error_msg)
 
         final_t = next(iter(infos[-1].values())).time
+        time = min(max(0, len(infos) - 1), self.get_time(final_t))
         if self.query_name == "whatif":
             vehicle = self.params["vehicle"]
-            time = min(max(0, len(infos) - 1), self.get_time(final_t))
             if vehicle not in infos[time]:
                 error_msg = f"Vehicle {vehicle} does not exist."
                 raise axs.QueryError(error_msg)
@@ -106,10 +106,9 @@ class IGP2Query(axs.Query):
             #     raise axs.QueryError(error_msg)
 
         if self.query_name == "what":
-            self.get_time(0)  # Check time parameter
             vehicle = self.params["vehicle"]
-            if vehicle not in infos[-1]:
-                error_msg = f"Vehicle {vehicle} does not exist at time {final_t}."
+            if vehicle not in infos[time]:
+                error_msg = f"Vehicle {vehicle} does not exist at time {time}."
                 raise axs.QueryError(error_msg)
 
         return True

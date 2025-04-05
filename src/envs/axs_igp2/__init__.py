@@ -1,5 +1,6 @@
 """Implementation of AXS for IGP2."""
 
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -23,11 +24,16 @@ __all__ = [
     "IGP2Verbalizer",
 ]
 
+
+logger = logging.getLogger(__name__)
+
+
 class FunctionNames(str, Enum):
     """Function names for IGP2."""
 
     run = "run"
     evaluate = "evaluate"
+
 
 @axs.app.command()
 def igp2(
@@ -55,4 +61,9 @@ def igp2(
     )
 
     # Call the function dynamically
-    getattr(axs, function)(ctx)
+    try:
+        getattr(axs, function)(ctx)
+    except Exception as e:
+        logger.exception(
+            "Error occurred while running the function %s", function, exc_info=e,
+        )
