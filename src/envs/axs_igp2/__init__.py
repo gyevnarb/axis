@@ -44,6 +44,9 @@ def igp2(
     save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
 ) -> None:
     """Run an AXS agent with the IGP2 configurations."""
+    import gofi
+    import igp2
+
     config = ctx.obj["config"]
     debug = config.debug
     output_dir = config.output_dir

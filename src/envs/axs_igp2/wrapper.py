@@ -4,6 +4,7 @@ import logging
 from copy import copy
 from typing import Any
 
+import gofi
 import igp2 as ip
 import numpy as np
 
@@ -61,9 +62,18 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 _, info = env.reset(seed=env.np_random_seed)
         else:
             trajectories = util.infos2traj(infos, time, env.fps)
+            occluded_states = None
             for agent_id, agent in env.simulation.agents.items():
                 agent.reset()
-                new_agent_state = infos[time][agent_id]
+                if isinstance(agent, gofi.GOFIAgent):
+                    ip_observation = ip.Observation(
+                        info, self.env.unwrapped.simulation.scenario_map,
+                    )
+                    occluded_states = agent.occluded_state(ip_observation, time) # TODO: Add returning of trajectory truncated until time
+                if isinstance(agent, gofi.OccludedAgent):
+                    new_agent_state = occluded_states[agent_id]
+                else:
+                    new_agent_state = infos[time][agent_id]
                 agent._vehicle = type(agent._vehicle)(
                     new_agent_state,
                     agent.metadata,
