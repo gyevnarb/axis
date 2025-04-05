@@ -1,0 +1,219 @@
+{
+  "output_dir": "output/igp2/scenario10",
+  "llm": {
+    "inference_mode": "localhost",
+    "model": "meta-llama/Llama-3.3-70B-Instruct",
+    "model_kwargs": {},
+    "sampling_params": {
+      "seed": 28,
+      "max_tokens": 500,
+      "temperature": 0.8,
+      "top_p": 0.95
+    }
+  },
+  "axs": {
+    "macro_action": {
+      "type_name": "IGP2MacroAction",
+      "params": {
+        "eps": 0.1
+      }
+    },
+    "verbalizer": {
+      "type_name": "IGP2Verbalizer",
+      "params": {
+        "add_roads": false,
+        "add_actions": false,
+        "add_observations": false,
+        "add_macro_actions": true,
+        "subsample": 3
+      }
+    },
+    "query": {
+      "type_name": "IGP2Query"
+    },
+    "prompts_dir": "data/igp2/prompts",
+    "user_prompts": [
+      {
+        "time": 120,
+        "template": "Why did vehicle 0 stop to give way?"
+      },
+      {
+        "time": 120,
+        "template": "Why did vehicle 0 not turn instead of stopping?"
+      }
+    ]
+  },
+  "env": {
+    "name": "gofi-v0",
+    "wrapper_type": "IGP2QueryableWrapper",
+    "policy_type": "IGP2Policy",
+    "max_iter": 300,
+    "n_epsiodes": 1,
+    "seed": 28,
+    "render_mode": "human",
+    "params": {
+      "config": {
+        "scenario": {
+          "map_path": "data/igp2/maps/scenario10.xodr",
+          "max_speed": 10.0,
+          "fps": 20,
+          "seed": 42,
+          "max_steps": 1000,
+          "give_way_distance": 20.0
+        },
+        "objects": [
+          {
+            "type": "building",
+            "shape": "box",
+            "params": {
+              "center": [
+                -27,
+                -16
+              ],
+              "width": 22,
+              "length": 44
+            }
+          }
+        ],
+        "agents": [
+          {
+            "id": 0,
+            "type": "GOFIAgent",
+            "spawn": {
+              "box": {
+                "center": [
+                  1.75,
+                  -50
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 1.57
+              },
+              "velocity": [
+                5.0,
+                10.0
+              ]
+            },
+            "goal": {
+              "box": {
+                "center": [
+                  92.4193548387097,
+                  -1.758793290043265
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              }
+            },
+            "velocity_smoother": {},
+            "goal_recognition": {
+              "beta": 1.0
+            },
+            "cost_factors": {
+              "time": 0.5,
+              "velocity": 0.0,
+              "acceleration": 1.5,
+              "jerk": 1.0,
+              "heading": 0.0,
+              "angular_velocity": 1.0,
+              "angular_acceleration": 0.0,
+              "curvature": 0.0,
+              "safety": 0.0
+            },
+            "mcts": {
+              "t_update": 1.0,
+              "n_simulations": 30,
+              "max_depth": 5,
+              "store_results": "all",
+              "trajectory_agents": false,
+              "reward_factors": {
+                "time": 1.0,
+                "jerk": -0.1,
+                "angular_velocity": -0.1,
+                "curvature": -0.1,
+                "dead": 0.5
+              }
+            },
+            "explainer": {
+              "cf_n_simulations": 30,
+              "cf_max_depth": 5,
+              "alpha": 0.01,
+              "alpha_occlusion": 1.0,
+              "allow_hide_occluded": true
+            },
+            "view_radius": 500,
+            "stop_goals": false,
+            "occluded_factors_prior": 0.2
+          },
+          {
+            "id": 1,
+            "type": "TrafficAgent",
+            "spawn": {
+              "box": {
+                "center": [
+                  15.58064516129032,
+                  1.714584235209216
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              },
+              "velocity": [
+                6.0,
+                7.0
+              ]
+            },
+            "goal": {
+              "box": {
+                "center": [
+                  0,
+                  -40
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              }
+            },
+            "macro_actions": []
+          },
+          {
+            "id": 2,
+            "type": "OccludedAgent",
+            "spawn": {
+              "box": {
+                "center": [
+                  -50.58064516129032,
+                  -1.714584235209216
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              },
+              "velocity": [
+                9.0,
+                10.0
+              ]
+            },
+            "goal": {
+              "box": {
+                "center": [
+                  91.61290322580649,
+                  -1.600375180375167
+                ],
+                "length": 3.5,
+                "width": 3.5,
+                "heading": 0.0
+              }
+            },
+            "occlusions": [
+              {
+                "start": 0,
+                "end": 100
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
