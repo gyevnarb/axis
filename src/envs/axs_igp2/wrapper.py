@@ -51,8 +51,8 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         time = max(0, min(len(observations), time) - 1)
         logger.debug("Setting simulation state to timestep %d", time + 1)
 
-        if time < len(observations) and query.query_name == "what":
-            time = len(observations) - 1
+        if time < len(observations) - 1 and query.query_name == "what":
+            time += 1  # Sets the simulator to next state for lookup with 'what'.
 
         info = {}
         if time == 0:
@@ -103,7 +103,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         simulation_needed = not (
             query.query_name == "what"
             and query.params["vehicle"] in info
-            and info[query.params["vehicle"]].time > query.params["time"]
+            and query.params["time"] <= info[query.params["vehicle"]].time
         )
         return self.env.unwrapped._get_obs(), info, macros, simulation_needed
 

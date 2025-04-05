@@ -89,9 +89,9 @@ class IGP2Query(axs.Query):
                     error_msg = "Spawn location intersects with another vehicle."
                     raise axs.QueryError(error_msg)
 
+        final_t = next(iter(infos[-1].values())).time
         if self.query_name == "whatif":
             vehicle = self.params["vehicle"]
-            final_t = next(iter(infos[-1].values())).time
             time = min(max(0, len(infos) - 1), self.get_time(final_t))
             if vehicle not in infos[time]:
                 error_msg = f"Vehicle {vehicle} does not exist."
@@ -106,11 +106,11 @@ class IGP2Query(axs.Query):
             #     raise axs.QueryError(error_msg)
 
         if self.query_name == "what":
+            self.get_time(0)  # Check time parameter
             vehicle = self.params["vehicle"]
             if vehicle not in infos[-1]:
-                error_msg = f"Vehicle {vehicle} does not exist."
+                error_msg = f"Vehicle {vehicle} does not exist at time {final_t}."
                 raise axs.QueryError(error_msg)
-            self.get_time(0)  # Check time parameter
 
         return True
 
@@ -124,13 +124,13 @@ class IGP2Query(axs.Query):
             elif self.query_name == "what":
                 time = current_time
             else:
-                error_msg = f"Time parameter not found for query: {self.query_name}"
+                error_msg = f"Time argument not found for query: {self.query_name}."
                 raise axs.QueryError(error_msg)
         elif time < 0:
-            error_msg = f"Time parameter cannot be negative: {time}"
+            error_msg = f"Time argument cannot be negative: {time}."
             raise axs.QueryError(error_msg)
         elif time > current_time and self.query_name != "what":
-            error_msg = f"Time {time} is in the future for query type {self.query_name}"
+            error_msg = f"Time {time} is in the future for query {self.query_name}."
             raise axs.QueryError(error_msg)
 
         return time

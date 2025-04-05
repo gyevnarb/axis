@@ -127,7 +127,6 @@ def run(ctx: typer.Context) -> None:
     else:
         logger.info("Running pettingzoo environment %s", config.env.name)
         util.run_aec_env(env, axs_agent, config)
-    del gym
 
 
 @app.command()
@@ -156,7 +155,6 @@ def evaluate(ctx: typer.Context) -> None:
     # Iterate over all save files
     import datetime
     start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
-    del datetime
     for save_file in save_files:
         # Run all explanations.
         for prompt_dict in config.axs.user_prompts:
@@ -230,7 +228,6 @@ def main(  # noqa: PLR0913
     if llm_kwargs is not None:
         import json
         config.config_dict["llm"].update(json.loads(llm_kwargs))
-        del json
     if context is not None:
         config.config_dict["axs"]["use_context"] = context
 
