@@ -51,7 +51,7 @@
         "params": {
             "config": {
                 "scenario": {
-                    "map_path": "scenarios/maps/scenario4.xodr",
+                    "map_path": "data/igp2/maps/scenario4.xodr",
                     "max_speed": 10.0,
                     "fps": 20,
                     "seed": 21,
@@ -61,7 +61,7 @@
                 "agents": [
                     {
                         "id": 0,
-                        "type": "XAVIAgent",
+                        "type": "MCTSAgent",
                         "spawn": {
                             "box": {
                                 "center": [
