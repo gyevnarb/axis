@@ -1,6 +1,5 @@
 {
     "output_dir": "output/igp2/scenario4",
-    "save_results": true,
     "llm": {
         "inference_mode": "localhost",
         "model": "meta-llama/Llama-3.3-70B-Instruct",

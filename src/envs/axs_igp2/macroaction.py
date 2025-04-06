@@ -287,6 +287,7 @@ class IGP2MacroAction(axs.MacroAction):
             goal = ip.StoppingGoal(stop_position, stop_len)
 
         ip_ma_args = ip_macro.get_possible_args(agent_state, self.scenario_map, goal)
+        exits = []
         for config_dict in ip_ma_args:
             if (
                 agent_state.maneuver is not None
@@ -303,6 +304,7 @@ class IGP2MacroAction(axs.MacroAction):
                 scenario_map=self.scenario_map,
             )
             if ip_macro == ip.Exit:
+                exits.append(_macro)
                 direction = kwargs.get("turn_direction")
                 if direction is None:
                     direction = self.get_turn_direction()
@@ -311,6 +313,18 @@ class IGP2MacroAction(axs.MacroAction):
                     break
             else:
                 macro = _macro
+
+        # Check for roundabouts
+        if exits and self.scenario_map.in_roundabout(agent_state.position):
+            if len(exits) == 1:
+                macro = exits[0]  # Inner lane of roundabout or passed exit
+            else:
+                continue_in_roundabout = [ma for ma in exits if ma.orientation != -1]
+                if not continue_in_roundabout:
+                    error_msg = ("Cannot FollowLane anymore in roundabout."
+                                 "Only TurnRight is applicable")
+                    raise axs.SimulationError(error_msg)
+                macro = continue_in_roundabout[0]
 
         if macro is None:
             macro_name = self.macro_name

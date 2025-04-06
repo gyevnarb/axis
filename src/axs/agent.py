@@ -222,9 +222,9 @@ class AXSAgent:
             statistics["simulation_results"].append(simulation_results)
 
             # Explanation stage
-            explanation = self._explanation(user_prompt, simulation_results, statistics)
             if simulation_results == "DONE":
                 break
+            explanation = self._explanation(user_prompt, simulation_results, statistics)
 
             prev_explanation = explanation
             distance = float("inf")  # self._distance(explanation, prev_explanation)
