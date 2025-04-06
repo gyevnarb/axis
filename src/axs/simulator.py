@@ -106,7 +106,7 @@ class Simulator:
             obs, infs = observations[:time], infos[:time]
             if not obs and not infs:
                 obs, infs = [observation], [info]
-            policy.reset(obs, infs)
+            policy.reset(obs, infs, self.env.unwrapped)
 
         logger.info("Running simulation with %d agents...", len(self.agent_policies))
         if simulation_needed:

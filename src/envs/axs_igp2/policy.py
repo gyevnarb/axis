@@ -2,6 +2,7 @@
 
 from copy import copy
 
+import gofi
 import igp2 as ip
 import numpy as np
 
@@ -27,9 +28,14 @@ class IGP2Policy(axs.Policy):
         self,
         observations: list[np.ndarray],
         infos: list[dict[int, ip.AgentState]],
+        env: ip.simplesim.SimulationEnv | None = None,
     ) -> None:
         """Reset the internal state of the policy."""
         self.agent.reset()
+        if isinstance(self.agent, gofi.GOFIAgent):
+            self.agent._forced_visible_agents = env.simulation.agents[
+                self.agent.agent_id
+            ]._forced_visible_agents
         if observations or infos:
             self.update(observations, infos)
 

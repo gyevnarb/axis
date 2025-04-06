@@ -441,6 +441,9 @@ class IGP2MacroAction(axs.MacroAction):
         """
         action_names = []
         state = trajectory.states[inx]
+        raw_action = np.array(
+            [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
+        )
 
         if trajectory.acceleration[inx] < -eps:
             action_names.append("SlowDown")
@@ -449,6 +452,9 @@ class IGP2MacroAction(axs.MacroAction):
 
         if trajectory.velocity[inx] <= trajectory.VELOCITY_STOP:
             action_names.append("Stop")
+
+        if len(action_names) > 0 and action_names[-1] == "Stop":
+            return tuple(action_names), raw_action
 
         if state.macro_action is not None:
             if "ChangeLaneLeft" in state.macro_action:
@@ -478,9 +484,7 @@ class IGP2MacroAction(axs.MacroAction):
                 and trajectory.velocity[inx] > trajectory.VELOCITY_STOP
             ):
                 action_names.append("FollowLane")
-        raw_action = np.array(
-            [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
-        )
+
         return tuple(action_names), raw_action
 
     @staticmethod

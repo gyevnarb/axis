@@ -15,7 +15,12 @@ class Policy(ABC, Registerable, class_type=None):
     """
 
     @abstractmethod
-    def reset(self, observations: list[Any], infos: list[dict[Any]]) -> None:
+    def reset(
+        self,
+        observations: list[Any],
+        infos: list[dict[Any]],
+        env: SupportedEnv | None = None,
+    ) -> None:
         """Reset the internal state of the policy.
 
         This function is called once before the AXS internal simulator starts.
@@ -23,6 +28,7 @@ class Policy(ABC, Registerable, class_type=None):
         Args:
             observations (list[Any]): The observations from the simulator.
             infos (list[dict[str, Any]]): The infos from the simulator.
+            env (SupportedEnv): Optionally, the environment to use in resetting.
 
         """
         raise NotImplementedError

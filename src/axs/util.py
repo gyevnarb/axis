@@ -80,6 +80,7 @@ def load_env(config: EnvConfig, render_mode: str | None = None) -> SupportedEnv:
         env = gym.make(
             config.name,
             render_mode=render_mode,
+            max_iters=config.max_iter,
             **config.params,
         )
     else:

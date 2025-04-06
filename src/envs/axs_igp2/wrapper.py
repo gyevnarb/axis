@@ -63,17 +63,32 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         else:
             trajectories = util.infos2traj(infos, time, env.fps)
             occluded_states = None
+            occluded_trajectory = None
             for agent_id, agent in env.simulation.agents.items():
-                agent.reset()
                 if isinstance(agent, gofi.GOFIAgent):
                     ip_observation = ip.Observation(
-                        info, self.env.unwrapped.simulation.scenario_map,
+                        info,  # Doesn't matter. Not used by occluded_state().
+                        self.env.unwrapped.simulation.scenario_map,
                     )
-                    occluded_states = agent.occluded_state(ip_observation, time) # TODO: Add returning of trajectory truncated until time
+                    occluded_states, occluded_trajectory = agent.occluded_state(
+                        ip_observation,
+                        time,
+                    )
+
                 if isinstance(agent, gofi.OccludedAgent):
                     new_agent_state = occluded_states[agent_id]
+                    occluded_trajectory = ip.StateTrajectory.from_velocity_trajectory(
+                        occluded_trajectory,
+                    )
+                    if agent_id not in trajectories:
+                        trajectories[agent_id] = occluded_trajectory
+                    else:
+                        occluded_trajectory.extend(trajectories[agent_id])
+                        trajectories[agent_id] = occluded_trajectory
                 else:
+                    agent.reset()
                     new_agent_state = infos[time][agent_id]
+
                 agent._vehicle = type(agent._vehicle)(
                     new_agent_state,
                     agent.metadata,
@@ -259,9 +274,11 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 Updated in-place.
 
         """
+        env: ip.simplesim.SimulationEnv = self.env.unwrapped
         agent_id = query.params["vehicle"]
-        self.env.unwrapped.simulation.remove_agent(agent_id)
+        env.simulation.remove_agent(agent_id)
         info = {aid: state for aid, state in info.items() if aid != agent_id}
+
         return info, {}
 
     def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:

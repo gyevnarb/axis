@@ -214,7 +214,8 @@
             "occlusions": [
               {
                 "start": 0,
-                "end": 60
+                "end": 60,
+                "by_agent": 1
               }
             ]
           }

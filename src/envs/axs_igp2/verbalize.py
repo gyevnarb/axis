@@ -43,7 +43,7 @@ REWARD_NAME_MAP = {
     "jerk": "Jolt",
     "coll": "Collision",
     "curvature": "Curvature",
-    "term": "Out-of-Compute",
+    "term": "Goal-not-reached",
     "angular_velocity": "Steering",
     "time": "Time-to-Goal",
     "dead": "Goal-not-Reached",
