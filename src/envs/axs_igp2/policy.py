@@ -95,7 +95,8 @@ class IGP2Policy(axs.Policy):
 
         """
         if env is None:
-            raise ValueError("Environment must be provided.")
+            error_msg = "Environment must be provided."
+            raise ValueError(error_msg)
         return {
             aid: cls(agent, env.unwrapped.scenario_map)
             for aid, agent in env.unwrapped.simulation.agents.items()

@@ -45,7 +45,11 @@ class Simulator:
         if agent_policies is None:
             logger.warning("No agent policies provided. Simulator is disabled.")
         else:
-            if len(agent_policies) > 1 and env is not None and not isinstance(env, gym.Env):
+            if (
+                len(agent_policies) > 1
+                and env is not None
+                and not isinstance(env, gym.Env)
+            ):
                 logger.warning("Running multi-agent simulation using one agent policy!")
 
             if env is not None:

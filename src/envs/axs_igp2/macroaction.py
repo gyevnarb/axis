@@ -1,5 +1,6 @@
 """Macro action wrapper for IGP2 agent."""
 
+import logging
 from copy import copy
 from typing import Any, ClassVar
 
@@ -9,6 +10,8 @@ from numpy import ma
 
 import axs
 from envs.axs_igp2 import util
+
+logger = logging.getLogger(__name__)
 
 
 class IGP2MacroAction(axs.MacroAction):
@@ -332,8 +335,8 @@ class IGP2MacroAction(axs.MacroAction):
 
         """
         if self.macro_name not in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
-            error_msg = f"Macro {self.macro_name} has no turn direction."
-            raise ValueError(error_msg)
+            logger.warning("Macro %s is not a standard turn direction. "
+                           "Defaulting to going straight", self.macro_name)
 
         if self.macro_name == "TurnLeft":
             return 1

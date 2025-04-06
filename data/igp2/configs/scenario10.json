@@ -124,7 +124,7 @@
               "t_update": 1.0,
               "n_simulations": 30,
               "max_depth": 5,
-              "store_results": "all",
+              "store_results": null,
               "trajectory_agents": false,
               "reward_factors": {
                 "time": 1.0,
