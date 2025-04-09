@@ -2,8 +2,9 @@
     "output_dir": "output/igp2/scenario0",
     "save_results": true,
     "llm": {
-        "inference_mode": "localhost",
-        "model": "meta-llama/Llama-3.3-70B-Instruct",
+        "inference_mode": "online",
+        "model_": "meta-llama/Llama-3.3-70B-Instruct",
+        "model": "GPT-4o-latest",
         "model_kwargs": {},
         "sampling_params": {
             "seed": 28,

@@ -54,8 +54,10 @@ class Registerable:
 
         """
         if name not in registry:
-            error_msg = (f"Type {name} not found in registry with {registry.keys()}. "
-                         f"Maybe you have forgotten an import.")
+            error_msg = (
+                f"Type {name} not found in registry with {registry.keys()}. "
+                f"Maybe you have forgotten an import."
+            )
             raise ValueError(error_msg)
         return registry[name]
 
@@ -259,6 +261,17 @@ class AXSConfig(ConfigBase):
         return self._config.get("use_context", True)
 
     @property
+    def use_interrogation(self) -> bool:
+        """Whether to use interrogation in the AXS agent.
+
+        If True, then prompts beginning with the prefix 'nosim_' must be used,
+        as in 'nosim_system.txt', 'nosim_interrogation.txt', etc.
+
+        Default: True.
+        """
+        return self._config.get("use_interrogation", True)
+
+    @property
     def macro_action(self) -> MacroActionConfig:
         """The macro action configuration for the AXSAgent."""
         return MacroActionConfig(self._config["macro_action"])
@@ -300,6 +313,12 @@ class AXSConfig(ConfigBase):
         if not all(key in POSSIBLE_PROMPTS for key in value):
             error_msg = "Missing prompt templates in the prompts directory."
             raise ValueError(error_msg)
+        if not self.use_interrogation:
+            nosim_prompts = ["system", "context", "explanation", "final"]
+            if not any(f"nosim_{prompt}" in value for prompt in nosim_prompts):
+                error_msg = ("Missing some 'nosim_*.txt' prompts in the prompts "
+                             "directory and use_interrogation is False.")
+                raise ValueError(error_msg)
         return value
 
     @property
@@ -360,6 +379,9 @@ class Config(ConfigBase):
         return self._config.get("dryrun", False)
 
     @property
-    def output_dir(self) -> Path:
+    def output_dir(self) -> Path | None:
         """The directory for the AXSAgent output."""
-        return Path(self._config["output_dir"])
+        path = self._config.get("output_dir")
+        if path is None:
+            return None
+        return Path(path)

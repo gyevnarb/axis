@@ -68,29 +68,39 @@ class AXSAgent:
             raise ValueError(error_msg)
         self.config = config
 
+        # Setup folder structure for saving results
+        output_dir = config.output_dir
+        if output_dir is not None:
+            logger.info("Creating output directory structure: %s", output_dir)
+            if not output_dir.exists():
+                logger.info("  Creating output directory %s", output_dir)
+                output_dir.mkdir(parents=True)
+            agents_dir = Path(output_dir, "agents")
+            if not agents_dir.exists():
+                logger.info("  Creating agents directory %s", agents_dir)
+                agents_dir.mkdir(parents=True, exist_ok=True)
+            results_dir = Path(output_dir, "results")
+            if not results_dir.exists():
+                logger.info("  Creating results directory %s", results_dir)
+                results_dir.mkdir(parents=True, exist_ok=True)
+
         # Prompting components
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
         if not config.axs.use_context:
             self._prompts["context"] = self._prompts["no_context"]
+        if not config.axs.use_interrogation:
+            pass # TODO
 
         # Memory components
-        save_dir = None
-        if config.save_results:
-            save_dir = Path(config.output_dir, "cache")
-            save_dir.mkdir(parents=True, exist_ok=True)
-            date_time = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
         self._semantic_memory = SemanticMemory(
             {"observations": [], "actions": [], "infos": []},
-            save_file=save_dir.joinpath(f"semantic_{date_time}.pkl")
-            if save_dir
-            else None,
         )
-        self._episodic_memory = EpisodicMemory(
-            save_file=save_dir.joinpath(f"episodic_{date_time}.pkl")
-            if save_dir
-            else None,
-        )
-        self._query_memory = EpisodicMemory()
+        self._episodic_memory = EpisodicMemory()
+        self._executed_queries = EpisodicMemory()
+        self._cache = SemanticMemory()
+        self._cache_path = None
+        if config.save_results:
+            self._cache_path = Path(config.output_dir, "agents", "cache.pkl")
 
         # Procedural components
         self._agent_policies = agent_policies
@@ -131,11 +141,13 @@ class AXSAgent:
         else:
             self._query = Query.get(config.axs.query.type_name)
 
-    def explain(self, user_prompt: str) -> tuple[str, dict]:
+    def explain(self, user_prompt: str, context_only: bool = False) -> tuple[str, dict]:
         """Explain behaviour based on the user's prompt.
 
         Args:
             user_prompt (str): The user's prompt to the agent.
+            context_only (bool): If True, only the context is returned.
+                This can be useful if only the context verbalization is needed.
 
         Returns:
             tuple[str, dict]: The explanation and the results of the explanation.
@@ -143,18 +155,20 @@ class AXSAgent:
                 containing the messages, explanations, and statistics.
 
         """
-        logger.info("#" * 70)
-        logger.info("Explaining for user prompt: %s", user_prompt)
-        logger.info("#" * 70)
-
-        # Turn on saving the episodic and semantic memory on each learn call.
-        self.semantic_memory.saving = True
-        self.episodic_memory.saving = True
+        log_text = f"Explaining for user prompt: {user_prompt}"
+        logger.info("#" * len(log_text))
+        logger.info(log_text)
+        logger.info("#" * len(log_text))
 
         # Reset the internal episodic memory from previous calls and save user prompt.
-        self.semantic_memory.learn(prompts=user_prompt)
         self.episodic_memory.reset()
+        self.executed_queries.reset()
 
+        # Save the user prompt to the semantic memory and load cache
+        self.semantic_memory.learn(prompts=user_prompt)
+        self.cache.load_memory(self.config.axs.cache_file)
+
+        # Retrieve all forms of observations from memory
         observations = self._semantic_memory.retrieve("observations")
         actions = self._semantic_memory.retrieve("actions")
         infos = self._semantic_memory.retrieve("infos")
@@ -197,6 +211,10 @@ class AXSAgent:
         logger.info("Context prompt: %s", context_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
 
+        # If only context is needed, return it and exit
+        if context_only:
+            return context_prompt, {}
+
         n = 1
         n_max = self.config.axs.n_max
         distance = float("inf")
@@ -205,7 +223,6 @@ class AXSAgent:
             "n_tries": [],
             "n": n,
             "distances": [],
-            "simulation_results": [],
             "usage": [],
         }
         while n <= n_max and distance > self.config.axs.delta:
@@ -219,7 +236,6 @@ class AXSAgent:
                 infos,
                 statistics,
             )
-            statistics["simulation_results"].append(simulation_results)
 
             # Explanation stage
             if simulation_results == "DONE":
@@ -251,10 +267,6 @@ class AXSAgent:
             "statistics": statistics,
         }
         logger.info("Final explanation: %s", explanation)
-
-        # Turn off saving the episodic and semantic memory on learn() calls.
-        self.semantic_memory.saving = False
-        self.episodic_memory.saving = False
 
         return explanation, results
 
@@ -302,7 +314,7 @@ class AXSAgent:
                 )
 
                 # Check whether the query has been called before
-                if simulation_query in self._query_memory.memory:
+                if simulation_query in self.executed_queries.memory:
                     error_msg = (
                         f"The query {query_content} was already tested. "
                         f"Generate a different query."
@@ -310,15 +322,29 @@ class AXSAgent:
                     self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
                     logger.warning(error_msg)
                     continue
-                self._query_memory.learn(deepcopy(simulation_query))
+                self.executed_queries.learn(deepcopy(simulation_query))
 
-                simulation_results = self._simulator.run(
-                    simulation_query,
-                    observations,
-                    actions,
-                    infos,
-                )
-                break
+                # Run the simulation or retrieve from cache
+                query_key = str(simulation_query)
+                if query_key in self.cache:
+                    logger.info(
+                        "Using cached simulation results for query: %s", query_key,
+                    )
+                    simulation_results = self.cache[query_key]
+                else:
+                    logger.info("Running internal simulation with: %s", query_key)
+                    simulation_results = self._simulator.run(
+                        simulation_query,
+                        observations,
+                        actions,
+                        infos,
+                    )
+
+                    self.cache.learn(cache=simulation_results)
+                    if self.cache_path is not None:
+                        self.cache.save_memory(self.cache_path)
+
+                break # No more tries needed. Simulation succesful.
 
             except QueryError as e:
                 error_msg = (
@@ -376,8 +402,9 @@ class AXSAgent:
         """Save the agent's state to a file except the LLM."""
         logger.info("Saving agent state to %s", path)
         statedict = {
-            "semantic_memory": self._semantic_memory.memory,
-            "episodic_memory": self._episodic_memory.memory,
+            "_semantic_memory": self._semantic_memory.memory,
+            "_episodic_memory": self._episodic_memory.memory,
+            "_cache": self._cache.memory,
         }
         with Path(path).open("wb") as f:
             pickle.dump(statedict, f)
@@ -386,8 +413,8 @@ class AXSAgent:
         """Load the agent's state from a file except for the LLM."""
         with Path(path).open("rb") as f:
             statedict = pickle.load(f)
-        self._semantic_memory._mem = statedict["semantic_memory"]
-        self._episodic_memory._mem = statedict["episodic_memory"]
+        for attr, value in statedict.items():
+            getattr(self, attr).memory = value
         logger.info("Loaded agent state from %s", path)
 
     @property
@@ -396,9 +423,24 @@ class AXSAgent:
         return self._agent_policies
 
     @property
+    def cache(self) -> SemanticMemory:
+        """The agent's cache memory mapping simulation queries to results."""
+        return self._cache
+
+    @property
+    def cache_path(self) -> Path | None:
+        """The path to the cache file."""
+        return self._cache_path
+
+    @property
     def episodic_memory(self) -> EpisodicMemory:
         """The agent's episodic memory."""
         return self._episodic_memory
+
+    @property
+    def executed_queries(self) -> EpisodicMemory:
+        """The agent's executed queries memory."""
+        return self._executed_queries
 
     @property
     def llm(self) -> LLMWrapper:

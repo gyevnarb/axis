@@ -84,8 +84,6 @@ class Simulator:
             error_msg = "Simulator is not initialized with an environment."
             raise ValueError(error_msg)
 
-        logger.info("Running internal simulation with: %s", query)
-
         logger.debug("Resetting internal simulator state.")
         self.env.reset(seed=self.config.seed)
 

@@ -66,8 +66,8 @@ __all__ = [
     "SupportedEnv",
     "Verbalizer",
     "VerbalizerConfig",
-    "axs_registry",
     "init_logging",
+    "registry",
     "util",
 ]
 
@@ -98,18 +98,21 @@ def _init_axs(
         config.config_dict["output_dir"] = output_dir
 
     output_dir = config.output_dir
-    if not output_dir.exists():
-        logger.info("Creating output directory %s", output_dir)
-        output_dir.mkdir(parents=True)
-    agents_dir = Path(output_dir, "agents")
-    if not agents_dir.exists():
-        agents_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_dir = Path(output_dir, "checkpoints")
-    if not checkpoint_dir.exists():
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    results_dir = Path(output_dir, "results")
-    if not results_dir.exists():
-        results_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir is not None:
+        logger.info("Creating output directory structure: %s", output_dir)
+        if not output_dir.exists():
+            logger.info("  Creating output directory %s", output_dir)
+            output_dir.mkdir(parents=True)
+        agents_dir = Path(output_dir, "agents")
+        if not agents_dir.exists():
+            logger.info("  Creating agents directory %s", agents_dir)
+            agents_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_dir = Path(output_dir, "checkpoints")
+        if not checkpoint_dir.exists():
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        results_dir = Path(output_dir, "results")
+        if not results_dir.exists():
+            results_dir.mkdir(parents=True, exist_ok=True)
 
     return config
 
