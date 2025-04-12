@@ -40,6 +40,8 @@ def init_logging(
     )
 
     for mute in warning_only:
+        if not mute:
+            continue
         logging.getLogger(mute).setLevel(logging.WARNING)
 
     # Add saving to file if arguments are provided

@@ -208,7 +208,7 @@ def main(  # noqa: PLR0913
             help=("Whether to use interrogation for the AXS agent. "
                   "If False, then pure-prompting is used without simulation."),
         ),
-    ] = False,
+    ] = True,
     llm_kwargs: Annotated[
         str | None,
         typer.Option(

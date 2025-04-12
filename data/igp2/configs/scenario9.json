@@ -54,7 +54,7 @@
         "params": {
             "config": {
                 "scenario": {
-                    "map_path": "data/igp2/maps/scenario11.xodr",
+                    "map_path": "data/igp2/maps/scenario9.xodr",
                     "max_speed": 10.0,
                     "fps": 20,
                     "seed": 42,

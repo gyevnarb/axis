@@ -326,7 +326,9 @@ class AXSConfig(ConfigBase):
         elif not all(key in prompts for key in POSSIBLE_PROMPTS):
             error_msg = "Missing prompt templates in the prompts directory."
             raise ValueError(error_msg)
-        return prompts
+        return {
+            key: prompt for key, prompt in prompts.items() if key in POSSIBLE_PROMPTS
+        }
 
     @property
     def user_prompts(self) -> list[dict[str, Any]]:

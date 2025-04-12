@@ -106,7 +106,7 @@
                         "mcts": {
                             "t_update": 2.0,
                             "n_simulations": 30,
-                            "store_results": "all",
+                            "store_results": null,
                             "trajectory_agents": false,
                             "reward_factors": {
                                 "time": 1.0,

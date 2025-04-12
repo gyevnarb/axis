@@ -47,6 +47,7 @@ def init_igp2(ctx: typer.Context, fn_name: str, save_logs: bool) -> None:
         level="DEBUG" if debug else "INFO",
         warning_only=[
             "igp2" if not debug else "igp2.core.velocitysmoother",
+            "gofi" if not debug else None,
             "matplotlib",
             "httpcore",
             "openai",
@@ -54,6 +55,12 @@ def init_igp2(ctx: typer.Context, fn_name: str, save_logs: bool) -> None:
         ],
         log_dir=Path(output_dir, "logs") if save_logs else None,
         log_name=fn_name[:4],
+    )
+    logging.getLogger("igp2.simplesim.simulation_env").setLevel(
+        logging.DEBUG if debug else logging.INFO,
+    )
+    logging.getLogger("gofi.osimulation_env").setLevel(
+        logging.DEBUG if debug else logging.INFO,
     )
 
 
