@@ -84,6 +84,9 @@ class IGP2MacroAction(axs.MacroAction):
         """
         scenario_map = env.scenario_map
 
+        # Remove final reward is present while processing
+        reward = infos[-1].pop("reward", None)
+
         trajectories = util.infos2traj(infos, fps=env.fps)
 
         ret = {}
@@ -115,6 +118,11 @@ class IGP2MacroAction(axs.MacroAction):
             if len(groups) > 1 and groups[0].start_t == groups[0].end_t:
                 groups.pop(0)
             ret[agent_id] = groups
+
+        # Place back reward dict if present
+        if reward is not None:
+            infos[-1]["reward"] = reward
+
         return ret
 
     def applicable(

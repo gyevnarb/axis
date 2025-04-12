@@ -20,7 +20,7 @@ class Verbalizer(ABC, Registerable, class_type=None):
         observations: list[Any],
         macro_actions: dict[int, list[MacroAction]],
         infos: list[dict[str, Any]] | None = None,
-        rewards: dict[str, float] | None = None,
+        rewards: dict[int, float] | None = None,
         query: Query | None = None,
         env: SupportedEnv | None = None,
         **kwargs: dict[str, Any],
@@ -37,7 +37,7 @@ class Verbalizer(ABC, Registerable, class_type=None):
             macro_actions (dict[int, list[IGP2MacroAction]]): dictionary of agent IDs to
                     corresponding macro actions.
             infos (list[dict[str, Any]] | None): Information dictionaries to verbalize.
-            rewards (dict[str, float] | None): Any rewards to verbalize.
+            rewards (dict[str, float] | None): Rewards to verbalize for each agent ID.
             env (SupportedEnv | None): The environment to verbalize.
             kwargs: Additional options for the verbalizer.
 

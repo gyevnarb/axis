@@ -166,9 +166,10 @@ class AXSAgent:
             self.cache.load_memory(self.cache_path)
 
         # Retrieve all forms of observations from memory
-        observations = self._semantic_memory.retrieve("observations")
-        actions = self._semantic_memory.retrieve("actions")
-        infos = self._semantic_memory.retrieve("infos")
+        observations = self._semantic_memory["observations"]
+        actions = self._semantic_memory["actions"]
+        infos = self._semantic_memory["infos"]
+        rewards = self._semantic_memory["rewards"]
 
         # Convert actions and observations to higher-level macro actions.
         macro_actions = self._macro_action.wrap(
@@ -185,7 +186,7 @@ class AXSAgent:
             observations,
             macro_actions,
             infos,
-            None,
+            rewards,
             self._query,
             self._simulator.env.unwrapped,
             **self.config.axs.verbalizer.params,

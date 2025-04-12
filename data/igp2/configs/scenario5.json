@@ -1,0 +1,202 @@
+{
+    "output_dir": "output/igp2/scenario5",
+    "llm": {
+        "inference_mode": "localhost",
+        "model": "meta-llama/Llama-3.3-70B-Instruct",
+        "model_kwargs": {},
+        "sampling_params": {
+            "seed": 28,
+            "max_tokens": 500,
+            "temperature": 0.8,
+            "top_p": 0.95
+        }
+    },
+    "axs": {
+        "macro_action": {
+            "type_name": "IGP2MacroAction",
+            "params": {
+                "eps": 0.1
+            }
+        },
+        "verbalizer": {
+            "type_name": "IGP2Verbalizer",
+            "params": {
+                "add_roads": false,
+                "add_actions": false,
+                "add_observations": false,
+                "add_macro_actions": true,
+                "subsample": 3
+            }
+        },
+        "query": {
+            "type_name": "IGP2Query"
+        },
+        "prompts_dir": "data/igp2/prompts",
+        "user_prompts": [
+            {
+                "time": 160,
+                "template": "What would have happened if vehicle 1 had gone through the junction instead of stopping?"
+            },
+            {
+                "time": 160,
+                "template": "Why did vehicle 0 not stop?"
+            },
+            {
+                "time": 160,
+                "template": "What would have happened if vehicle 0 had stopped?"
+            }
+        ]
+    },
+    "env": {
+        "name": "igp2-v0",
+        "wrapper_type": "IGP2QueryableWrapper",
+        "policy_type": "IGP2Policy",
+        "max_iter": 300,
+        "n_epsiodes": 1,
+        "seed": 28,
+        "render_mode": "human",
+        "params": {
+            "config": {
+                "scenario": {
+                  "map_path": "data/igp2/maps/scenario2.xodr",
+                  "max_speed": 10.0,
+                  "fps": 20,
+                  "seed": 21,
+                  "max_steps": 250,
+                  "velocity_stop": 0.05,
+                  "stop_chance": 1.0
+                },
+                "agents": [
+                  {
+                    "id": 0,
+                    "type": "MCTSAgent",
+                    "spawn": {
+                      "box": {
+                        "center": [
+                          1.75,
+                          -30.0
+                        ],
+                        "length": 3.5,
+                        "width": 10.0,
+                        "heading": 0.0
+                      },
+                      "velocity": [
+                        5.0,
+                        10.0
+                      ]
+                    },
+                    "goal": {
+                      "box": {
+                        "center": [
+                          65.0,
+                          -1.75
+                        ],
+                        "length": 5,
+                        "width": 3.5,
+                        "heading": 0.0
+                      }
+                    },
+                    "cost_factors": {
+                      "time": 0.5,
+                      "velocity": 0.0,
+                      "acceleration": 0.0,
+                      "jerk": 1.0,
+                      "heading": 0.0,
+                      "angular_velocity": 0.0,
+                      "angular_acceleration": 0.0,
+                      "curvature": 0.0,
+                      "safety": 0.0
+                    },
+                    "mcts": {
+                      "t_update": 2.0,
+                      "n_simulations": 30,
+                      "store_results": null,
+                      "trajectory_agents": false,
+                      "reward_factors": {
+                        "time": 1.0,
+                        "jerk": -1.0,
+                        "angular_velocity": -0.1,
+                        "curvature": 0.0
+                      }
+                    },
+                    "view_radius": 500
+                  },
+                  {
+                    "id": 1,
+                    "type": "TrafficAgent",
+                    "spawn": {
+                      "box": {
+                        "center": [
+                          -26.5,
+                          -1.75
+                        ],
+                        "length": 10.0,
+                        "width": 3.5,
+                        "heading": 0.0
+                      },
+                      "velocity": [
+                        9.9,
+                        10.0
+                      ]
+                    },
+                    "goal": {
+                      "box": {
+                        "center": [
+                          35.0,
+                          -1.75
+                        ],
+                        "length": 5,
+                        "width": 3.5,
+                        "heading": 0.0
+                      }
+                    },
+                    "macro_actions": [
+                      {
+                        "type": "Stop",
+                        "termination_point": [-10.0, -1.75],
+                        "stop_duration": 1.0
+                      },
+                      {
+                        "type": "Exit",
+                        "turn_target": [9.0, -1.75]
+                      },
+                      {
+                        "type": "Continue"
+                      }
+                    ]
+                  },
+                  {
+                    "id": 2,
+                    "type": "TrafficAgent",
+                    "spawn": {
+                      "box": {
+                        "center": [
+                          53.5,
+                          1.75
+                        ],
+                        "length": 10.0,
+                        "width": 3.5,
+                        "heading": 0.0
+                      },
+                      "velocity": [
+                        9.9,
+                        10.0
+                      ]
+                    },
+                    "goal": {
+                      "box": {
+                        "center": [
+                          -25.0,
+                          1.75
+                        ],
+                        "length": 5,
+                        "width": 3.5,
+                        "heading": 0.0
+                      }
+                    }
+                  }
+                ]
+              }
+        }
+    }
+}

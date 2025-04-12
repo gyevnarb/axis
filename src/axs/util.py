@@ -167,6 +167,11 @@ def run_gym_env(
 
             if terminated or truncated:
                 logger.info("Episode %d terminated.", n + 1)
+                axs_agent.semantic_memory.learn(
+                    observations=observation,
+                    actions=action,
+                    infos=info,
+                )
                 observation, info = env.reset(seed=config.env.seed)
                 break
 

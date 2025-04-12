@@ -17,27 +17,24 @@ logger = logging.getLogger(__name__)
 
 
 ROAD_LAYOUT_PRETEXT = """- Metadata:
-
   - Traffic rules:
     - Vehicles drive on the right side of the road.
     - The maximum speed limit is 10 m/s.
-
   - Coordinate system:
     - Coordinates are on a 2D Cartesian plane.
     - Coordinates are written as [x y].
     - Distances are in meters.
     - Angles are in radians in the range [-pi, pi].
-
   - Road layout:
     - The road layout consists of roads identified by a numeric ID.
     - Roads are made up of lanes identified as road ID:lane ID.
     - Lanes are divided into left and right lanes.
     - Right lanes have a negative ID and left lanes have a positive ID.
     - Lanes are 3.5 meters wide.
-
   - Intersections:
     - Roads are connected by intersections.
-    - Intersections are made up of connections between incoming and connecting roads."""
+    - Intersections are made up of connections between incoming and connecting roads.
+"""
 
 REWARD_NAME_MAP = {
     "jerk": "Jolt",
@@ -92,6 +89,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - add_intersections: Whether to add intersection descriptions.
                 - add_intersection_links: Whether to add intersection lane link.
                 - resolution: The resolution of the road midline (0.01).
+                - fps: The frames per second of the simulation (20).
 
         Returns:
             context (dict[str, str]): Dictionary of verbalized data with keys mapping to
@@ -107,11 +105,14 @@ class IGP2Verbalizer(axs.Verbalizer):
             )
             raise ValueError(error_msg)
 
+        if isinstance(rewards, list) and "reward" in infos[-1]:
+            rewards = {0: infos[-1].pop("reward")}
+
         context = ""
         ret = {}
 
-        if kwargs.get("add_roads", True):
-            context += IGP2Verbalizer.convert_environment(env, kwargs) + "\n\n"
+        if kwargs.get("add_layout", True):
+            context += IGP2Verbalizer.convert_environment(env, **kwargs) + "\n\n"
 
         actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
         infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
@@ -137,6 +138,7 @@ class IGP2Verbalizer(axs.Verbalizer):
             if (
                 rewards is not None
                 and kwargs.get("add_rewards", True)
+                and isinstance(rewards, dict)
                 and aid in rewards
             ):
                 context += "  - Rewards:\n"
@@ -223,7 +225,11 @@ class IGP2Verbalizer(axs.Verbalizer):
         for frame in infos:
             for agent_id, state in frame.items():
                 trajectories[agent_id].append(state)
-        trajectories = {k: ip.StateTrajectory(None, v) for k, v in trajectories.items()}
+
+        trajectories = {
+            k: ip.StateTrajectory(kwargs.get("fps", 20), v)
+            for k, v in trajectories.items()
+        }
 
         ret = {}
 
@@ -238,7 +244,12 @@ class IGP2Verbalizer(axs.Verbalizer):
         for agent_id, trajectory in trajectories.items():
             sampled_trajectory = trajectory
             if subsample > 1 and len(trajectory) > subsample:
-                sampled_trajectory = util.subsample_trajectory(trajectory, subsample)
+                start_t = trajectory[0].time
+                sampled_trajectory = util.subsample_trajectory(
+                    trajectory,
+                    start_t,
+                    subsample,
+                )
 
             ret[agent_id] = dict(
                 [
@@ -316,15 +327,15 @@ class IGP2Verbalizer(axs.Verbalizer):
                 ret += "incoming road id:lane id->connecting road id:lane id."
             ret += "\n\n"
 
-        ret += "- Road layout:\n"
-
         # Describe roads
-        IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
+        if kwargs.get("add_roads", False):
+            ret += "- Road layout:\n"
+            ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
 
         # Describe intersections
-        if kwargs.get("add_intersections", True):
+        if kwargs.get("add_intersections", False):
             for jid, junction in scenario_map.junctions.items():
-                ret += f"  - Intersection {jid} connections:\n"
+                ret += f"  - Intersection {jid}:\n"
                 for conn in junction.connections:
                     if kwargs.get("add_intersection_links", False):
                         for lane_link in conn.lane_links:
@@ -371,7 +382,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 np.array(road.midline.coords),
                 dist=kwargs.get("resolution", 0.02),
             )
-            midline = [(x, y) for x, y in np.round(midline, 2)]
+            midline = util.ndarray2str(midline)
             ret += f"    - Midline coordinates: {midline}\n"
 
             left_lanes = [
@@ -390,12 +401,12 @@ class IGP2Verbalizer(axs.Verbalizer):
                 if left_lanes:
                     ret += "    - Left lanes:\n"
                     for lane in left_lanes:
-                        ret += f"      - Lane {rid}.{lane.id}.\n"
+                        ret += f"      - Lane {rid}:{lane.id}.\n"
                 if right_lanes:
                     ret += "    - Right lanes:\n"
                     for lane in right_lanes:
-                        ret += f"      - Lane {rid}.{lane.id}.\n"
-            ret += "\n"
+                        ret += f"      - Lane {rid}:{lane.id}.\n"
+        return ret
 
     @staticmethod
     def _verbalize_control_signal(
