@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 
+import gofi
 import igp2 as ip
 import numpy as np
 from igp2.opendrive.elements.geometry import ramer_douglas
@@ -29,15 +30,14 @@ ROAD_LAYOUT_PRETEXT = """- Metadata:
 
   - Road layout:
     - The road layout consists of roads identified by a numeric ID.
-    - Roads are made up of lanes identified as 'road ID:lane ID'.
+    - Roads are made up of lanes identified as road ID:lane ID.
     - Lanes are divided into left and right lanes.
     - Right lanes have a negative ID and left lanes have a positive ID.
     - Lanes are 3.5 meters wide.
 
   - Intersections:
     - Roads are connected by intersections.
-    - Intersections are made up of connections between incoming and connecting roads.
-"""
+    - Intersections are made up of connections between incoming and connecting roads."""
 
 REWARD_NAME_MAP = {
     "jerk": "Jolt",
@@ -74,6 +74,9 @@ class IGP2Verbalizer(axs.Verbalizer):
             env (ip.simplesim.SimulationEnv | None): The IGP2 environment.
             kwargs: Optional keyword arguments.
                 - add_roads: Whether to add road descriptions.
+                - add_metadata: Whether to add metadata before
+                            the road layout description.
+                - add_buildings: Whether to add building descriptions.
                 - add_actions: Whether to add raw steering and acceleration values.
                 - add_macro_actions: Whether to add macro action descriptions.
                 - add_observations: Whether to add observation descriptions.
@@ -89,8 +92,6 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - add_intersections: Whether to add intersection descriptions.
                 - add_intersection_links: Whether to add intersection lane link.
                 - resolution: The resolution of the road midline (0.01).
-                - add_metadata: Whether to add metadata before
-                            the road layout description.
 
         Returns:
             context (dict[str, str]): Dictionary of verbalized data with keys mapping to
@@ -308,15 +309,14 @@ class IGP2Verbalizer(axs.Verbalizer):
         if add_metadata:
             ret += ROAD_LAYOUT_PRETEXT
             lane_links = kwargs.get("intersection_links", False)
-            ret += "  Connections are written as "
+            ret += "    - Connections are written as "
             if not lane_links:
-                ret += "'incoming road id->connecting road id'."
+                ret += "incoming road id->connecting road id."
             else:
-                ret += "'incoming road id:lane id->connecting road id:lane id'."
+                ret += "incoming road id:lane id->connecting road id:lane id."
             ret += "\n\n"
 
-        ret += "The road layout consists of the following elements:"
-        ret += "\n\n"
+        ret += "- Road layout:\n"
 
         # Describe roads
         IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
@@ -324,14 +324,31 @@ class IGP2Verbalizer(axs.Verbalizer):
         # Describe intersections
         if kwargs.get("add_intersections", True):
             for jid, junction in scenario_map.junctions.items():
-                ret += f"Intersection {jid} connections:\n"
+                ret += f"  - Intersection {jid} connections:\n"
                 for conn in junction.connections:
                     if kwargs.get("add_intersection_links", False):
                         for lane_link in conn.lane_links:
-                            ret += f"  {conn.incoming_road.id}.{lane_link.from_id}"
+                            ret += f"    - {conn.incoming_road.id}.{lane_link.from_id}"
                             ret += f"->{conn.connecting_road.id}.{lane_link.to_id}\n"
                     else:
-                        ret += f"  {conn.incoming_road.id}->{conn.connecting_road.id}\n"
+                        ret += f"    - {conn.incoming_road.id}->{conn.connecting_road.id}\n"  # noqa: E501
+
+        # Verbalize static objects
+        if kwargs.get("add_buildings", False):
+            if not isinstance(env.unwrapped.simulation.scenario_map, gofi.OMap):
+                logger.warning(
+                    "Building descriptions are only available for gofi maps.",
+                )
+            else:
+                ret += "\n"
+                ret += "- Static objects:\n"
+                for obj in scenario_map.objects:
+                    if not obj.object_type:
+                        continue
+                    obj: gofi.StaticObject
+                    ret += f"  - {obj.object_type.title()}:\n"
+                    ret += f"    - Center: {obj.center}\n"
+                    ret += f"    - Boudnary: {util.ndarray2str(obj.boundary_coords[:-1])}\n"  # noqa: E501
 
         if ret[-1] == "\n":
             ret = ret[:-1]
@@ -347,15 +364,15 @@ class IGP2Verbalizer(axs.Verbalizer):
             if not road.drivable:
                 continue
 
-            ret += f"Road {rid}:\n"
-            ret += f"  Length: {road.length} m\n"
+            ret += f"  - Road {rid}:\n"
+            ret += f"    - Length: {road.length} m\n"
 
             midline = ramer_douglas(
                 np.array(road.midline.coords),
                 dist=kwargs.get("resolution", 0.02),
             )
             midline = [(x, y) for x, y in np.round(midline, 2)]
-            ret += f"  Midline coordinates: {midline}\n"
+            ret += f"    - Midline coordinates: {midline}\n"
 
             left_lanes = [
                 lane
@@ -371,13 +388,13 @@ class IGP2Verbalizer(axs.Verbalizer):
             # Describe lanes
             if kwargs.get("add_lanes", True):
                 if left_lanes:
-                    ret += "  Left lanes:\n"
+                    ret += "    - Left lanes:\n"
                     for lane in left_lanes:
-                        ret += f"    Lane {rid}.{lane.id}.\n"
+                        ret += f"      - Lane {rid}.{lane.id}.\n"
                 if right_lanes:
-                    ret += "  Right lanes:\n"
+                    ret += "    - Right lanes:\n"
                     for lane in right_lanes:
-                        ret += f"    Lane {rid}.{lane.id}.\n"
+                        ret += f"      - Lane {rid}.{lane.id}.\n"
             ret += "\n"
 
     @staticmethod

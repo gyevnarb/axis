@@ -1,6 +1,7 @@
 """Configuration class for accessing JSON-based configuration files."""
 
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Union
 
@@ -15,7 +16,6 @@ registry: dict[str, "type[Registerable]"] = {}
 POSSIBLE_PROMPTS = [
     "system",
     "context",
-    "no_context",
     "interrogation",
     "explanation",
     "final",
@@ -300,6 +300,7 @@ class AXSConfig(ConfigBase):
         return self._config["prompts_dir"]
 
     @property
+    @lru_cache(maxsize=8)  # noqa: B019
     def prompts(self) -> dict[str, str]:
         """The name of prompt template types to template text.
 
@@ -307,19 +308,25 @@ class AXSConfig(ConfigBase):
         The AXS agent relies on five prompt templates:
         'system', 'context', 'interrogation', 'explanation', and 'final'.
         """
-        value = {
+        prompts = {
             path.stem: path.read_text() for path in Path(self.prompts_dir).glob("*.txt")
         }
-        if not all(key in POSSIBLE_PROMPTS for key in value):
+        if not self.use_interrogation:
+            nosim_prompts = ["system", "context", "final"]
+            if not any(f"nosim_{prompt}" in prompts for prompt in nosim_prompts):
+                error_msg = (
+                    "Missing some 'nosim_*.txt' prompts in the prompts "
+                    "directory and use_interrogation is False."
+                )
+                raise ValueError(error_msg)
+            prompts = {key: prompts[f"nosim_{key}"] for key in nosim_prompts}
+        elif not self.use_context:
+            prompts["context"] = prompts["no_context"]
+            del prompts["no_context"]
+        elif not all(key in prompts for key in POSSIBLE_PROMPTS):
             error_msg = "Missing prompt templates in the prompts directory."
             raise ValueError(error_msg)
-        if not self.use_interrogation:
-            nosim_prompts = ["system", "context", "explanation", "final"]
-            if not any(f"nosim_{prompt}" in value for prompt in nosim_prompts):
-                error_msg = ("Missing some 'nosim_*.txt' prompts in the prompts "
-                             "directory and use_interrogation is False.")
-                raise ValueError(error_msg)
-        return value
+        return prompts
 
     @property
     def user_prompts(self) -> list[dict[str, Any]]:
@@ -333,7 +340,7 @@ class Config(ConfigBase):
     def __init__(self, config: dict[str, Any] | str) -> "Config":
         """Initialize the configuration class with the configuration dictionary."""
         super().__init__(config)
-        if isinstance(config, str):
+        if isinstance(config, str | Path):
             with Path(config).open("r", encoding="utf-8") as f:
                 self._config = json.load(f)
         else:

@@ -1,0 +1,2 @@
+You explain why a vehicle took a certain action at a given time in a particular scenario. You are given the following context about the observations and actions of the vehicles in the scenario:
+{context}

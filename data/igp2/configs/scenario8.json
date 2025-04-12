@@ -1,5 +1,5 @@
 {
-  "output_dir": "output/igp2/scenario10",
+  "output_dir": "output/igp2/scenario8",
   "llm": {
     "inference_mode": "localhost",
     "model": "meta-llama/Llama-3.3-70B-Instruct",
@@ -47,7 +47,7 @@
     "name": "gofi-v0",
     "wrapper_type": "IGP2QueryableWrapper",
     "policy_type": "IGP2Policy",
-    "max_iter": 300,
+    "max_iter": 400,
     "n_epsiodes": 1,
     "seed": 28,
     "render_mode": "human",

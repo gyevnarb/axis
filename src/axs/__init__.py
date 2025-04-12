@@ -75,48 +75,6 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-def _init_axs(
-    config_file: str,
-    debug: bool,
-    dryrun: bool,
-    save_results: bool,
-    output_dir: str,
-) -> Config:
-    """Initialize the AXS package."""
-    if not Path(config_file).exists():
-        error_msg = f"Configuration file not found: {config_file}"
-        raise FileNotFoundError(error_msg)
-
-    config = Config(config_file)
-    if debug is not None:
-        config.config_dict["debug"] = debug
-    if dryrun is not None:
-        config.config_dict["dryrun"] = dryrun
-    if save_results is not None:
-        config.config_dict["save_results"] = save_results
-    if output_dir is not None:
-        config.config_dict["output_dir"] = output_dir
-
-    output_dir = config.output_dir
-    if output_dir is not None:
-        logger.info("Creating output directory structure: %s", output_dir)
-        if not output_dir.exists():
-            logger.info("  Creating output directory %s", output_dir)
-            output_dir.mkdir(parents=True)
-        agents_dir = Path(output_dir, "agents")
-        if not agents_dir.exists():
-            logger.info("  Creating agents directory %s", agents_dir)
-            agents_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_dir = Path(output_dir, "checkpoints")
-        if not checkpoint_dir.exists():
-            checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        results_dir = Path(output_dir, "results")
-        if not results_dir.exists():
-            results_dir.mkdir(parents=True, exist_ok=True)
-
-    return config
-
-
 @app.command()
 def run(ctx: typer.Context) -> None:
     """Run an AXS agent according to a configuration file."""
@@ -244,6 +202,13 @@ def main(  # noqa: PLR0913
             "'no_context.txt' file in the prompts directory.",
         ),
     ] = True,
+    interrogation: Annotated[
+        bool | None,
+        typer.Option(
+            help=("Whether to use interrogation for the AXS agent. "
+                  "If False, then pure-prompting is used without simulation."),
+        ),
+    ] = False,
     llm_kwargs: Annotated[
         str | None,
         typer.Option(
@@ -252,12 +217,42 @@ def main(  # noqa: PLR0913
     ] = None,
 ) -> None:
     """Run an AXS agent."""
-    config = _init_axs(config_file, debug, dryrun, save_results, output_dir)
+    if not Path(config_file).exists():
+        error_msg = f"Configuration file not found: {config_file}"
+        raise FileNotFoundError(error_msg)
+
+    config = Config(config_file)
+    if debug is not None:
+        config.config_dict["debug"] = debug
+    if dryrun is not None:
+        config.config_dict["dryrun"] = dryrun
+    if save_results is not None:
+        config.config_dict["save_results"] = save_results
+    if output_dir is not None:
+        config.config_dict["output_dir"] = output_dir
     if llm_kwargs is not None:
         import json
         config.config_dict["llm"].update(json.loads(llm_kwargs))
-    if context is not None:
-        config.config_dict["axs"]["use_context"] = context
+
+    config.config_dict["axs"]["use_context"] = context
+    config.config_dict["axs"]["use_interrogation"] = interrogation
+
+    output_dir = config.output_dir
+    if output_dir is not None:
+        logger.info("Creating output directory structure: %s", output_dir)
+        if not output_dir.exists():
+            logger.info("  Creating output directory %s", output_dir)
+            output_dir.mkdir(parents=True)
+        agents_dir = Path(output_dir, "agents")
+        if not agents_dir.exists():
+            logger.info("  Creating agents directory %s", agents_dir)
+            agents_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_dir = Path(output_dir, "checkpoints")
+        if not checkpoint_dir.exists():
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        results_dir = Path(output_dir, "results")
+        if not results_dir.exists():
+            results_dir.mkdir(parents=True, exist_ok=True)
 
     ctx.obj = {"config": config}
 

@@ -86,10 +86,6 @@ class AXSAgent:
 
         # Prompting components
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
-        if not config.axs.use_context:
-            self._prompts["context"] = self._prompts["no_context"]
-        if not config.axs.use_interrogation:
-            pass # TODO
 
         # Memory components
         self._semantic_memory = SemanticMemory(
@@ -166,7 +162,8 @@ class AXSAgent:
 
         # Save the user prompt to the semantic memory and load cache
         self.semantic_memory.learn(prompts=user_prompt)
-        self.cache.load_memory(self.config.axs.cache_file)
+        if self.cache_path is not None:
+            self.cache.load_memory(self.cache_path)
 
         # Retrieve all forms of observations from memory
         observations = self._semantic_memory.retrieve("observations")
@@ -414,7 +411,7 @@ class AXSAgent:
         with Path(path).open("rb") as f:
             statedict = pickle.load(f)
         for attr, value in statedict.items():
-            getattr(self, attr).memory = value
+            getattr(self, attr)._mem = value
         logger.info("Loaded agent state from %s", path)
 
     @property

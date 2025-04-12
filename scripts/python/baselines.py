@@ -6,6 +6,7 @@ import pickle
 from pathlib import Path
 
 import axs
+from envs import axs_igp2
 
 logger = logging.getLogger(__name__)
 OUTPUT_DIR = Path("output", "igp2")
@@ -19,7 +20,7 @@ for save_folder in save_folders:
     scenario_name = save_folder.name + ".json"
     config_file = Path("data", "igp2", "configs", scenario_name)
     config = axs._init_axs(config_file, None, None, None, None)
-    config.memory_dict["axs"]["use_interrogation"] = False
+    config.config_dict["axs"]["use_interrogation"] = False
     print(config.axs.prompts)
 
     save_files = list(Path(save_folder, "agents").glob("agent_ep*.pkl"))

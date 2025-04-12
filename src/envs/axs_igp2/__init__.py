@@ -35,15 +35,8 @@ class FunctionNames(str, Enum):
     evaluate = "evaluate"
 
 
-@axs.app.command()
-def igp2(
-    ctx: typer.Context,
-    function: Annotated[
-        FunctionNames, typer.Argument(help="Function to run."),
-    ],
-    save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
-) -> None:
-    """Run an AXS agent with the IGP2 configurations."""
+def init_igp2(ctx: typer.Context, fn_name: str, save_logs: bool) -> None:
+    """Initialize IGP2 configurations."""
     import gofi
     import igp2
 
@@ -60,13 +53,25 @@ def igp2(
             "httpx",
         ],
         log_dir=Path(output_dir, "logs") if save_logs else None,
-        log_name=function[:4],
+        log_name=fn_name[:4],
     )
 
-    # Call the function dynamically
-    try:
-        getattr(axs, function)(ctx)
-    except Exception as e:
-        logger.exception(
-            "Error occurred while running the function %s", function, exc_info=e,
-        )
+
+@axs.app.command()
+def run(
+    ctx: typer.Context,
+    save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
+) -> None:
+    """Run an AXS agent with the IGP2 configurations."""
+    init_igp2(ctx, "run", save_logs)
+    axs.run(ctx)
+
+
+@axs.app.command()
+def evaluate(
+    ctx: typer.Context,
+    save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
+) -> None:
+    """Evaluate an AXS agent with the IGP2 configurations."""
+    init_igp2(ctx, "run", save_logs)
+    axs.evaluate(ctx)
