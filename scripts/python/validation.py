@@ -49,6 +49,10 @@ def main(
     context: Annotated[
         bool, typer.Option(help="Whether to add context to prompts."),
     ] = True,
+    n_max: Annotated[
+        int,
+        typer.Option(help="Maximum number of samples to use."),
+    ] = 10,
 ) -> None:
     """Run AXS agent evaluation with various configurations."""
     complexity = [1, 2] if complexity is None else [complexity]
@@ -78,7 +82,7 @@ def main(
         models=[model.value],
         use_interrogation=interrogation,
         use_context=context,
-        n_max=10 if interrogation else 0,
+        n_max=n_max if interrogation else 0,
     )
 
     scenario_config = axs.Config(f"data/igp2/configs/scenario{scenario}.json")

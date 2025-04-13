@@ -86,7 +86,8 @@ class IGP2Query(axs.Query):
                     ).boundary,
                 )
                 if spawn_box.intersects(vehicle_box):
-                    error_msg = "Spawn location intersects with another vehicle."
+                    error_msg = ("Spawn location overlaps with or "
+                                 "is too close to another vehicle.")
                     raise axs.QueryError(error_msg)
 
         final_t = next(iter(infos[-1].values())).time

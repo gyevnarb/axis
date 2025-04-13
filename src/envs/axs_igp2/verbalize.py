@@ -134,6 +134,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 context += f"[{actions_dict[aid]}]\n"
             if kwargs.get("add_actions", False):
                 context += "  - Actions:\n"
+                context += f"    - Timesteps: {infos_dict[aid]['Timesteps']}\n"
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
             if (
