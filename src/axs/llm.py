@@ -4,6 +4,7 @@ Supports offline, localhost, and online LLM models.
 """
 
 import logging
+import sys
 
 import openai
 
@@ -32,6 +33,7 @@ class LLMWrapper:
 
         if self._mode == "offline":
             from vllm import LLM, SamplingParams
+
             self._sampling_params = SamplingParams(**self._sampling_params)
             self._llm = LLM(
                 config.model,
@@ -47,7 +49,10 @@ class LLMWrapper:
             if not config.base_url:
                 self._llm = openai.OpenAI()
             else:
-                self._llm = openai.OpenAI(base_url=config.base_url)
+                api_key = sys.getenv(config.api_key_env_var)
+                self._llm = openai.OpenAI(
+                    base_url=config.base_url, api_key=api_key,
+                )
         else:
             error_msg = f"Invalid inference mode: {self._mode}"
             raise ValueError(error_msg)
@@ -61,6 +66,7 @@ class LLMWrapper:
         """
         if isinstance(self._sampling_params, dict):
             from vllm import SamplingParams
+
             self._sampling_params = SamplingParams(**self._sampling_params)
 
         _messages = self.merge_consecutive_messages(messages)
@@ -113,7 +119,8 @@ class LLMWrapper:
         }
 
         logger.info(
-            "[bold yellow]LLM response:[/bold yellow]\n%s", responses[0]["content"],
+            "[bold yellow]LLM response:[/bold yellow]\n%s",
+            responses[0]["content"],
             extra={"markup": True},
         )
 
@@ -144,7 +151,9 @@ class LLMWrapper:
 
     @staticmethod
     def wrap(
-        role: str, content: str, **kwargs: dict[str, str],
+        role: str,
+        content: str,
+        **kwargs: dict[str, str],
     ) -> dict[str, str]:
         """Wrap the message for submission to an OpenAI style chat API.
 

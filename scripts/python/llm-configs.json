@@ -1,0 +1,34 @@
+{
+    "sampling_params": {
+        "seed": 28,
+        "max_tokens": 512,
+        "temperature": 0.8,
+        "top_p": 0.95
+    },
+    "gpt-4o": {
+        "inference_mode": "online",
+        "model": "GPT-4o-latest"
+    },
+    "gpt-o1": {
+        "inference_mode": "online",
+        "model": "GPT-o1-latest"
+    },
+    "deepseek-v3": {
+        "inference_mode": "online",
+        "model": "deepseek-chat",
+        "api_key_env_var": "DEEPSEEK_API_KEY"
+    },
+    "deepseek-r1": {
+        "inference_mode": "online",
+        "model": "deepseek-reasoner",
+        "api_key_env_var": "DEEPSEEK_API_KEY"
+    },
+    "llama-70b": {
+        "inference_mode": "localhost",
+        "model": "meta-llama/Llama-3.3-70B-Instruct"
+    },
+    "qwen-72b": {
+        "inference_mode": "localhost",
+        "model": "Qwen/Qwen2.5-72B-Instruct"
+    }
+}

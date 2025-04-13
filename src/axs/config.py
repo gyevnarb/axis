@@ -170,6 +170,14 @@ class LLMConfig(ConfigBase):
         return self._config.get("base_url", None)
 
     @property
+    def api_key_env_var(self) -> str:
+        """Environment variable for the API key.
+
+        Default: 'OPENAI_API_KEY'
+        """
+        return self._config.get("api_key_env_var", "OPENAI_API_KEY")
+
+    @property
     def model(self) -> str:
         """Get LLM model name.
 
