@@ -21,9 +21,9 @@ POSSIBLE_PROMPTS = [
     "final",
 ]
 COMPLEXITY_PROMPTS = {
-    1: "Be as brief and concise as possible. Only include the absolute most important information.",
-    2: "Be concise and clear. Include only important information.",
-    3: "Be as detailed and thorough as possible. Include all relevant information.",
+    1: "Your response must be as short and concise as possible. You can only include the absolute most important information.",
+    2: "Your response must be concise and clear. Include only important information.",
+    3: "Your response must be as detailed and thorough as possible. Include all relevant information.",
 }
 
 
@@ -248,8 +248,8 @@ class AXSConfig(ConfigBase):
         Default: 5.
         """
         value = self._config.get("n_max", 5)
-        if value < 1:
-            error_msg = f"Invalid value for n_max: {value}; must be >= 1."
+        if value < 0:
+            error_msg = f"Invalid value for n_max: {value}; must be >= 0."
             raise ValueError(error_msg)
         return value
 

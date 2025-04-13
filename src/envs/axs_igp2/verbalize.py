@@ -123,22 +123,22 @@ class IGP2Verbalizer(axs.Verbalizer):
 
         for aid in actions_dict:
             context += f"- Vehicle {aid}:\n"
-            if kwargs.get("add_observations", True):
+            if kwargs.get("add_observations", False):
                 context += "  - Observations:\n"
                 for signal, data in infos_dict[aid].items():
                     if signal in ["Steering", "Acceleration"]:
                         continue  # Do not include actions here
                     context += f"    - {signal}: {data}\n"
-            if kwargs.get("add_macro_actions", True):
+            if kwargs.get("add_macro_actions", False):
                 context += "  - Macro actions (as macro[from-to]): "
                 context += f"[{actions_dict[aid]}]\n"
-            if kwargs.get("add_actions", True):
+            if kwargs.get("add_actions", False):
                 context += "  - Actions:\n"
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
             if (
                 rewards is not None
-                and kwargs.get("add_rewards", True)
+                and kwargs.get("add_rewards", False)
                 and isinstance(rewards, dict)
                 and aid in rewards
             ):

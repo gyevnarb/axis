@@ -34,7 +34,7 @@ def powerset(iterable: Iterable) -> list[tuple]:
     return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
 
 
-def get_configs(
+def get_params(
     scenarios: list[int],
     complexity: list[int],
     models: list[str],
@@ -46,6 +46,9 @@ def get_configs(
     if not use_interrogation and not use_context:
         error_msg = "At least one of use_interrogation or use_context must be True."
         raise ValueError(error_msg)
+    if not use_interrogation and n_max != 0:
+        error_msg = "n_max must be 0 when use_interrogation is False."
+        raise ValueError(error_msg)
 
     verbalizer_features = [
         "add_layout",
@@ -53,7 +56,7 @@ def get_configs(
         "add_actions",
         "add_macro_actions",
     ]
-    with Path("scripts", "python", "llm-configs.json").open() as f:
+    with Path("scripts", "python", "llm_configs.json").open() as f:
         llm_configs = json.load(f)
     sampling_params = llm_configs.pop("sampling_params")
     llm_configs = {k: v for k, v in llm_configs.items() if k in models}
@@ -78,9 +81,12 @@ def get_configs(
                     if "add_actions" not in vf and "add_macro_actions" not in vf:
                         continue
                     if use_context and vf != ():
-                        new_config_dict["axs"]["verbalizer"]["params"] = {
-                            k: True for k in vf
-                        }
+                        vf_dict = new_config_dict["axs"]["verbalizer"]
+                        vf_dict["params"] = dict.fromkeys(
+                            vf, True,
+                        )
+                        vf_dict["params"]["add_rewards"] = True
+                        vf_dict["params"]["subsample"] = 3
                         params = {
                             "complexity": c,
                             "verbalizer_features": vf,
@@ -93,9 +99,10 @@ def get_configs(
                         }
                         configs.append(params)
                     elif not use_context and vf == ():
-                        new_config_dict["axs"]["verbalizer"]["params"] = {
-                            k: False for k in verbalizer_features
-                        }
+                        new_config_dict["axs"]["verbalizer"]["params"] = dict.fromkeys(
+                            verbalizer_features, False,
+                        )
+                        new_config_dict["axs"]["verbalizer"]["params"]["subsample"] = 3
                         params = {
                             "complexity": c,
                             "verbalizer_features": vf,

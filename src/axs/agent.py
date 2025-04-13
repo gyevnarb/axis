@@ -215,18 +215,26 @@ class AXSAgent:
         logger.info("Context prompt: %s", context_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
 
+        # Set up variables for the explanation loop
         n = 1
         n_max = self.config.axs.n_max
         distance = float("inf")
         explanation, prev_explanation = None, None
+        simulation_results = None
         statistics = {
             "n_tries": [],
             "n": n,
             "distances": [],
             "usage": [],
         }
+
+        # Run the explanation loop until the maximum number of iterations is reached
         while n <= n_max and distance > self.config.axs.delta:
             logger.info("Explanation iteration %d/%d", n, n_max)
+
+            # Store statistics of the iteration
+            statistics["n"] = n
+            statistics["distances"].append(distance)
 
             # Interrogation stage
             simulation_results = self._interrogate(
@@ -237,18 +245,21 @@ class AXSAgent:
                 statistics,
             )
 
-            # Explanation stage
             if simulation_results == "DONE":
                 break
+            if simulation_results == "FAIL":
+                error_msg = (f"The simulation querying failed after "
+                             f"{self.config.axs.n_tries} attempts. "
+                             f"Interrogation is no longer possible.")
+                self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
+                break
+
+            # Explanation stage
             explanation = self._explanation(user_prompt, simulation_results, statistics)
 
             prev_explanation = explanation
             distance = float("inf")  # self._distance(explanation, prev_explanation)
             n += 1
-
-            # Store statistics of the iteration
-            statistics["n"] = n
-            statistics["distances"].append(distance)
 
         # Ask for the final explanation
         final_prompt = self._prompts["final"].fill(
@@ -264,6 +275,7 @@ class AXSAgent:
 
         # Get run results
         results = {
+            "success": "DONE" if simulation_results != "FAIL" else "FAIL",
             "messages": deepcopy(self.episodic_memory.memory),
             "explanation": explanation,
             "statistics": statistics,
@@ -328,7 +340,7 @@ class AXSAgent:
 
                 # Run the simulation or retrieve from cache
                 query_key = str(simulation_query)
-                if query_key in self.cache:
+                if query_key in self.cache.memory:
                     logger.info(
                         "Using cached simulation results for query: %s",
                         query_key,
@@ -343,7 +355,7 @@ class AXSAgent:
                         infos,
                     )
 
-                    self.cache.learn(cache=simulation_results)
+                    self.cache.learn(**{query_key: simulation_results})
                     if self.cache_path is not None:
                         self.cache.save_memory(self.cache_path)
 
@@ -357,9 +369,9 @@ class AXSAgent:
             self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
 
         else:
-            error_msg = "The simulation failed after multiple attempts."
+            logger.warning("The simulation failed after multiple attempts.")
             statistics["n_tries"].append(n_tries)
-            raise RuntimeError(error_msg)
+            return "FAIL"
 
         statistics["n_tries"].append(n_tries)
         return simulation_results
