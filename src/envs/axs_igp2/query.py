@@ -68,9 +68,9 @@ class IGP2Query(axs.Query):
             spawn_intersects = False
             goal_intersects = False
             for road in env.scenario_map.roads.values():
-                if road.boundary.intersects(spawn_box):
+                if not spawn_intersects and road.boundary.intersects(spawn_box):
                     spawn_intersects = True
-                if road.boundary.intersects(goal_box):
+                if not goal_intersects and road.boundary.intersects(goal_box):
                     goal_intersects = True
             if not spawn_intersects or not goal_intersects:
                 error_msg = "Spawn and goal locations must be on a road."
@@ -80,7 +80,7 @@ class IGP2Query(axs.Query):
                 vehicle_box = Polygon(
                     ip.Box(
                         state.position,
-                        state.metadata.length,
+                        state.metadata.length + 3.0,  # Add 3 meter as extra threshold
                         state.metadata.width,
                         state.heading,
                     ).boundary,

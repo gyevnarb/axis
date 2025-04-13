@@ -1,7 +1,7 @@
 """Simulation query wrapper for IGP2."""
 
 import logging
-from copy import copy
+from copy import copy, deepcopy
 from typing import Any
 
 import gofi
@@ -229,6 +229,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         next_agent_id = max(env.simulation.agents) + 1
+        new_info = deepcopy(info)
 
         config = {
             "agents": [
@@ -241,25 +242,37 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                         ],
                         "box": {
                             "center": query.params["location"],
-                            "length": 1,
-                            "width": 1,
+                            "length": 5.0,
+                            "width": 3.0,
                             "heading": 0.0,
                         },
                     },
                 },
             ],
         }
-        new_initial_state = env._generate_random_frame(env.scenario_map, config)[
-            next_agent_id
-        ]
-        goal = ip.PointGoal(query.params["goal"], 1.5)
+        try:
+            new_initial_state = env._generate_random_frame(env.scenario_map, config)[
+                next_agent_id
+            ]
+        except IndexError as e:
+            error_msg = (f"Cannot spawn vehicle at {query.params['location']}. "
+                         f"Spawn location does not intersect the road midline.")
+            raise axs.SimulationError(error_msg) from e
+
+        new_info[next_agent_id] = new_initial_state
+        goal = ip.PointGoal(query.params["goal"], 2.0)
+
+        # Check if goal is reachable
+        trajs, _ = ip.AStar().search(next_agent_id, new_info, goal, env.scenario_map)
+        if not trajs:
+            error_msg = f"Goal {query.params['goal']} is unreachable."
+            raise axs.SimulationError(error_msg)
+
         new_agent = ip.TrafficAgent(next_agent_id, new_initial_state, goal, fps=env.fps)
         env.simulation.add_agent(new_agent)
-
         env.reset_observation_space()
-        info[next_agent_id] = new_initial_state
 
-        return info, {}
+        return new_info, {}
 
     def _remove(
         self,
@@ -277,9 +290,9 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         agent_id = query.params["vehicle"]
         env.simulation.remove_agent(agent_id)
-        info = {aid: state for aid, state in info.items() if aid != agent_id}
+        new_info = {aid: state for aid, state in info.items() if aid != agent_id}
 
-        return info, {}
+        return new_info, {}
 
     def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
         """Set the macro action of the selected agent."""
@@ -296,7 +309,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         query_actions = query.params["actions"]
         skip_next = False
         macro_actions = []
-        new_info = info
+        new_info = deepcopy(info)
         for i, macro_action in enumerate(query_actions):
             turn_direction = None
             if macro_action.macro_name == "GiveWay":

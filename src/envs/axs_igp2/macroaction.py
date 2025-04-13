@@ -336,12 +336,13 @@ class IGP2MacroAction(axs.MacroAction):
 
         if macro is None:
             macro_name = self.macro_name
-            if "turn_direction" in kwargs:
+            turn_direction = kwargs.get("turn_direction")
+            if turn_direction in [-1, 1, 0]:
                 macro_name = {
                     1: "TurnLeft",
                     -1: "TurnRight",
                     0: "GoStraightJunction",
-                }[kwargs["turn_direction"]]
+                }[turn_direction]
             error_msg = f"Macro {macro_name} is not applicable."
             raise axs.SimulationError(error_msg)
         return macro
