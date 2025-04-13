@@ -369,7 +369,7 @@ class AXSAgent:
             self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
 
         else:
-            logger.warning("The simulation failed after multiple attempts.")
+            logger.error("The simulation failed after multiple attempts.")
             statistics["n_tries"].append(n_tries)
             return "FAIL"
 

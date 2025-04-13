@@ -50,7 +50,7 @@ class Memory(abc.ABC):
         """Save the memory to file if config.save_results is True."""
         with Path(save_file).open("wb") as f:
             pickle.dump(self._mem, f)
-            logger.debug("Memory saved to %s", self.save_file)
+            logger.debug("Memory saved to %s", save_file)
 
     def load_memory(self, path: str | Path) -> None:
         """Load memory from file."""

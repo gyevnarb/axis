@@ -73,7 +73,10 @@ for param in params:
 
         # Generate explanation to prompt
         user_query = prompt.fill()
-        explanation, _ = axs_agent.explain(user_query)
+        explanation, results = axs_agent.explain(user_query)
+
+        logger.info(param)
+        logger.info(results["success"])
 
         # Save results
         results.append(
@@ -81,7 +84,7 @@ for param in params:
                 "param": param,
                 "config": config,
                 "truncate": truncate,
-                "explanation": explanation,
+                "results": results,
             },
         )
 
