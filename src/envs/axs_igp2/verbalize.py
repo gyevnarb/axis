@@ -111,7 +111,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         context = ""
         ret = {}
 
-        if kwargs.get("add_layout", True):
+        if kwargs.get("add_layout", False):
             context += IGP2Verbalizer.convert_environment(env, **kwargs) + "\n\n"
 
         actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
@@ -316,7 +316,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         scenario_map = env.scenario_map
         ret = ""
 
-        add_metadata = kwargs.get("add_metadata", False)
+        add_metadata = kwargs.get("add_metadata", True)
         if add_metadata:
             ret += ROAD_LAYOUT_PRETEXT
             lane_links = kwargs.get("intersection_links", False)
@@ -328,24 +328,24 @@ class IGP2Verbalizer(axs.Verbalizer):
             ret += "\n\n"
 
         # Describe roads
-        if kwargs.get("add_roads", False):
+        if kwargs.get("add_roads", True):
             ret += "- Road layout:\n"
             ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
 
         # Describe intersections
-        if kwargs.get("add_intersections", False):
+        if kwargs.get("add_intersections", True):
             for jid, junction in scenario_map.junctions.items():
                 ret += f"  - Intersection {jid}:\n"
                 for conn in junction.connections:
                     if kwargs.get("add_intersection_links", False):
                         for lane_link in conn.lane_links:
-                            ret += f"    - {conn.incoming_road.id}.{lane_link.from_id}"
-                            ret += f"->{conn.connecting_road.id}.{lane_link.to_id}\n"
+                            ret += f"    - {conn.incoming_road.id}:{lane_link.from_id}"
+                            ret += f"->{conn.connecting_road.id}:{lane_link.to_id}\n"
                     else:
                         ret += f"    - {conn.incoming_road.id}->{conn.connecting_road.id}\n"  # noqa: E501
 
         # Verbalize static objects
-        if kwargs.get("add_buildings", False):
+        if kwargs.get("add_buildings", True):
             if not isinstance(env.unwrapped.simulation.scenario_map, gofi.OMap):
                 logger.warning(
                     "Building descriptions are only available for gofi maps.",

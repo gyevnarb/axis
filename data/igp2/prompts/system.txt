@@ -3,5 +3,5 @@ You write helpful explanations based on a multi-round sequence of dialog over {n
 1. Interrogation Stage: You interrogate a simulator via a query to obtain additional counterfactual information about the world;
 2. Explanation Stage: You synthesize all information available to you into a concise explanation.
 
-Give your explanation in plain English. Do not include state or action descriptions. Do not give an explanation until explicitly prompted.
+Do not include raw state or action arrays. Do not give an explanation until explicitly prompted. {complexity}
 End all of your responses with '<|endoftext|>'.

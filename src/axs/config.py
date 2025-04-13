@@ -20,6 +20,11 @@ POSSIBLE_PROMPTS = [
     "explanation",
     "final",
 ]
+COMPLEXITY_PROMPTS = {
+    1: "Be as brief and concise as possible. Only include the absolute most important information.",
+    2: "Be concise and clear. Include only important information.",
+    3: "Be as detailed and thorough as possible. Include all relevant information.",
+}
 
 
 class Registerable:
@@ -251,6 +256,32 @@ class AXSConfig(ConfigBase):
             error_msg = f"Invalid value for delta: {value}; must be > 0."
             raise ValueError(error_msg)
         return value
+
+    @property
+    def complexity(self) -> int:
+        """Get LLM respose complexity.
+
+        Must be 1, 2, or 3.
+        1: Basic response.
+        2: Intermediate response.
+        3: Advanced response.
+        Higher values may result in more complex responses.
+
+        Default: 1.
+        """
+        value = self._config.get("complexity", 1)
+        if value not in [1, 2, 3]:
+            error_msg = (
+                f"Invalid value for complexity: {value}; "
+                f"must be 1, 2, or 3."
+            )
+            raise ValueError(error_msg)
+        return value
+
+    @property
+    def complexity_prompt(self) -> str:
+        """Get the blurb for the complexity level."""
+        return COMPLEXITY_PROMPTS[self.complexity]
 
     @property
     def use_context(self) -> bool:

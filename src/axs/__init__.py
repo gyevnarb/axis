@@ -199,16 +199,25 @@ def main(  # noqa: PLR0913
         bool | None,
         typer.Option(
             help="Whether to add initial context to the LLM. Requires specifying a "
-            "'no_context.txt' file in the prompts directory.",
+                 "'no_context.txt' file in the prompts directory.",
         ),
     ] = True,
     interrogation: Annotated[
         bool | None,
         typer.Option(
-            help=("Whether to use interrogation for the AXS agent. "
-                  "If False, then pure-prompting is used without simulation."),
+            help="Whether to use interrogation for the AXS agent. "
+                  "If False, then pure-prompting is used without simulation.",
         ),
     ] = True,
+    complexity: Annotated[
+        int | None,
+        typer.Option(
+            help="The complexity of the explanation. Higher values may result "
+                 "in more complex responses.",
+            min=1,
+            max=3,
+        ),
+    ] = None,
     llm_kwargs: Annotated[
         str | None,
         typer.Option(
@@ -233,6 +242,8 @@ def main(  # noqa: PLR0913
     if llm_kwargs is not None:
         import json
         config.config_dict["llm"].update(json.loads(llm_kwargs))
+    if complexity is not None:
+        config.config_dict["axs"]["complexity"] = complexity
 
     config.config_dict["axs"]["use_context"] = context
     config.config_dict["axs"]["use_interrogation"] = interrogation

@@ -195,6 +195,7 @@ class AXSAgent:
         # Create system prompt
         system_prompt = self._prompts["system"].fill(
             n_max=self.config.axs.n_max,
+            complexity=self.config.axs.complexity_prompt,
         )
         logger.info("System prompt: %s", system_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("system", system_prompt))
@@ -249,7 +250,9 @@ class AXSAgent:
             statistics["distances"].append(distance)
 
         # Ask for the final explanation
-        final_prompt = self._prompts["final"].fill(user_prompt=user_prompt)
+        final_prompt = self._prompts["final"].fill(
+            complexity=self.config.axs.complexity_prompt, user_prompt=user_prompt,
+        )
         self.episodic_memory.learn(LLMWrapper.wrap("user", final_prompt))
         logger.info("Final prompt: %s", final_prompt)
 
@@ -326,7 +329,8 @@ class AXSAgent:
                 query_key = str(simulation_query)
                 if query_key in self.cache:
                     logger.info(
-                        "Using cached simulation results for query: %s", query_key,
+                        "Using cached simulation results for query: %s",
+                        query_key,
                     )
                     simulation_results = self.cache[query_key]
                 else:
@@ -342,12 +346,10 @@ class AXSAgent:
                     if self.cache_path is not None:
                         self.cache.save_memory(self.cache_path)
 
-                break # No more tries needed. Simulation succesful.
+                break  # No more tries needed. Simulation succesful.
 
             except QueryError as e:
-                error_msg = (
-                    f"The query is invalid: {e} Generate a different query."
-                )
+                error_msg = f"The query is invalid: {e} Generate a different query."
             except SimulationError as e:
                 error_msg = f"The simulation failed: {e} Generate a different query."
             logger.warning(error_msg)
@@ -377,6 +379,7 @@ class AXSAgent:
 
         explanation_prompt = self._prompts["explanation"].fill(
             simulation_context,
+            complexity=self.config.axs.complexity_prompt,
             user_prompt=user_prompt,
             n=statistics["n"],
             n_max=self.config.axs.n_max,
