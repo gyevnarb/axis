@@ -70,6 +70,7 @@ class IGP2Verbalizer(axs.Verbalizer):
             query (axs.Query | None): The query to verbalize.
             env (ip.simplesim.SimulationEnv | None): The IGP2 environment.
             kwargs: Optional keyword arguments.
+                - add_layout: Whether to add the road layout description.
                 - add_roads: Whether to add road descriptions.
                 - add_metadata: Whether to add metadata before
                             the road layout description.
@@ -78,6 +79,9 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - add_macro_actions: Whether to add macro action descriptions.
                 - add_observations: Whether to add observation descriptions.
                 - add_rewards: Whether to add reward descriptions.
+                - add_lanes: Whether to add lane descriptions.
+                - add_intersections: Whether to add intersection descriptions.
+                - add_intersection_links: Whether to add intersection lane link.
                 - subsample (int): Frequency of subsampling observations.
                         Use this to decrease the complexity of the verbalization.
                 - rounding (int): Number of decimal places to round the values to.
@@ -85,9 +89,6 @@ class IGP2Verbalizer(axs.Verbalizer):
                         Possible values: ["times", "timesteps", "path",
                                           "velocity", "heading"].
                         Default is all control signals except time.
-                - add_lanes: Whether to add lane descriptions.
-                - add_intersections: Whether to add intersection descriptions.
-                - add_intersection_links: Whether to add intersection lane link.
                 - resolution: The resolution of the road midline (0.01).
                 - fps: The frames per second of the simulation (20).
 

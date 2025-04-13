@@ -1,8 +1,0 @@
-# q = self._query.parse("add(location=[-25, -1.5], goal=[20, 1.5])")
-# q = self._query.parse("add(location=[-205, -1.5], goal=[1000, 1000])")
-# q = self._query.parse("remove(vehicle=1)")
-# q = self._query.parse("whatif(vehicle=0, actions=[GoStraightJunction], time=41)")
-# q = self._query.parse("whatif(vehicle=1, actions=[ChangeLaneLeft], time=0)")
-# q = self._query.parse("whatif(vehicle=1, actions=[GoStraightJunction], time=0)")
-# q = self._query.parse("whatif(vehicle=0, actions=['Stop', 'ChangeLaneLeft'], time=42)")
-# q = self._query.parse("what(vehicle=2, time=100)")

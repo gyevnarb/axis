@@ -19,3 +19,4 @@ uv.lock
 output/
 playground.*
 nohup.out
+.env

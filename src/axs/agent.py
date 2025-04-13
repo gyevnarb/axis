@@ -1,6 +1,5 @@
 """Contains the main agent class for the AXS framework."""
 
-import datetime
 import logging
 import pickle
 from copy import deepcopy
@@ -69,20 +68,7 @@ class AXSAgent:
         self.config = config
 
         # Setup folder structure for saving results
-        output_dir = config.output_dir
-        if output_dir is not None:
-            logger.info("Creating output directory structure: %s", output_dir)
-            if not output_dir.exists():
-                logger.info("  Creating output directory %s", output_dir)
-                output_dir.mkdir(parents=True)
-            agents_dir = Path(output_dir, "agents")
-            if not agents_dir.exists():
-                logger.info("  Creating agents directory %s", agents_dir)
-                agents_dir.mkdir(parents=True, exist_ok=True)
-            results_dir = Path(output_dir, "results")
-            if not results_dir.exists():
-                logger.info("  Creating results directory %s", results_dir)
-                results_dir.mkdir(parents=True, exist_ok=True)
+        self._setup_folders(config)
 
         # Prompting components
         self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
@@ -105,6 +91,27 @@ class AXSAgent:
         self._distance = None
 
         # Utility components
+        self._setup_utilities(config, **kwargs)
+
+    def _setup_folders(self, config: Config) -> None:
+        """Set up the folder structure for saving results."""
+        output_dir = config.output_dir
+        if output_dir is not None:
+            logger.info("Creating output directory structure: %s", output_dir)
+            if not output_dir.exists():
+                logger.info("  Creating output directory %s", output_dir)
+                output_dir.mkdir(parents=True)
+            agents_dir = Path(output_dir, "agents")
+            if not agents_dir.exists():
+                logger.info("  Creating agents directory %s", agents_dir)
+                agents_dir.mkdir(parents=True, exist_ok=True)
+            results_dir = Path(output_dir, "results")
+            if not results_dir.exists():
+                logger.info("  Creating results directory %s", results_dir)
+                results_dir.mkdir(parents=True, exist_ok=True)
+
+    def _setup_utilities(self, config: Config, **kwargs: dict[str, Any]) -> None:
+        """Set up the utility components of the agent."""
         if "macro_type" in kwargs:
             macro_type: type[MacroAction] = kwargs["macro_type"]
             if not issubclass(macro_type, MacroAction):
@@ -137,13 +144,11 @@ class AXSAgent:
         else:
             self._query = Query.get(config.axs.query.type_name)
 
-    def explain(self, user_prompt: str, context_only: bool = False) -> tuple[str, dict]:
+    def explain(self, user_prompt: str) -> tuple[str, dict]:
         """Explain behaviour based on the user's prompt.
 
         Args:
             user_prompt (str): The user's prompt to the agent.
-            context_only (bool): If True, only the context is returned.
-                This can be useful if only the context verbalization is needed.
 
         Returns:
             tuple[str, dict]: The explanation and the results of the explanation.
@@ -209,10 +214,6 @@ class AXSAgent:
         )
         logger.info("Context prompt: %s", context_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("user", context_prompt))
-
-        # If only context is needed, return it and exit
-        if context_only:
-            return context_prompt, {}
 
         n = 1
         n_max = self.config.axs.n_max
