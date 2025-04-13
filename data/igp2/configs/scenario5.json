@@ -35,15 +35,11 @@
         "user_prompts": [
             {
                 "time": 160,
-                "template": "What would have happened if vehicle 1 had gone through the junction instead of stopping?"
+                "template": "Why did vehicle 0 collide?"
             },
             {
                 "time": 160,
-                "template": "Why did vehicle 0 not stop?"
-            },
-            {
-                "time": 160,
-                "template": "What would have happened if vehicle 0 had stopped?"
+                "template": "How could have vehicle 0 avoided the collision?"
             }
         ]
     },
