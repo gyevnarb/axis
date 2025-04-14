@@ -39,11 +39,11 @@
                 "template": "Why did vehicle 0 not go straight?"
             },
             {
-                "time": 90,
+                "time": 80,
                 "template": "Why did vehicle 0 change lanes left?"
             },
             {
-                "time": 100,
+                "time": 80,
                 "template": "What if vehicle 1 hadn't changed lanes right?"
             }
         ]

@@ -279,6 +279,8 @@ class AXSAgent:
         # Get run results
         results = {
             "success": "DONE" if simulation_results != "FAIL" else "FAIL",
+            "user_prompt": user_prompt,
+            "context": context_dict,
             "messages": deepcopy(self.episodic_memory.memory),
             "explanation": explanation,
             "statistics": statistics,

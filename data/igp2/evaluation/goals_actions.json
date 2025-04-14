@@ -1,0 +1,142 @@
+{
+    "0": {
+        "goals": {
+            "0": "Exit right at the junction and reach the end of that road.",
+            "1": "Reach the end of the current road.",
+            "2": "Stop before the junction.",
+            "3": "Always stay in the right lane."
+        },
+        "actions": {
+            "0": "Turn right.",
+            "1": "Change lanes to the left.",
+            "2": "Stop.",
+            "3": "Follow lane."
+        }
+    },
+    "1": {
+        "goals": {
+            "0": "Reach the end of the current road as fast as possible.",
+            "1": "Turn right at the junction and reach the end of that road.",
+            "2": "Stop before the junction.",
+            "3": "Always stay in the left lane."
+        },
+        "actions": {
+            "0": "Follow lane.",
+            "1": "Turn right.",
+            "2": "Change lanes to the right.",
+            "3": "Stop."
+        }
+    },
+    "2": {
+        "goals": {
+            "0": "Turn right as efficiently as possible.",
+            "1": "Give way to Vehicle 1 until it passes.",
+            "2": "Stop at the junction.",
+            "3": "Turn right without giving way."
+        },
+        "actions": {
+            "0": "Follow lane.",
+            "1": "Turn left.",
+            "2": "Go straight through the junction.",
+            "3": "Stop."
+        }
+    },
+    "3": {
+        "goals": {
+            "0": "Enter the roundabout as efficiently as possible.",
+            "1": "Enter in front of Vehicle 1.",
+            "2": "Stop at the roundabout entry.",
+            "3": "Enter the roundabout without giving way."
+        },
+        "actions": {
+            "0": "Turn right.",
+            "1": "Turn left.",
+            "2": "Change lanes left.",
+            "3": "Stop."
+        }
+    },
+    "4": {
+        "goals": {
+            "0": "Merge as efficiently as possible.",
+            "1": "Merge in front of Vehicle 3.",
+            "2": "Wait for all vehicles to pass.",
+            "3": "Stop at the junction."
+        },
+        "actions": {
+            "0": "Stop.",
+            "1": "Turn left.",
+            "2": "Change lanes right.",
+            "3": "Follow lane."
+        }
+    },
+    "5": {
+        "goals": {
+            "0": "Turn right as efficiently as possible.",
+            "1": "Give way to Vehicle 1 until it passes.",
+            "2": "Stop at the junction.",
+            "3": "Turn right without giving way."
+        },
+        "actions": {
+            "0": "Follow lane.",
+            "1": "Turn left.",
+            "2": "Go straight through the junction.",
+            "3": "Stop."
+        }
+    },
+    "6": {
+        "goals": {
+            "0": "Reach the end of the current road as fast as possible.",
+            "1": "Turn right at the junction and reach the end of that road.",
+            "2": "Stop before the junction.",
+            "3": "Always stay in the left lane."
+        },
+        "actions": {
+            "0": "Follow lane.",
+            "1": "Turn right.",
+            "2": "Change lanes to the right.",
+            "3": "Stop."
+        }
+    },
+    "7": {
+        "goals": {
+            "0": "Reach the end of the current road as fast as possible.",
+            "1": "Turn right at the junction and reach the end of that road.",
+            "2": "Follow vehicle 1's actions.",
+            "3": "Always stay in the right lane."
+        },
+        "actions": {
+            "0": "Change lanes to the left.",
+            "1": "Turn right.",
+            "2": "Follow lane.",
+            "3": "Stop."
+        }
+    },
+    "8": {
+        "goals": {
+            "0": "Turn right at the junction safely.",
+            "1": "Turn left at the junction safely.",
+            "2": "Go straight at the junction safely.",
+            "3": "Stop at the junction."
+        },
+        "actions": {
+            "0": "Turn right.",
+            "1": "Turn left.",
+            "2": "Go straight junction.",
+            "3": "Stop."
+        }
+    },
+    "9": {
+        "goals": {
+            "0": "Turn left and continue to the end of that road.",
+            "1": "Enter the junction before Vehicle 1.",
+            "2": "Turn right at the junction.",
+            "3": "Stop at the junction."
+        },
+        "actions": {
+            "0": "Follow lane.",
+            "1": "Turn left.",
+            "2": "Go straight junction.",
+            "3": "Stop."
+        }
+    }
+}

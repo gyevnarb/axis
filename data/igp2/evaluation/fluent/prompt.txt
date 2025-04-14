@@ -1,0 +1,18 @@
+You evaluate an Explanation in response to a Question about the actions and behaviour of a vehicle in a given context Scenario. The Scenario, Question, and Explanation is given below.
+
+Scenario:
+{scenario}
+
+Question:
+{question}
+
+Explanation:
+{explanation}
+
+Evaluate how well the Explanation answers the Question given the Scenario.
+Your response must be an integer Score on a scale of 1 to 5, where 1 means the Scenario does not answer the Question at all, and 5 means the Explanation answers the Question completely.
+You response must also include a concise Justification of your chosen Score.
+Give your answer in the below format.
+
+Score:
+Justification:

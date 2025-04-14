@@ -98,9 +98,9 @@ def run(ctx: typer.Context) -> None:
 
 @app.command()
 def explain(ctx: typer.Context) -> None:
-    """Evaluate the AXS agent on all explanations in a configuration file.
+    """Explain the AXS agent on all user prompts in a configuration file.
 
-    The scenario must have been run (either completely or using the --dryrun flag),
+    The scenario must have been run previously (completely or using the --dryrun flag),
     with the observation and info data saved to disk (with --save_results flag).
     """
     config = ctx.obj["config"]

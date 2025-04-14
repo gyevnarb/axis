@@ -1,0 +1,21 @@
+You predict the Goal and the next Action of Vehicle 0 in a given context Scenario. For additional help with this, you are given an Explanation in response to a Question about the observed actions and behaviour of Vehicle 0. The Scenario, Question, and Explanation is given below.
+
+Scenario:
+{scenario}
+
+Question:
+{question}
+
+Explanation:
+{explanation}
+
+Predict the future Goal of Vehicle 0 and what its next Action will be.
+For the Goal, you must choose one option from the following list {n_goal} possible Goals:
+{goals}
+For the Action, you must choose one option from the following list of {n_action} possible Actions:
+{actions}
+For both Goal and Action, your response must be a single number indicating which Goal and Action you have chosen.
+Give your answer in the format below.
+
+Goal:
+Action:

@@ -117,20 +117,17 @@ def main(
 
             # Generate explanation to prompt
             user_query = prompt.fill()
-            explanation, exp_results = axs_agent.explain(user_query)
+            _, exp_results = axs_agent.explain(user_query)
 
             end_msg = f"{exp_results['success']} - {param}"
             logger.info(end_msg)
 
+            exp_results["param"] = param
+            exp_results["truncate"] = truncate
+            exp_results["config"] = config
+
             # Save results
-            results.append(
-                {
-                    "param": param,
-                    "config": config,
-                    "truncate": truncate,
-                    "results": exp_results,
-                },
-            )
+            results.append(exp_results)
 
             with save_path.open("wb") as f:
                 pickle.dump(results, f)
