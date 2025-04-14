@@ -56,8 +56,8 @@ def get_fluency_score(
 
 def get_correct_score(
     use_explanation: bool,
-    goals,
-    actions,
+    goals: dict[int, str],
+    maneuvers: dict[int, str],
     results: dict,
     llm: axs.LLMWrapper,
 ) -> float:
@@ -65,16 +65,16 @@ def get_correct_score(
     scenario_context = results["context"]["context"]
 
     if use_explanation:
-        question = results["user_prompt"]
         explanation = results["explanation"]
         prompt = correct_exp_prompt.fill(
             scenario=scenario_context,
-            question=question,
             explanation=explanation,
+            goals=goals,
+            maneuvers=maneuvers,
         )
     else:
         prompt = correct_no_exp_prompt.fill(
-            scenario=scenario_context, goals=goals, actions=actions,
+            scenario=scenario_context, goals=goals, maneuvers=maneuvers,
         )
 
     messages = [
