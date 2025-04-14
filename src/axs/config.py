@@ -21,10 +21,15 @@ POSSIBLE_PROMPTS = [
     "final",
 ]
 COMPLEXITY_PROMPTS = {
-    1: "Your response must be as short and concise as possible. You can only include the absolute most important information.",
+    1: ("Your response must be as short and concise as possible. "
+        "You can only include the absolute most important information."),
     2: "Your response must be concise and clear. Include only important information.",
-    3: "Your response must be as detailed and thorough as possible. Include all relevant information.",
+    3: ("Your response must be as detailed and thorough as possible. "
+        "Include all relevant information."),
 }
+EXPLANATION_STYLE = ("Do not include raw state or action arrays. Do not include "
+                     "explicit references to road, lane, and intersection IDs. "
+                     "Refer to casual releationships.")
 
 
 class Registerable:
@@ -289,7 +294,15 @@ class AXSConfig(ConfigBase):
     @property
     def complexity_prompt(self) -> str:
         """Get the blurb for the complexity level."""
-        return COMPLEXITY_PROMPTS[self.complexity]
+        complexity_dict = COMPLEXITY_PROMPTS
+        if "complexity_prompt" in self._config:
+            complexity_dict = self._config["complexity_prompt"]
+        return complexity_dict[self.complexity]
+
+    @property
+    def explanation_style(self) -> str:
+        """Get the explanation style instruction for the LLM."""
+        return self._config.get("explanation_style", EXPLANATION_STYLE)
 
     @property
     def use_context(self) -> bool:

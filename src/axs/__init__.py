@@ -122,7 +122,7 @@ def explain(ctx: typer.Context) -> None:
     # Iterate over all save files
     import datetime
     import pickle
-    start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+    start_dt = datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d")
     results = {}
     for ep_ix, save_file in enumerate(save_files):
         ep_results = {}

@@ -201,6 +201,7 @@ class AXSAgent:
         system_prompt = self._prompts["system"].fill(
             n_max=self.config.axs.n_max,
             complexity=self.config.axs.complexity_prompt,
+            explanation_style=self.config.axs.explanation_style,
         )
         logger.info("System prompt: %s", system_prompt)
         self.episodic_memory.learn(LLMWrapper.wrap("system", system_prompt))
@@ -263,7 +264,9 @@ class AXSAgent:
 
         # Ask for the final explanation
         final_prompt = self._prompts["final"].fill(
-            complexity=self.config.axs.complexity_prompt, user_prompt=user_prompt,
+            complexity=self.config.axs.complexity_prompt,
+            user_prompt=user_prompt,
+            explanation_style=self.config.axs.explanation_style,
         )
         self.episodic_memory.learn(LLMWrapper.wrap("user", final_prompt))
         logger.info("Final prompt: %s", final_prompt)
@@ -393,6 +396,7 @@ class AXSAgent:
         explanation_prompt = self._prompts["explanation"].fill(
             simulation_context,
             complexity=self.config.axs.complexity_prompt,
+            explanation_style=self.config.axs.explanation_style,
             user_prompt=user_prompt,
             n=statistics["n"],
             n_max=self.config.axs.n_max,

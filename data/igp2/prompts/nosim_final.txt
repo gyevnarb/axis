@@ -1,2 +1,3 @@
 Generate your explanation based on the context given to you in response to the question: {user_prompt}
-Do not include raw state or action arrays. Do not include explicit references to road, lane, and intersection IDs. Refer to casual releationships. {complexity}
+{explanation_style}
+{complexity}

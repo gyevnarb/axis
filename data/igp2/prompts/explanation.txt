@@ -4,5 +4,7 @@ This is the Explanation Stage.
 After running the simulation for your query, the following was observed:
 {context}
 
-I want you to give an explanation to the below question. {complexity}
+I want you to give an explanation to the below question.
+{explanation_style}
+{complexity}
 {user_prompt}
