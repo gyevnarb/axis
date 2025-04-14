@@ -128,8 +128,9 @@ class IGP2Verbalizer(axs.Verbalizer):
 
         for aid in actions_dict:
             context += f"- Vehicle {aid}:\n"
-            if add_observations:
+            if add_observations or add_actions:
                 context += "  - Observations:\n"
+            if add_observations:
                 for signal, data in infos_dict[aid].items():
                     if signal in ["Steering", "Acceleration"]:
                         continue  # Do not include actions here

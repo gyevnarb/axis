@@ -41,7 +41,7 @@ def main(
     n_max: Annotated[
         int,
         typer.Option(help="Maximum number of samples to use."),
-    ] = 10,
+    ] = 6,
 ) -> None:
     """Run AXS agent evaluation with various configurations."""
     complexity = [1, 2] if complexity is None else [complexity]
@@ -91,7 +91,6 @@ def main(
     for param in params:
         config = param.pop("config")
 
-        axs_agent = axs.AXSAgent(config, agent_policies)
         prompt = axs.Prompt(**config.axs.user_prompts[1])
 
         truncations = [True]
@@ -107,6 +106,7 @@ def main(
                 continue
 
             # Load the state of the agent from the file
+            axs_agent = axs.AXSAgent(config, agent_policies)
             axs_agent.load_state(agent_file)
 
             # Truncate the semantic memory until the current time
