@@ -189,6 +189,10 @@ class Query(Registerable, class_type=None):
         # Extract the query parameters
         params = {}
         for arg, arg_val, arg_list, arg_tuple in args_re.findall(match.group(2)):
+            if arg in params:
+                error_msg = f"Duplicate keyword argument: {arg}."
+                raise QueryError(error_msg)
+
             if arg_val:
                 params[arg] = arg_val
             elif arg_list:
@@ -205,7 +209,11 @@ class Query(Registerable, class_type=None):
             if arg_name not in params:
                 error_msg = f"Missing argument name: {arg_name}"
                 raise QueryError(error_msg)
-            params[arg_name] = cls._parse_type(arg_type, params[arg_name])
+            try:
+                params[arg_name] = cls._parse_type(arg_type, params[arg_name])
+            except ValueError as e:
+                error_msg = str(e)
+                raise QueryError(error_msg) from e
 
         return cls(query_name, params)
 
