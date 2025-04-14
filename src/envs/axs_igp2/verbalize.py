@@ -121,25 +121,31 @@ class IGP2Verbalizer(axs.Verbalizer):
             error_msg = "Agent IDs in actions and infos do not match."
             raise ValueError(error_msg)
 
+        add_observations = kwargs.get("add_observations", False)
+        add_macro_actions = kwargs.get("add_macro_actions", False)
+        add_actions = kwargs.get("add_actions", False)
+        add_rewards = kwargs.get("add_rewards", False)
+
         for aid in actions_dict:
             context += f"- Vehicle {aid}:\n"
-            if kwargs.get("add_observations", False):
+            if add_observations:
                 context += "  - Observations:\n"
                 for signal, data in infos_dict[aid].items():
                     if signal in ["Steering", "Acceleration"]:
                         continue  # Do not include actions here
                     context += f"    - {signal}: {data}\n"
-            if kwargs.get("add_macro_actions", False):
-                context += "  - Macro actions (as macro[from-to]): "
-                context += f"[{actions_dict[aid]}]\n"
-            if kwargs.get("add_actions", False):
-                context += "  - Actions:\n"
-                context += f"    - Timesteps: {infos_dict[aid]['Timesteps']}\n"
+            if add_actions:
+                # context += "  - Actions:\n"
+                if not add_observations:
+                    context += f"    - Timesteps: {infos_dict[aid]['Timesteps']}\n"
                 context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
                 context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
+            if add_macro_actions:
+                context += "  - Macro actions (as macro[from-to]): "
+                context += f"[{actions_dict[aid]}]\n"
             if (
-                rewards is not None
-                and kwargs.get("add_rewards", False)
+                add_rewards
+                and rewards is not None
                 and isinstance(rewards, dict)
                 and aid in rewards
             ):
