@@ -180,7 +180,6 @@ def run_gym_env(
             axs_agent.save_state(save_file)
 
     env.close()
-    return axs_agent.episodic_memory[-1]["content"]
 
 
 def run_aec_env(
@@ -250,4 +249,3 @@ def run_aec_env(
         logger.debug("Episode %d terminated.", n + 1)
 
     env.close()
-    return axs_agent.episodic_memory[-1]["content"]
