@@ -4,8 +4,9 @@ Supports offline, localhost, and online LLM models.
 """
 
 import logging
-import sys
+import os
 
+import anthropic
 import openai
 
 from axs.config import LLMConfig
@@ -46,12 +47,15 @@ class LLMWrapper:
                 base_url = "http://localhost:8000/v1"
             self._llm = openai.OpenAI(api_key="EMPTY", base_url=base_url)
         elif self._mode == "online":
-            if not config.base_url:
+            if not config.base_url or "OPENAI" in config.api_key_env_var:
                 self._llm = openai.OpenAI()
+            elif "ANTHROPIC" in config.api_key_env_var:
+                self._llm = anthropic.Anthropic()
             else:
-                api_key = sys.getenv(config.api_key_env_var)
+                api_key = os.getenv(config.api_key_env_var)
                 self._llm = openai.OpenAI(
-                    base_url=config.base_url, api_key=api_key,
+                    base_url=config.base_url,
+                    api_key=api_key,
                 )
         else:
             error_msg = f"Invalid inference mode: {self._mode}"
@@ -92,31 +96,59 @@ class LLMWrapper:
                 f"Multiple models found for {self.config.model}: {internal_name}"
             )
             raise ValueError(error_msg)
-        completions = self._llm.chat.completions.create(
-            model=internal_name[0],
-            messages=_messages,
-            stream=False,
-            seed=self._sampling_params.seed,
-            n=self._sampling_params.n,
-            logit_bias=self._sampling_params.logit_bias,
-            logprobs=self._sampling_params.logprobs,
-            max_tokens=self._sampling_params.max_tokens,
-            presence_penalty=self._sampling_params.presence_penalty,
-            frequency_penalty=self._sampling_params.frequency_penalty,
-            stop=self._sampling_params.stop,
-            temperature=self._sampling_params.temperature,
-            top_p=self._sampling_params.top_p,
-        )
-        responses = [
-            {"role": c.message.role, "content": c.message.content.strip()}
-            for c in completions.choices
-        ]
+        # TODO: Add support for the responses OpenAI API
+        if isinstance(self._llm, anthropic.Anthropic):
+            system_prompt = messages.pop(0)
+            if system_prompt["role"] != "system":
+                error_msg = "First message must be system prompt."
+                raise ValueError(error_msg)
 
-        usage = {
-            "prompt_tokens": completions.usage.prompt_tokens,
-            "completion_tokens": completions.usage.completion_tokens,
-            "total_tokens": completions.usage.total_tokens,
-        }
+            message = self._llm.messages.create(
+                model=internal_name[0],
+                messages=messages,
+                stream=False,
+                max_tokens=self._sampling_params.max_tokens,
+                stop_sequences=self._sampling_params.stop,
+                temperature=self._sampling_params.temperature,
+                top_p=self._sampling_params.top_p,
+                system=system_prompt["content"],
+            )
+            responses = [
+                {"role": message.role, "content": m.text} for m in message.content
+            ]
+            usage = {
+                "prompt_tokens": message.usage.input_tokens,
+                "completion_tokens": message.usage.output_tokens,
+                "total_tokens": message.usage.input_tokens
+                + message.usage.output_tokens
+                + message.usage.cache_creation_input_tokens
+                + message.usage.cache_read_input_tokens,
+            }
+        else:
+            completions = self._llm.chat.completions.create(
+                model=internal_name[0],
+                messages=_messages,
+                stream=False,
+                seed=self._sampling_params.seed,
+                n=self._sampling_params.n,
+                logit_bias=self._sampling_params.logit_bias,
+                logprobs=self._sampling_params.logprobs,
+                max_tokens=self._sampling_params.max_tokens,
+                presence_penalty=self._sampling_params.presence_penalty,
+                frequency_penalty=self._sampling_params.frequency_penalty,
+                stop=self._sampling_params.stop,
+                temperature=self._sampling_params.temperature,
+                top_p=self._sampling_params.top_p,
+            )
+            responses = [
+                {"role": c.message.role, "content": c.message.content.strip()}
+                for c in completions.choices
+            ]
+            usage = {
+                "prompt_tokens": completions.usage.prompt_tokens,
+                "completion_tokens": completions.usage.completion_tokens,
+                "total_tokens": completions.usage.total_tokens,
+            }
 
         logger.info(
             "[bold yellow]LLM response:[/bold yellow]\n%s",

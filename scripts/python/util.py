@@ -1,5 +1,6 @@
 """Get all combinations of experimetal conditions."""
 
+import enum
 import json
 import logging
 from collections.abc import Iterable
@@ -10,6 +11,19 @@ from pathlib import Path
 import axs
 
 logger = logging.getLogger(__name__)
+
+
+class LLMModels(enum.Enum):
+    """Enum for LLM models."""
+
+    llama_70b = "llama-70b"
+    qwen_72b = "qwen-72b"
+    gpt_4o = "gpt-4o"
+    gpt_o1 = "gpt-o1"
+    claude_3_5 = "claude-3.5"
+    claude_3_7 = "claude-3.7"
+    deepseek_v3 = "deepseek-v3"
+    deepseek_r1 = "deepseek-r1"
 
 
 def get_agent(config: axs.Config) -> axs.AXSAgent:

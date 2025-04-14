@@ -97,7 +97,7 @@ def run(ctx: typer.Context) -> None:
 
 
 @app.command()
-def evaluate(ctx: typer.Context) -> None:
+def explain(ctx: typer.Context) -> None:
     """Evaluate the AXS agent on all explanations in a configuration file.
 
     The scenario must have been run (either completely or using the --dryrun flag),

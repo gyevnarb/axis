@@ -75,10 +75,10 @@ def run(
 
 
 @axs.app.command()
-def evaluate(
+def explain(
     ctx: typer.Context,
     save_logs: Annotated[bool, typer.Option(help="Save logs to file.")] = False,
 ) -> None:
     """Evaluate an AXS agent with the IGP2 configurations."""
     init_igp2(ctx, "run", save_logs)
-    axs.evaluate(ctx)
+    axs.explain(ctx)
