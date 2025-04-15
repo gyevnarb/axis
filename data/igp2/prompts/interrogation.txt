@@ -1,4 +1,5 @@
 This is round {n}.
 This is the Interrogation stage.
 
-Give your query to the simulator, specifying concrete values for the keyword arguments. You must reply only with a single query. You must not add anything else in your answer. You may also answer DONE if you do not need more information.
+Choose a query from the list of valid queries. Specify concrete values for the keyword arguments. Reply only with a single query. Do not add anything else in your answer.
+You may also answer DONE if you do not need more information.

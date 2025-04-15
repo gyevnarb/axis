@@ -46,7 +46,7 @@ def main(
     """Run AXS agent evaluation with various configurations."""
     complexity = [1, 2] if complexity is None else [complexity]
 
-    save_name = "features"
+    save_name = f"{model.value}_features"
     if interrogation:
         save_name += "_interrogation"
     if context:

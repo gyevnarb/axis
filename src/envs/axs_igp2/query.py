@@ -142,11 +142,17 @@ class IGP2Query(axs.Query):
         You may refer query variables in your description using the format <variable>.
         These descriptions are used to generate the user prompt for the LLM.
         """
+        # return {
+        #     "add": "What would happen if a new vehicle was present at $location with $goal from the start?",  # noqa: E501
+        #     "remove": "What would happen if $vehicle was removed from the road?",
+        #     "whatif": "What would happen if $vehicle took $actions starting from $time?",  # noqa: E501
+        #     "what": "What will $vehicle be doing at $time?",
+        # }
         return {
-            "add": "What would happen if a new vehicle was present at $location with $goal from the start?",  # noqa: E501
-            "remove": "What would happen if $vehicle was removed from the road?",
-            "whatif": "What would happen if $vehicle took $actions starting from $time?",  # noqa: E501
-            "what": "What will $vehicle be doing at $time?",
+            "add": "Add a new vehicle at $location with $goal from the start of the scenario.",  # noqa: E501
+            "remove": "Remove $vehicle from the scenario.",
+            "whatif": "Replace the observed actions of $vehicle at $time with $actions.",  # noqa: E501
+            "what": "Observe what $vehicle was or will be doing at $time.",
         }
 
     @classmethod

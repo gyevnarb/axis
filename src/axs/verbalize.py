@@ -16,6 +16,15 @@ class Verbalizer(ABC, Registerable, class_type=None):
 
     @staticmethod
     @abstractmethod
+    def reset() -> None:
+        """Reset the verbalizer state.
+
+        This method may be used to reset the verbalizer after each
+        call to the AXSAgent.explanation function.
+        """
+
+    @staticmethod
+    @abstractmethod
     def convert(  # noqa: PLR0913
         observations: list[Any],
         macro_actions: dict[int, list[MacroAction]],

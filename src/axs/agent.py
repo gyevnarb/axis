@@ -164,6 +164,7 @@ class AXSAgent:
         # Reset the internal episodic memory from previous calls and save user prompt.
         self.episodic_memory.reset()
         self.executed_queries.reset()
+        self.verbalizer.reset()
 
         # Save the user prompt to the semantic memory and load cache
         self.semantic_memory.learn(prompts=user_prompt)
@@ -415,8 +416,10 @@ class AXSAgent:
 
     def reset(self) -> None:
         """Reset the agent."""
-        self._semantic_memory.reset()
-        self._episodic_memory.reset()
+        self.semantic_memory.reset()
+        self.episodic_memory.reset()
+        self.executed_queries.reset()
+        self.verbalizer.reset()
 
     def save_state(self, path: str | Path) -> None:
         """Save the agent's state to a file except the LLM."""

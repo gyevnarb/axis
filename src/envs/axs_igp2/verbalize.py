@@ -50,6 +50,13 @@ REWARD_NAME_MAP = {
 class IGP2Verbalizer(axs.Verbalizer):
     """Verbalize the environment, observations, and state for IGP2."""
 
+    layout_printed = False
+
+    @staticmethod
+    def reset() -> None:
+        """Set the layout_printed flag to False."""
+        IGP2Verbalizer.layout_printed = False
+
     @staticmethod
     def convert(
         observations: list[np.ndarray],  # noqa: ARG004
@@ -112,8 +119,9 @@ class IGP2Verbalizer(axs.Verbalizer):
         context = ""
         ret = {}
 
-        if kwargs.get("add_layout", False):
+        if kwargs.get("add_layout", False) and not IGP2Verbalizer.layout_printed:
             context += IGP2Verbalizer.convert_environment(env, **kwargs) + "\n\n"
+            IGP2Verbalizer.layout_printed = True
 
         actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
         infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
