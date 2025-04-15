@@ -25,7 +25,8 @@
             "1": "Turn right.",
             "2": "Change lanes to the right.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 changed lanes left when Vehicle 1 cut in front of it from the left lane and began to slow down. Vehicle 0 inferred that Vehicle 1 was trying to turn right at the junction, which would have slowed down Vehicle 0's path."
     },
     "2": {
         "goals": {
@@ -109,7 +110,8 @@
             "1": "Turn right.",
             "2": "Follow lane.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 changed lanes right when it saw Vehicle 1 change lanes right. Normally, Vehicle 1's actions would have been irrational, but Vehicle 0 inferred from the actions of Vehicle 1, that Vehicle 2 must be blocking the way even though Vehicle 2 was not observed initially."
     },
     "8": {
         "goals": {

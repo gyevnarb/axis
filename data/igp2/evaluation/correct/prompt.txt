@@ -1,0 +1,22 @@
+You are given an Explanation to a Question about the actions and behaviour of a vehicle in a given context Scenario.
+
+Scenario:
+{scenario}
+
+Question:
+{question}
+
+Explanation:
+{explanation}
+
+Determine whether the Explanation is correct, if the following GroundTruth is known to be true.
+
+GroundTruth:
+{ground_truth}
+
+Your response must be either a 1 if the Explanation is correct or a 0 if the Explanation is incorrect.
+You response must also include a short and concise Reasoning of your chosen Score.
+Give your answer in the below format.
+Score:
+Reasoning:
+

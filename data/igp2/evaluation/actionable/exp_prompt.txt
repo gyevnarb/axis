@@ -1,4 +1,4 @@
-You predict the final Goal and the next Maneuver of Vehicle 0 in a given context Scenario. For additional help with this, you are given an Explanation about the observed actions and behaviour of Vehicle 0. The Scenario and Explanation is given below.
+You are given the Scenario and the Explanation below.
 
 Scenario:
 {scenario}
@@ -11,8 +11,9 @@ For the Goal, you must choose one option from the following list 4 possible Goal
 {goals}
 For the Maneuver, you must choose one option from the following list of 4 possible Maneuvers:
 {maneuvers}
-For both Goal and Maneuver, your response must be a single number indicating which Goal and Maneuver you have chosen.
-Give your answer in the format below.
 
-Goal:
-Maneuver:
+For both Goal and Maneuver, your response must be a single number indicating which Goal and Maneuver you have chosen.
+Give your final answer in the format below.
+
+Goal: <your chosen goal>
+Maneuver: <your chosen maneuver>

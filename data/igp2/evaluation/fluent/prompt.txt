@@ -1,4 +1,4 @@
-You evaluate an Explanation in response to a Question about the actions and behaviour of a vehicle in a given context Scenario. The Scenario, Question, and Explanation is given below.
+You are given an Explanation to a Question about the actions and behaviour of a vehicle in a given context Scenario.
 
 Scenario:
 {scenario}
@@ -9,10 +9,15 @@ Question:
 Explanation:
 {explanation}
 
-Evaluate how well the Explanation answers the Question given the Scenario.
-Your response must be an integer Score on a scale of 1 to 5, where 1 means the Scenario does not answer the Question at all, and 5 means the Explanation answers the Question completely.
-You response must also include a concise Justification of your chosen Score.
-Give your answer in the below format.
+Evaluate how well the Explanation answers the Question given the Scenario by answering how much you agree or disagree with the following statements:
+- SufficientDetail: This explanation of why the self-driving car behaved as it did has sufficient detail.
+- Satisfying: This explanation of why the self-driving car behaved as it did is satisfying.
+- Complete: This explanation of why the self-driving car behaved as it did seems complete.
+- Trust: This explanation lets me judge when I should trust and not trust the self-driving car.
 
-Score:
-Justification:
+For each statement, your response must be an integer score on a scale of 1 to 5, where 1 is strongly disagree, 2 is somewhat disagree, 3 is neither agree nor disagree, 4 is somewhat agree, and 5 is strongly agree.
+Give your answer in the following format.
+SufficientDetail:
+Satisfying:
+Complete:
+Trust:
