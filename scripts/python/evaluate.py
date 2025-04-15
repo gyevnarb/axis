@@ -181,7 +181,7 @@ def get_actionable_score(
     maneuver_selection_mapped = mans_order[maneuver_selection]
 
     logger.info(
-        "Actionable scores: Goal: %s, Maneuver: %s",
+        "Actionable scores (remapped): Goal: %s, Maneuver: %s",
         goal_selection_mapped,
         maneuver_selection_mapped,
         extra={"markup": True},
@@ -257,6 +257,7 @@ def main(
     with Path("scripts/python/llm_configs.json").open("r") as f:
         llm_configs = json.load(f)
     sampling_params = llm_configs.pop("sampling_params")
+    sampling_params["max_tokens"] = 1024
     config.llm.config_dict["sampling_params"].update(sampling_params)
     config.llm.config_dict.update(llm_configs[model.value])
     llm = axs.LLMWrapper(config.llm)

@@ -16,7 +16,8 @@ GroundTruth:
 
 Your response must be either a 1 if the Explanation is correct or a 0 if the Explanation is incorrect.
 You response must also include a short and concise Reasoning of your chosen Score.
-Give your answer in the below format.
-Score:
-Reasoning:
+Give your final answer in the below format.
+
+Score: <your Correctness score>
+Reasoning: <your reasoning>
 
