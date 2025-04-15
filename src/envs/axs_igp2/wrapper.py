@@ -201,8 +201,13 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             if end_t == len(observations):
                 start_t = end_t - 3
 
+            observed = [vid in info for info in infos[start_t:end_t]]
+            if sum(observed) < 2:
+                error_msg = f"Vehicle {vid} was not observable at {time}."
+                raise axs.SimulationError(error_msg)
+
             observations = observations[start_t:end_t]
-            infos = [{vid: info[vid]} for info in infos[start_t:end_t]]
+            infos = [{vid: info[vid]} for info in infos[start_t:end_t] if vid in info]
             if vid != ego_id or time < end_t - 1:
                 rewards = None
 

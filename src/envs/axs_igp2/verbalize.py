@@ -418,11 +418,11 @@ class IGP2Verbalizer(axs.Verbalizer):
                 if left_lanes:
                     ret += "    - Left lanes:\n"
                     for lane in left_lanes:
-                        ret += f"      - Lane {rid}:{lane.id}.\n"
+                        ret += f"      - Lane {rid}:{lane.id}\n"
                 if right_lanes:
                     ret += "    - Right lanes:\n"
                     for lane in right_lanes:
-                        ret += f"      - Lane {rid}:{lane.id}.\n"
+                        ret += f"      - Lane {rid}:{lane.id}\n"
         return ret
 
     @staticmethod
