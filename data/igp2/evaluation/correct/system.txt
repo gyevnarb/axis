@@ -1,1 +1,1 @@
-You evaluate explanations in response to a question about the actions and behaviour of vehicles in a given context scenario.
+You evaluate explanations in response to a question about the actions and behaviour of vehicles in a given driving scenario.

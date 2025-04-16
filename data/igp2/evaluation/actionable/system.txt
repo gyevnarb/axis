@@ -1,1 +1,1 @@
-You predict the maneuvers and goals of vehicles in a given context scenario.
+You predict the maneuvers and goals of vehicles in a given driving scenario.

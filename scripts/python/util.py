@@ -166,6 +166,7 @@ def get_combined_score(eval_result: dict[str, Any]) -> float:
 
     # Calculate the geometric mean of the scores
     scores = np.concatenate((fluent, correct))
+    # return np.log(correct[0])
     return np.exp(np.log(scores).mean())
 
 
@@ -264,7 +265,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     # More appropriate figure dimensions for academic publications
     fig_width = 7.0  # Further increased width to accommodate labels and error bars
     fig_height = min(
-        5.0, max(3.5, len(features) * 0.6)
+        5.0, max(3.5, len(features) * 0.6),
     )  # Increased height for better spacing
     fig, ax = plt.figure(figsize=(fig_width, fig_height)), plt.gca()
 
@@ -301,6 +302,8 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     widths.append(cumulative)
     colors.append("#7570b3")  # Different but harmonious color for total
 
+    eps = 0.001  # Small offset to avoid overlap with the arrow
+
     # Draw arrows for each bar
     for i, (left, width, color) in enumerate(zip(lefts, widths, colors, strict=True)):
         y_pos = i
@@ -314,8 +317,8 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
             direction = 1 if width > 0 else -1
             abs_width = abs(width)
 
-            # Calculate arrow head size (proportional to bar width but with min/max lims)
-            head_size = min(max(abs_width * 0.1, 0.01), 0.04)
+            # Calculate arrow head size (prop to bar width but with min/max lims)
+            head_size = max(abs_width * 0.1, eps)
 
             if i < len(lefts) - 1:  # For feature bars
                 # Create arrow shape using polygon vertices
@@ -378,7 +381,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
 
             # Add value labels NEXT TO each arrow instead of on it
             # Only for feature arrows (not the total)
-            if i < len(lefts) - 1 and abs_width > 0.01:
+            if i < len(lefts) - 1 and abs_width > eps:
                 value_text = f"{width:+.1%}"
 
                 # Position text to the right of positive arrows and left of negative ars
@@ -430,16 +433,16 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     ax.set_yticklabels(labels)
 
     # Calculate adequate x-limits to make room for labels and error bars
-    x_min = min(0, *lefts) - max(stds) + 0.1  # Account for error bars on negative side
+    x_min = min(0, *lefts) - 0.1#- max(stds)  # Account for error bars on negative side
     x_max = max(
         lefts[-1] + widths[-1],
         *[lf + w for lf, w in zip(lefts, widths, strict=True)],
-    ) + max(stds)
+    ) + 0.1 #+ max(stds)
     ax.set_xlim(x_min, x_max)
 
     # Formatting for academic publication
     # Use a more descriptive, precise title
-    ax.set_xlabel("Contribution to Performance Score", fontsize=10)
+    ax.set_xlabel("Contribution to Reward", fontsize=10)
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
     # Add a subtle grid
@@ -476,7 +479,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
         edgecolor="lightgray",
     )
 
-    # Show total value as text next to the total bar (only once)
+    # Show total value as text next to the total bar
     plt.text(
         cumulative + 0.01,
         len(labels) - 1,
@@ -508,4 +511,244 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
 
     msg = f"Saved waterfall plot to {save_dir}/{save_name}.png and .pdf"
     logger.info(msg)
+    plt.close()
+
+
+def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) -> None:
+    """Plot actionable values for features with and without explanations as a barplot.
+
+    Args:
+        combined_actionable: Dictionary with feature actionability scores
+
+    """
+    # Set publication-quality plot styling
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["font.serif"] = ["Times New Roman", "DejaVu Serif", "serif"]
+    plt.rcParams["font.size"] = 10
+    plt.rcParams["axes.titlesize"] = 11
+    plt.rcParams["axes.labelsize"] = 10
+    plt.rcParams["xtick.labelsize"] = 9
+    plt.rcParams["ytick.labelsize"] = 9
+    plt.rcParams["legend.fontsize"] = 9
+    plt.rcParams["figure.dpi"] = 300
+
+    # Get unique features from both conditions
+    all_features = set()
+    for explanation_given in ["actionable_exp", "actionable_no_exp"]:
+        all_features.update(combined_actionable[explanation_given].keys())
+    all_features = list(all_features)
+
+    # Define human-readable labels for features
+    feature_labels = {
+        "add_actions": "Raw\nActions",
+        "add_layout": "Road\nLayout",
+        "add_macro_actions": "Macro\nActions",
+        "add_observations": "Raw\nObservations",
+        "complexity": "High\nComplexity",
+        "truncate": "Memory\nTruncation",
+    }
+
+    # Calculate differences for ordering (average of goal and maneuver differences)
+    differences = []
+    for feature in all_features:
+        # Get mean scores for both conditions and both metrics
+        goal_exp = combined_actionable["actionable_exp"].get(
+            feature, {"goal": {"mean": 0}},
+        )["goal"]["mean"]
+        goal_no_exp = combined_actionable["actionable_no_exp"].get(
+            feature, {"goal": {"mean": 0}},
+        )["goal"]["mean"]
+
+        maneuver_exp = combined_actionable["actionable_exp"].get(
+            feature, {"maneuver": {"mean": 0}},
+        )["maneuver"]["mean"]
+        maneuver_no_exp = combined_actionable["actionable_no_exp"].get(
+            feature, {"maneuver": {"mean": 0}},
+        )["maneuver"]["mean"]
+
+        # Calculate average difference
+        avg_diff = ((goal_exp - goal_no_exp) + (maneuver_exp - maneuver_no_exp)) / 2
+        differences.append((feature, avg_diff))
+
+    # Sort features by difference (descending)
+    sorted_features = [f for f, _ in sorted(differences, key=lambda x: -x[1])]
+
+    # Create human-readable labels for x-axis
+    readable_features = [feature_labels.get(f, f) for f in sorted_features]
+
+    # Prepare data for plotting - sizing for academic paper format
+    fig_width = 7.0  # Width in inches (standard journal column width)
+    fig_height = 6.0  # Height in inches
+
+    fig, axs = plt.subplots(2, 1, figsize=(fig_width, fig_height), sharex=True)
+    width = 0.35  # width of the bars
+    x = np.arange(len(sorted_features))
+
+    # Use publication-friendly colors
+    color_exp = "#1b9e77"  # ColorBrewer green - "With Explanation"
+    color_no_exp = "#d95f02"  # ColorBrewer orange - "No Explanation"
+    color_diff = "#7570b3"  # ColorBrewer purple - "Difference"
+
+    # Plot goal and maneuver scores separately
+    for i, key in enumerate(["goal", "maneuver"]):
+        means_exp = [
+            combined_actionable["actionable_exp"].get(f, {key: {"mean": 0}})[key][
+                "mean"
+            ]
+            for f in sorted_features
+        ]
+        stds_exp = [
+            combined_actionable["actionable_exp"].get(f, {key: {"std": 0}})[key]["std"]
+            for f in sorted_features
+        ]
+
+        means_no_exp = [
+            combined_actionable["actionable_no_exp"].get(f, {key: {"mean": 0}})[key][
+                "mean"
+            ]
+            for f in sorted_features
+        ]
+        stds_no_exp = [
+            combined_actionable["actionable_no_exp"].get(f, {key: {"std": 0}})[key][
+                "std"
+            ]
+            for f in sorted_features
+        ]
+
+        # Calculate proper y-axis limit to ensure difference labels are visible
+        max_height = max(
+            [
+                max_val + std + 0.15  # Add padding of 0.15 for academic formatting
+                for max_val, std in zip(
+                    np.maximum(means_exp, means_no_exp),
+                    np.maximum(stds_exp, stds_no_exp),
+                    strict=True,
+                )
+            ],
+        )
+
+        # Plot bars with thinner error bars
+        axs[i].bar(
+            x - width / 2,
+            means_exp,
+            width,
+            label="With Explanation",
+            yerr=stds_exp,
+            capsize=3,
+            color=color_exp,
+            edgecolor="black",
+            linewidth=0.5,
+        )
+        axs[i].bar(
+            x + width / 2,
+            means_no_exp,
+            width,
+            label="No Explanation",
+            yerr=stds_no_exp,
+            capsize=3,
+            color=color_no_exp,
+            edgecolor="black",
+            linewidth=0.5,
+        )
+
+        # Set y-limit to make room for difference annotations
+        axs[i].set_ylim(0, max_height)
+
+        # Add difference values as text with connecting lines
+        for j in range(len(sorted_features)):
+            diff = means_exp[j] - means_no_exp[j]
+            # Position the text at a fixed height within the visible area
+            text_height = 0.9 * max_height
+
+            # Add a line connecting the two bars
+            line_height = max(means_exp[j], means_no_exp[j]) + max(
+                stds_exp[j], stds_no_exp[j],
+            )
+            axs[i].plot(
+                [j - width / 2, j + width / 2],
+                [line_height, line_height],
+                "k-",
+                linewidth=0.5,
+            )
+            axs[i].plot(
+                [j, j], [line_height, text_height], "k--", linewidth=0.5, alpha=0.6,
+            )
+
+            # Add the difference text with a subtle colored background
+            axs[i].text(
+                j,
+                text_height,
+                f"Δ: {diff:.2f}",
+                ha="center",
+                va="center",
+                fontsize=8,
+                fontweight="bold",
+                color="black",
+                bbox={
+                    "facecolor": color_diff,
+                    "alpha": 0.2,
+                    "edgecolor": "gray",
+                    "boxstyle": "round,pad=0.2",
+                    "linewidth": 0.5,
+                },
+            )
+
+        axs[i].set_ylabel(f"{key.capitalize()} Actionability")
+        axs[i].set_title(f"{key.capitalize()} Actionability by Feature")
+        axs[i].set_xticks(x)
+        axs[i].set_xticklabels(readable_features, rotation=45, ha="right")
+        axs[i].grid(
+            axis="y", linestyle="-", alpha=0.15,
+        )  # Subtle grid for academic style
+
+    # Create custom legend with only the needed entries
+    handles = [
+        Patch(
+            facecolor=color_exp,
+            edgecolor="black",
+            linewidth=0.5,
+            label="With Explanation",
+        ),
+        Patch(
+            facecolor=color_no_exp,
+            edgecolor="black",
+            linewidth=0.5,
+            label="No Explanation",
+        ),
+        Patch(
+            facecolor=color_diff,
+            edgecolor="black",
+            linewidth=0.5,
+            alpha=0.2,
+            label="Difference (Δ)",
+        ),
+    ]
+
+    # Position legend above the plot in a single row (better for academic papers)
+    fig.legend(
+        handles=handles,
+        loc="upper center",
+        ncol=3,
+        bbox_to_anchor=(0.5, 1.02),
+        frameon=True,
+        framealpha=0.9,
+        edgecolor="lightgray",
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to make room for the legend
+
+    # Save plot to output directory
+    output_dir = Path("output", "igp2", "plots")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save in both PNG and PDF formats for academic publishing
+    plt.savefig(
+        output_dir / "actionable_features_barplot.png", dpi=600, bbox_inches="tight",
+    )
+    plt.savefig(output_dir / "actionable_features_barplot.pdf", bbox_inches="tight")
+
+    logger.info(
+        "Actionability barplot saved to %s (.png and .pdf)",
+        output_dir / "actionable_features_barplot",
+    )
     plt.close()

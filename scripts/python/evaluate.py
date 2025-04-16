@@ -43,10 +43,10 @@ def get_fluent_score(
     response, usage = llm.chat(messages)
     content = response[0]["content"]
 
-    sufficient_detail = int(re.search(r"SufficientDetail: (\d+)", content).group(1))
-    satisfying = int(re.search(r"Satisfying: (\d+)", content).group(1))
-    complete = int(re.search(r"Complete: (\d+)", content).group(1))
-    trust = int(re.search(r"Trust: (\d+)", content).group(1))
+    sufficient_detail = int(re.search(r"\$ SufficientDetail: (\d+)", content).group(1))
+    satisfying = int(re.search(r"\$ Satisfying: (\d+)", content).group(1))
+    complete = int(re.search(r"\$ Complete: (\d+)", content).group(1))
+    trust = int(re.search(r"\$ Trust: (\d+)", content).group(1))
 
     logger.info(
         "Fluency scores: SufficientDetail: %s, Satisfying: %s, Complete: %s, Trust: %s",
@@ -102,7 +102,7 @@ def get_correct_score(
     response, usage = llm.chat(messages)
     content = response[0]["content"]
 
-    score = int(re.search(r"Score: (\d+)", content).group(1))
+    score = int(re.search(r"\$ Score: (\d+)", content).group(1))
 
     logger.info(
         "Correctness score: %s",
@@ -165,9 +165,9 @@ def get_actionable_score(
     ]
     response, usage = llm.chat(messages)
     content = response[0]["content"]
-    goal_selection = int(re.search(r"Goal: (\d+)", content).group(1))
+    goal_selection = int(re.search(r"\$ Goal: (\d+)", content).group(1))
     goal_selection_mapped = goal_order[goal_selection]
-    maneuver_selection = int(re.search(r"Maneuver: (\d+)", content).group(1))
+    maneuver_selection = int(re.search(r"\$ Maneuver: (\d+)", content).group(1))
     maneuver_selection_mapped = mans_order[maneuver_selection]
 
     logger.info(
@@ -206,9 +206,10 @@ def main(
         ),
     ] = None,
 ) -> None:
-    """Evaluate AXSAgent generated explanations with Claude 3.7."""
-    if model.value not in ["claude-3.5", "claude-3.7"]:
-        error_msg = f"{model.value} is not supported. Use 'claude-3.5' or 'claude-3.7'."
+    """Evaluate AXSAgent generated explanations with Claude or Llama (for debug)."""
+    if model.value not in ["claude-3.5", "claude-3.7", "llama-70b"]:
+        error_msg = (f"{model.value} is not supported. "
+                     f"Use 'claude-3.5', 'claude-3.7', llama-70b.")
         raise ValueError(error_msg)
     results_file = Path(results_file)
 
@@ -243,6 +244,8 @@ def main(
         log_name=save_name,
     )
 
+    logger.info("Evaluating scenario %s with %s", scenario, model.value)
+
     # Load LLM interaction
     with Path("scripts/python/llm_configs.json").open("r") as f:
         llm_configs = json.load(f)
@@ -264,9 +267,14 @@ def main(
 
     if save_path.exists():
         with save_path.open("rb") as f:
-            scores_results = pickle.load(f)
+            try:
+                scores_results = pickle.load(f)
+            except EOFError:
+                scores_results = []
     else:
         scores_results = []
+    logger.info("Loaded %s results from %s", len(scores_results), save_path)
+
     for result in results:
         scores = {}
 
