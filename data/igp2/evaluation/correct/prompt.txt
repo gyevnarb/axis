@@ -9,15 +9,15 @@ Question:
 Explanation:
 {explanation}
 
-Determine whether the Explanation is correct, if the following GroundTruth is known to be true.
+Determine whether the Explanation is correct, if the following (potentially incomplete) Description is known to be true.
 
-GroundTruth:
+Description:
 {ground_truth}
 
-Your response must be either a 1 if the Explanation is correct or a 0 if the Explanation is incorrect.
+Your response must be an integer score on a scale of 1 to 5, where 1 is completely incorrect, 2 is mostly incorrect i, 3 is partially correct, 4 is mostly correct, and 5 is completely correct.
 You response must also include a short and concise Reasoning of your chosen Score.
 Give your final answer in the below format.
 
 Score: <your Correctness score>
-Reasoning: <your reasoning>
+Reasoning: <your Reasoning>
 

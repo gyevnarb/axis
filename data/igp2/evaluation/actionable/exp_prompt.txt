@@ -15,5 +15,5 @@ For the Maneuver, you must choose one option from the following list of 4 possib
 For both Goal and Maneuver, your response must be a single number indicating which Goal and Maneuver you have chosen.
 Give your final answer in the format below.
 
-Goal: <your chosen goal>
-Maneuver: <your chosen maneuver>
+Goal: <your chosen Goal>
+Maneuver: <your chosen Maneuver>

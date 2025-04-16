@@ -3,13 +3,12 @@
 import json
 import logging
 import pickle
-import random
 import re
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from util import LLMModels
+from util import LLMModels, random_order_string
 
 import axs
 
@@ -120,15 +119,6 @@ def get_correct_score(
     }
 
 
-def random_order_string(items: dict[str, str]) -> str:
-    """Return a random order string from a dictionary."""
-    items_list = list(items.items())
-    random.shuffle(items_list)
-    remapped_items = {k: items_list[k][1] for k in range(len(items_list))}
-    shuffle_mapping = {i: int(v[0]) for i, v in enumerate(items_list)}
-    return "\n".join([f"{k}. {v}" for k, v in remapped_items.items()]), shuffle_mapping
-
-
 def get_actionable_score(
     results: dict,
     llm: axs.LLMWrapper,
@@ -220,8 +210,7 @@ def main(
     if model.value not in ["claude-3.5", "claude-3.7"]:
         error_msg = f"{model.value} is not supported. Use 'claude-3.5' or 'claude-3.7'."
         raise ValueError(error_msg)
-
-    model = LLMModels.llama_70b
+    results_file = Path(results_file)
 
     # Read all prompts into a single dictionary with appropriate keys
     prompt_files = Path("data/igp2/evaluation").glob("*/*.txt")
@@ -238,7 +227,7 @@ def main(
     config_path = Path(f"data/igp2/configs/scenario{scenario}.json")
     config = axs.Config(config_path)
 
-    save_name = f"{model.value}_feature_evaluate"
+    save_name = f"evaluate_{model.value}_{results_file.stem}"
     save_path = Path(config.output_dir, "results", f"{save_name}.pkl")
     axs.util.init_logging(
         level="DEBUG",
@@ -247,6 +236,7 @@ def main(
             "matplotlib",
             "httpcore",
             "openai",
+            "anthropic",
             "httpx",
         ],
         log_dir=Path(config.output_dir, "logs"),
@@ -272,14 +262,35 @@ def main(
     with results_path.open("rb") as f:
         results = pickle.load(f)
 
-    scores_results = []
+    if save_path.exists():
+        with save_path.open("rb") as f:
+            scores_results = pickle.load(f)
+    else:
+        scores_results = []
     for result in results:
         scores = {}
+
+        new_params = result["param"].copy()
+        new_params["truncate"] = result["truncate"]
+
+        if any(new_params == res["param"] for res in scores_results):
+            logger.info("Already evaluated %s", new_params)
+            continue
+
+        scores["param"] = new_params
         scores["actionable_exp"] = get_actionable_score(
-            result, llm, prompts["actionable"], goals_actions, use_explanation=True,
+            result,
+            llm,
+            prompts["actionable"],
+            goals_actions,
+            use_explanation=True,
         )
         scores["actionable_no_exp"] = get_actionable_score(
-            result, llm, prompts["actionable"], goals_actions, use_explanation=False,
+            result,
+            llm,
+            prompts["actionable"],
+            goals_actions,
+            use_explanation=False,
         )
         scores["correct"] = get_correct_score(
             result,
@@ -288,6 +299,7 @@ def main(
             goals_actions["correct"],
         )
         scores["fluent"] = get_fluent_score(result, llm, prompts["fluent"])
+
         scores_results.append(scores)
 
         with save_path.open("wb") as f:
