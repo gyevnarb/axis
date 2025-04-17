@@ -34,18 +34,18 @@ def shapley(
     eval_model: Annotated[
         LLMModels | None,
         typer.Option("-e", "--eval-model", help="The model used for evaluation."),
-    ] = None,
+    ] = "all",
 ) -> None:
     """Calculate Shapley values for features and rank over all scenarios."""
-    scenario = ctx.obj["scenario"]
+    ctx.obj["eval_model"] = eval_model
 
-    save_paths = get_save_paths(ctx, eval_model)
+    save_paths = get_save_paths(ctx)
     if not save_paths:
         return
 
     shapley_results = {}
     for save_path in save_paths:
-        eval_results, (eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
+        eval_results, (sid, eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
         if eval_results is None:
             continue
 
@@ -59,7 +59,7 @@ def shapley(
                 features.add("complexity")
             scores[frozenset(features)] = get_combined_score(eval_dict)
 
-        shapley_results[f"{scenario}_{eval_m_str}_{gen_m_str}"] = get_shapley_values(
+        shapley_results[f"{sid}_{eval_m_str}_{gen_m_str}"] = get_shapley_values(
             scores,
         )
 
@@ -101,7 +101,7 @@ def shapley(
             axs_igp2.verbalize.util.ndarray2str(scores, 4),
         )
 
-    plot_shapley_waterfall(combined_shapley)
+    plot_shapley_waterfall(combined_shapley, ctx)
 
 
 @app.command()
@@ -110,18 +110,18 @@ def actionable(
     eval_model: Annotated[
         LLMModels | None,
         typer.Option("-em", "--eval-model", help="The model used for evaluation."),
-    ] = None,
+    ] = "all",
 ) -> None:
     """Calculate actionability scores for each feature and rank over all scenarios."""
-    scenario = ctx.obj["scenario"]
+    ctx.obj["eval_model"] = eval_model
 
-    save_paths = get_save_paths(ctx, eval_model)
+    save_paths = get_save_paths(ctx)
     if not save_paths:
         return
 
     actionable_results = {}
     for save_path in reversed(save_paths):
-        eval_results, (eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
+        eval_results, (sid, eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
         if eval_results is None:
             continue
 
@@ -141,7 +141,7 @@ def actionable(
                     get_actionable_accuracy(eval_dict[explanation_given])
                 )
 
-        actionable_results[f"{scenario}_{eval_m_str}_{gen_m_str}"] = (
+        actionable_results[f"{sid}_{eval_m_str}_{gen_m_str}"] = (
             get_actionable_values(
                 scores,
             )
@@ -318,7 +318,7 @@ def main(  # noqa: PLR0913
             min=-1,
             max=9,
         ),
-    ] = 1,
+    ] = -1,
     model: Annotated[
         LLMModels | None,
         typer.Option(

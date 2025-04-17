@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 from itertools import chain, combinations
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -18,11 +18,36 @@ import numpy as np
 import typer
 from matplotlib import rcParams
 from matplotlib.patches import Patch, Polygon
+from rich.console import Console
+from rich.table import Table
 from scipy.special import factorial
 
 import axs
 
 logger = logging.getLogger(__name__)
+app = typer.Typer()
+
+
+MODEL_NAME_MAP = {
+    "llama70b": "LLaMA-3.3 70B",
+    "qwen72b": "Qwen-2.5 72B",
+    "gpt41": "GPT-4.1",
+    "gpt4o": "GPT-4o",
+    "gpto1": "o1",
+    "claude35": "Claude 3.5",
+    "claude37": "Claude 3.7",
+    "deepseekv3": "DeepSeek-V3",
+    "deepseekr1": "DeepSeek-R1",
+}
+
+FEATURE_LABELS = {
+    "add_actions": "Raw Actions",
+    "add_layout": "Road Layout",
+    "add_macro_actions": "Macro Actions",
+    "add_observations": "Raw Observations",
+    "complexity": "High Complexity",
+    "truncate": "Memory Truncation",
+}
 
 
 class LLMModels(enum.Enum):
@@ -40,6 +65,120 @@ class LLMModels(enum.Enum):
     all_model = "all"
 
 
+def parse_filename(filename: str) -> dict:
+    """Parse the filename to extract evaluation details."""
+    pattern = r"evaluate_(?P<eval_llm>[^_]+)_(?P<gen_llm>[^_]+)_(?P<features>features)?(?P<interrogation>_interrogation)?(?P<context>_context)?\.pkl"
+    match = re.match(pattern, filename)
+    if match:
+        return {
+            "Evaluation LLM": match.group("eval_llm"),
+            "Generation LLM": match.group("gen_llm"),
+            "Feature Evaluation": "Yes" if match.group("features") else "No",
+            "Interrogation": "Yes" if match.group("interrogation") else "No",
+            "Context": "Yes" if match.group("context") else "No",
+        }
+    # Handle non-evaluate file names
+    gen_llm_match = re.match(r"(?P<gen_llm>[^_]+)_.*\.pkl", filename)
+    return {
+        "Evaluation LLM": "-",  # Default value for non-evaluate files
+        "Generation LLM": gen_llm_match.group("gen_llm") if gen_llm_match else "-",
+        "Feature Evaluation": "Yes" if "features" in filename else "No",
+        "Interrogation": "Yes" if "_interrogation" in filename else "No",
+        "Context": "Yes" if "_context" in filename else "No",
+    }
+
+
+@app.command()
+def results_summary(
+    show_file_length: Annotated[
+        bool,
+        typer.Option(
+            "-l",
+            "--length",
+            help="Whether to show number of items in each file. Slow",
+        ),
+    ] = False,
+) -> False:
+    """Print the contents of all scenario results directories in a table.
+
+    Args:
+        show_file_length (bool): Whether to include a column for file length.
+
+    """
+    base_dir = Path("output", "igp2")
+    console = Console()
+    table = Table(title="Results Directory Contents (All Scenarios)")
+
+    # Add table columns
+    table.add_column("Scenario", justify="center", style="cyan", no_wrap=True)
+    table.add_column("File Name", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Result Type", justify="center", style="magenta")
+    table.add_column("Evaluation LLM", justify="center", style="magenta")
+    table.add_column("Generation LLM", justify="center", style="green")
+    table.add_column("Interrogation", justify="center", style="blue")
+    table.add_column("Context", justify="center", style="red")
+    if show_file_length:
+        table.add_column("File Length (N)", justify="right", style="yellow")
+
+    # Check if the base directory exists
+    if not base_dir.exists():
+        console.print(f"[red]Error:[/red] Base directory '{base_dir}' does not exist.")
+        return
+
+    # Iterate through all scenario directories
+    for scenario_dir in sorted(base_dir.glob("scenario*/results")):
+        scenario_name = scenario_dir.parent.name
+        if not scenario_dir.exists():
+            continue
+
+        # Iterate through files in the results directory
+        for file in sorted(scenario_dir.glob("*.pkl")):
+            parsed_data = parse_filename(file.name)
+            result_type = file.name.split("_")[0] if "_" in file.name else "None"
+
+            # Change "evaluate" to "feature" if the file indicates feature evaluation
+            result_name = ""
+            if result_type == "evaluate":
+                result_name += "eval"
+            else:
+                result_name += "gen"
+            if "features" in file.name:
+                result_name += "_feats"
+
+            if show_file_length:
+                with file.open("rb") as f:
+                    file_length = len(pickle.load(f))
+
+            if parsed_data:
+                row = [
+                    scenario_name.replace("scenario", ""),
+                    file.name,
+                    result_name,
+                    parsed_data["Evaluation LLM"],
+                    parsed_data["Generation LLM"],
+                    parsed_data["Interrogation"],
+                    parsed_data["Context"],
+                ]
+                if show_file_length:
+                    row.append(str(file_length))
+                table.add_row(*row)
+            else:
+                row = [
+                    scenario_name.replace("scenario", ""),
+                    file.name,
+                    result_name,
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                ]
+                if show_file_length:
+                    row.append(str(file_length))
+                table.add_row(*row)
+
+    console.print(table)
+
+
 def get_agent(config: axs.Config) -> axs.AXSAgent:
     """Create an AXS agent with the given configuration."""
     env = axs.util.load_env(config.env, config.env.render_mode)
@@ -50,7 +189,7 @@ def get_agent(config: axs.Config) -> axs.AXSAgent:
     return axs.AXSAgent(config, agent_policies)
 
 
-def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
+def get_save_paths(ctx: typer.Context) -> list[Path]:
     """Load results from the specified directory.
 
     Args:
@@ -59,6 +198,7 @@ def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
 
     """
     generation_model = ctx.obj["model"]
+    eval_model = ctx.obj["eval_model"]
     interrogation = ctx.obj["interrogation"]
     context = ctx.obj["context"]
     scenario = ctx.obj["scenario"]
@@ -74,9 +214,12 @@ def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
         ],
     )
 
-    save_name = "evaluate_*" if eval_model is None else f"evaluate_{eval_model.value}"
-    if generation_model.value != "all":
-        save_name += f"_{generation_model.value}"
+    save_name = (
+        "evaluate_*" if eval_model.value == "all" else f"evaluate_{eval_model.value}"
+    )
+    save_name += (
+        f"_{generation_model.value}" if generation_model.value != "all" else "_*"
+    )
     save_name += "_features"
     if interrogation:
         save_name += "_interrogation"
@@ -91,7 +234,7 @@ def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
         save_paths = list(
             Path("output", "igp2", f"scenario{scenario}").glob(
                 f"results/{save_name}.pkl",
-            )
+            ),
         )
     if not save_paths:
         logger.error("No results found for the given parameters.")
@@ -105,15 +248,16 @@ def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
 
 
 def load_eval_results(
-    ctx: typer.Context, save_path: Path
-) -> tuple[dict[str, Any], str] | tuple[None, None]:
+    ctx: typer.Context,
+    save_path: Path,
+) -> tuple[dict[str, Any], tuple[str, str, str]] | tuple[None, tuple[None, None, None]]:
     """Load evaluation results from the specified file."""
     scenario = ctx.obj["scenario"]
 
     sid = re.search(r"scenario(\d+)", str(save_path)).group(1)
-    if scenario != "-1" and int(sid) != scenario:
+    if scenario != -1 and int(sid) != scenario:
         logger.info("Not loading: %s", str(save_path))
-        return None, None
+        return None, (None, None, None)
     eval_model_str, gen_model_str = str(save_path.stem).split("_")[1:3]
     logger.info(
         "Processed eval model: %s; Gen model: %s",
@@ -122,7 +266,7 @@ def load_eval_results(
     )
     with save_path.open("rb") as f:
         eval_results = pickle.load(f)
-        return eval_results, (eval_model_str, gen_model_str)
+        return eval_results, (sid, eval_model_str, gen_model_str)
 
 
 def powerset(iterable: Iterable) -> list[tuple]:
@@ -308,7 +452,10 @@ def get_actionable_accuracy(eval_result: dict[str, Any]) -> tuple[int, int]:
     return int(goal_correct), int(maneuver_correct)
 
 
-def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
+def plot_shapley_waterfall(
+    combined_shapley: dict[str, float],
+    ctx: typer.Context,
+) -> None:
     """Create waterfall plot with arrow indicators for feature contributions."""
     # Set publication-quality plot styling
     rcParams["font.family"] = "serif"
@@ -320,16 +467,6 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     rcParams["ytick.labelsize"] = 9
     rcParams["legend.fontsize"] = 8
     rcParams["figure.dpi"] = 300
-
-    # Define human-readable labels for features
-    feature_labels = {
-        "add_actions": "Raw Actions",
-        "add_layout": "Road Layout",
-        "add_macro_actions": "Macro Actions",
-        "add_observations": "Raw Observations",
-        "complexity": "High Complexity",
-        "truncate": "Memory Truncation",
-    }
 
     # Sort features by mean Shapley value
     sorted_features = sorted(
@@ -351,7 +488,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     fig, ax = plt.figure(figsize=(fig_width, fig_height)), plt.gca()
 
     # Convert feature names to human-readable labels
-    readable_features = [feature_labels.get(feature, feature) for feature in features]
+    readable_features = [FEATURE_LABELS.get(feature, feature) for feature in features]
 
     # Labels for y-axis (vertical layout)
     labels = ["Baseline", *readable_features, "Total"]
@@ -535,7 +672,20 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
 
     # Formatting for academic publication
     # Use a more descriptive, precise title
-    ax.set_xlabel("Contribution to Reward", fontsize=10)
+    s_name = ctx.obj["scenario"]
+    s_name = f"{s_name}" if s_name != -1 else "all"
+    gen_model = ctx.obj["model"].value
+    gen_model = gen_model if gen_model != "all" else "all"
+    eval_model = ctx.obj["eval_model"].value
+    eval_model = eval_model if eval_model != "all" else "all"
+    ax.set_xlabel(
+        (
+            f"Reward Contribution (Scenario: {s_name}; "
+            f"Eval: {MODEL_NAME_MAP.get(eval_model, eval_model)}; "
+            f"Gen: {MODEL_NAME_MAP.get(gen_model, gen_model)})"
+        ),
+        fontsize=10,
+    )
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
     # Add a subtle grid
@@ -596,7 +746,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Create filename with relevant parameters
-    save_name = "shapley_waterfall"
+    save_name = f"shapley_s{s_name}_{eval_model}_{gen_model}"
 
     # Save the plot in high resolution for publication
     plt.savefig(save_dir / f"{save_name}.png", dpi=600, bbox_inches="tight")
@@ -858,3 +1008,7 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
         output_dir / "actionable_features_barplot",
     )
     plt.close()
+
+
+if __name__ == "__main__":
+    app()

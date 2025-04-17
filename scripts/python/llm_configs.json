@@ -5,50 +5,50 @@
         "temperature": 0.8,
         "top_p": 0.95
     },
-    "gpt-4.1": {
+    "gpt41": {
         "inference_mode": "online",
         "model": "gpt-4.1-2025-04-14",
         "api_key_env_var": "OPENAI_API_KEY"
     },
-    "gpt-4o": {
+    "gpt4o": {
         "inference_mode": "online",
         "model": "gpt-4o-2024-11-20",
         "api_key_env_var": "OPENAI_API_KEY"
     },
-    "gpt-o1": {
+    "gpto1": {
         "inference_mode": "online",
         "model": "o1-2024-12-17",
         "api_key_env_var": "OPENAI_API_KEY"
     },
-    "deepseek-v3": {
+    "deepseekv3": {
         "inference_mode": "online",
         "model": "deepseek-chat",
         "base_url": "https://api.deepseek.com",
         "api_key_env_var": "DEEPSEEK_API_KEY"
     },
-    "deepseek-r1": {
+    "deepseekr1": {
         "inference_mode": "online",
         "model": "deepseek-reasoner",
         "base_url": "https://api.deepseek.com",
         "api_key_env_var": "DEEPSEEK_API_KEY"
     },
-    "claude-3.5": {
+    "claude35": {
         "inference_mode": "online",
         "model": "claude-3-5-haiku-20241022",
         "base_url": "https://api.anthropic.com",
         "api_key_env_var": "ANTHROPIC_API_KEY"
     },
-    "claude-3.7": {
+    "claude37": {
         "inference_mode": "online",
         "model": "claude-3-7-sonnet-20250219",
         "base_url": "https://api.anthropic.com",
         "api_key_env_var": "ANTHROPIC_API_KEY"
     },
-    "llama-70b": {
+    "llama70b": {
         "inference_mode": "localhost",
         "model": "meta-llama/Llama-3.3-70B-Instruct"
     },
-    "qwen-72b": {
+    "qwen72b": {
         "inference_mode": "localhost",
         "model": "Qwen/Qwen2.5-72B-Instruct"
     }

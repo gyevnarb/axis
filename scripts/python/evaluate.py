@@ -197,7 +197,7 @@ def main(
     ] = 1,
     model: Annotated[
         LLMModels,
-        typer.Option("-m", "--m", help="The LLM model to use."),
+        typer.Option("-m", "--model", help="The LLM model to use for evaluation."),
     ] = "claude35",
     results_file: Annotated[
         str | None,
