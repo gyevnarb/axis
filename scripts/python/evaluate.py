@@ -191,12 +191,14 @@ def get_actionable_score(
 def main(
     scenario: Annotated[
         int,
-        typer.Argument(help="The scenario to evaluate.", min=0, max=9),
+        typer.Option(
+            "-s", "--scenario", help="The scenario to evaluate.", min=0, max=9,
+        ),
     ] = 1,
     model: Annotated[
         LLMModels,
-        typer.Argument(help="The LLM model to use."),
-    ] = "claude-3.5",
+        typer.Option("-m", "--m", help="The LLM model to use."),
+    ] = "claude35",
     results_file: Annotated[
         str | None,
         typer.Option(
@@ -207,10 +209,6 @@ def main(
     ] = None,
 ) -> None:
     """Evaluate AXSAgent generated explanations with Claude or Llama (for debug)."""
-    if model.value not in ["claude-3.5", "claude-3.7", "llama-70b"]:
-        error_msg = (f"{model.value} is not supported. "
-                     f"Use 'claude-3.5', 'claude-3.7', llama-70b.")
-        raise ValueError(error_msg)
     results_file = Path(results_file)
 
     # Read all prompts into a single dictionary with appropriate keys
@@ -244,7 +242,12 @@ def main(
         log_name=save_name,
     )
 
-    logger.info("Evaluating scenario %s with %s", scenario, model.value)
+    logger.info(
+        "Evaluating scenario %s with %s on %s",
+        scenario,
+        model.value,
+        results_file,
+    )
 
     # Load LLM interaction
     with Path("scripts/python/llm_configs.json").open("r") as f:

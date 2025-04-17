@@ -3,7 +3,9 @@
 import enum
 import json
 import logging
+import pickle
 import random
+import re
 from collections.abc import Iterable
 from copy import deepcopy
 from itertools import chain, combinations
@@ -13,6 +15,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import typer
 from matplotlib import rcParams
 from matplotlib.patches import Patch, Polygon
 from scipy.special import factorial
@@ -25,14 +28,16 @@ logger = logging.getLogger(__name__)
 class LLMModels(enum.Enum):
     """Enum for LLM models."""
 
-    llama_70b = "llama-70b"
-    qwen_72b = "qwen-72b"
-    gpt_4o = "gpt-4o"
-    gpt_o1 = "gpt-o1"
-    claude_3_5 = "claude-3.5"
-    claude_3_7 = "claude-3.7"
-    deepseek_v3 = "deepseek-v3"
-    deepseek_r1 = "deepseek-r1"
+    llama_70b = "llama70b"
+    qwen_72b = "qwen72b"
+    gpt_4_1 = "gpt41"
+    gpt_4o = "gpt4o"
+    gpt_o1 = "gpto1"
+    claude_3_5 = "claude35"
+    claude_3_7 = "claude37"
+    deepseek_v3 = "deepseekv3"
+    deepseek_r1 = "deepseekr1"
+    all_model = "all"
 
 
 def get_agent(config: axs.Config) -> axs.AXSAgent:
@@ -43,6 +48,81 @@ def get_agent(config: axs.Config) -> axs.AXSAgent:
 
     agent_policies = axs.registry.get(config.env.policy_type).create(env)
     return axs.AXSAgent(config, agent_policies)
+
+
+def get_save_paths(ctx: typer.Context, eval_model: LLMModels) -> list[Path]:
+    """Load results from the specified directory.
+
+    Args:
+        ctx (typer.Context): Typer context.
+        eval_model (LLMModels): Evaluation model.
+
+    """
+    generation_model = ctx.obj["model"]
+    interrogation = ctx.obj["interrogation"]
+    context = ctx.obj["context"]
+    scenario = ctx.obj["scenario"]
+
+    axs.util.init_logging(
+        level="INFO",
+        warning_only=[
+            "igp2.core.velocitysmoother",
+            "matplotlib",
+            "httpcore",
+            "openai",
+            "httpx",
+        ],
+    )
+
+    save_name = "evaluate_*" if eval_model is None else f"evaluate_{eval_model.value}"
+    if generation_model.value != "all":
+        save_name += f"_{generation_model.value}"
+    save_name += "_features"
+    if interrogation:
+        save_name += "_interrogation"
+    if context:
+        save_name += "_context"
+
+    if scenario == -1:
+        save_paths = list(
+            Path("output", "igp2").glob(f"scenario*/results/{save_name}.pkl"),
+        )
+    else:
+        save_paths = list(
+            Path("output", "igp2", f"scenario{scenario}").glob(
+                f"results/{save_name}.pkl",
+            )
+        )
+    if not save_paths:
+        logger.error("No results found for the given parameters.")
+        return []
+    logger.info(
+        "Found %d results files: %s",
+        len(save_paths),
+        list(map(str, save_paths)),
+    )
+    return save_paths
+
+
+def load_eval_results(
+    ctx: typer.Context, save_path: Path
+) -> tuple[dict[str, Any], str] | tuple[None, None]:
+    """Load evaluation results from the specified file."""
+    scenario = ctx.obj["scenario"]
+
+    sid = re.search(r"scenario(\d+)", str(save_path)).group(1)
+    if scenario != "-1" and int(sid) != scenario:
+        logger.info("Not loading: %s", str(save_path))
+        return None, None
+    eval_model_str, gen_model_str = str(save_path.stem).split("_")[1:3]
+    logger.info(
+        "Processed eval model: %s; Gen model: %s",
+        eval_model_str,
+        gen_model_str,
+    )
+    with save_path.open("rb") as f:
+        eval_results = pickle.load(f)
+        return eval_results, (eval_model_str, gen_model_str)
 
 
 def powerset(iterable: Iterable) -> list[tuple]:
@@ -265,7 +345,8 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     # More appropriate figure dimensions for academic publications
     fig_width = 7.0  # Further increased width to accommodate labels and error bars
     fig_height = min(
-        5.0, max(3.5, len(features) * 0.6),
+        5.0,
+        max(3.5, len(features) * 0.6),
     )  # Increased height for better spacing
     fig, ax = plt.figure(figsize=(fig_width, fig_height)), plt.gca()
 
@@ -362,7 +443,10 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
                     ]
             else:  # For total bar (no arrow head)
                 # Regular rectangle for the total
-                x_points = [left, left + abs_width, left + abs_width, left]
+                if direction > 0:
+                    x_points = [left, left + abs_width, left + abs_width, left]
+                else:
+                    x_points = [left, left - abs_width, left - abs_width, left]
                 y_points = [
                     y_pos - arrow_width / 2,
                     y_pos - arrow_width / 2,
@@ -389,7 +473,7 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
                     text_x = left + abs_width + 0.01  # Offset to right
                     ha = "left"
                 else:
-                    text_x = left - 0.01  # Offset to left
+                    text_x = left - abs_width - 0.01  # Offset to left
                     ha = "right"
 
                 # Black text for better readability
@@ -433,11 +517,20 @@ def plot_shapley_waterfall(combined_shapley: dict[str, float]) -> None:
     ax.set_yticklabels(labels)
 
     # Calculate adequate x-limits to make room for labels and error bars
-    x_min = min(0, *lefts) - 0.1#- max(stds)  # Account for error bars on negative side
-    x_max = max(
-        lefts[-1] + widths[-1],
-        *[lf + w for lf, w in zip(lefts, widths, strict=True)],
-    ) + 0.1 #+ max(stds)
+    x_min = (
+        min(
+            lefts[-1] + widths[-1],
+            *[lf + w for lf, w in zip(lefts, widths, strict=True)],
+        )
+        - 0.12
+    )  # Account for error bars on negative side
+    x_max = (
+        max(
+            lefts[-1] + widths[-1],
+            *[lf + w for lf, w in zip(lefts, widths, strict=True)],
+        )
+        + 0.12
+    )  # + max(stds)
     ax.set_xlim(x_min, x_max)
 
     # Formatting for academic publication
@@ -553,17 +646,21 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
     for feature in all_features:
         # Get mean scores for both conditions and both metrics
         goal_exp = combined_actionable["actionable_exp"].get(
-            feature, {"goal": {"mean": 0}},
+            feature,
+            {"goal": {"mean": 0}},
         )["goal"]["mean"]
         goal_no_exp = combined_actionable["actionable_no_exp"].get(
-            feature, {"goal": {"mean": 0}},
+            feature,
+            {"goal": {"mean": 0}},
         )["goal"]["mean"]
 
         maneuver_exp = combined_actionable["actionable_exp"].get(
-            feature, {"maneuver": {"mean": 0}},
+            feature,
+            {"maneuver": {"mean": 0}},
         )["maneuver"]["mean"]
         maneuver_no_exp = combined_actionable["actionable_no_exp"].get(
-            feature, {"maneuver": {"mean": 0}},
+            feature,
+            {"maneuver": {"mean": 0}},
         )["maneuver"]["mean"]
 
         # Calculate average difference
@@ -662,7 +759,8 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
 
             # Add a line connecting the two bars
             line_height = max(means_exp[j], means_no_exp[j]) + max(
-                stds_exp[j], stds_no_exp[j],
+                stds_exp[j],
+                stds_no_exp[j],
             )
             axs[i].plot(
                 [j - width / 2, j + width / 2],
@@ -671,7 +769,11 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
                 linewidth=0.5,
             )
             axs[i].plot(
-                [j, j], [line_height, text_height], "k--", linewidth=0.5, alpha=0.6,
+                [j, j],
+                [line_height, text_height],
+                "k--",
+                linewidth=0.5,
+                alpha=0.6,
             )
 
             # Add the difference text with a subtle colored background
@@ -693,12 +795,14 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
                 },
             )
 
-        axs[i].set_ylabel(f"{key.capitalize()} Actionability")
+        axs[i].set_ylabel(f"{key.capitalize()} Accuracy")
         axs[i].set_title(f"{key.capitalize()} Actionability by Feature")
         axs[i].set_xticks(x)
         axs[i].set_xticklabels(readable_features, rotation=45, ha="right")
         axs[i].grid(
-            axis="y", linestyle="-", alpha=0.15,
+            axis="y",
+            linestyle="-",
+            alpha=0.15,
         )  # Subtle grid for academic style
 
     # Create custom legend with only the needed entries
@@ -743,7 +847,9 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
 
     # Save in both PNG and PDF formats for academic publishing
     plt.savefig(
-        output_dir / "actionable_features_barplot.png", dpi=600, bbox_inches="tight",
+        output_dir / "actionable_features_barplot.png",
+        dpi=600,
+        bbox_inches="tight",
     )
     plt.savefig(output_dir / "actionable_features_barplot.pdf", bbox_inches="tight")
 

@@ -2,12 +2,10 @@
 
 import logging
 import pickle
-import re
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import pandas as pd
 import typer
 from util import (
     LLMModels,
@@ -15,7 +13,9 @@ from util import (
     get_actionable_values,
     get_combined_score,
     get_params,
+    get_save_paths,
     get_shapley_values,
+    load_eval_results,
     plot_actionable_barplot,
     plot_shapley_waterfall,
 )
@@ -28,98 +28,26 @@ app = typer.Typer()
 logger = logging.getLogger(__name__)
 
 
-@app.callback()
-def main(  # noqa: PLR0913
-    ctx: typer.Context,
-    scenario: Annotated[
-        int,
-        typer.Option(
-            "-s",
-            "--scenario",
-            help="The scenario to evaluate.",
-            min=0,
-            max=9,
-        ),
-    ] = 1,
-    model: Annotated[
-        LLMModels,
-        typer.Option("-m", "--model", help="The LLM model to use."),
-    ] = "llama-70b",
-    complexity: Annotated[
-        int | None,
-        typer.Option(help="Complexity levels to use in evaluation."),
-    ] = None,
-    interrogation: Annotated[
-        bool,
-        typer.Option(help="Whether to use interrogation."),
-    ] = True,
-    context: Annotated[
-        bool,
-        typer.Option(help="Whether to add context to prompts."),
-    ] = True,
-    n_max: Annotated[
-        int,
-        typer.Option(help="Maximum number of samples to use."),
-    ] = 6,
-) -> None:
-    """Set feature selection parameters."""
-    save_name = f"{model.value}_features"
-    if interrogation:
-        save_name += "_interrogation"
-    if context:
-        save_name += "_context"
-
-    axs.util.init_logging(
-        level="INFO",
-        warning_only=[
-            "igp2.core.velocitysmoother",
-            "matplotlib",
-            "httpcore",
-            "openai",
-            "httpx",
-        ],
-        log_dir=f"output/igp2/scenario{scenario}/logs",
-        log_name=save_name,
-    )
-
-    ctx.obj = {
-        "scenario": scenario,
-        "model": model,
-        "complexity": complexity,
-        "interrogation": interrogation,
-        "context": context,
-        "n_max": n_max,
-        "save_name": save_name,
-    }
-
-
 @app.command()
-def shapley(ctx: typer.Context) -> None:
+def shapley(
+    ctx: typer.Context,
+    eval_model: Annotated[
+        LLMModels | None,
+        typer.Option("-e", "--eval-model", help="The model used for evaluation."),
+    ] = None,
+) -> None:
     """Calculate Shapley values for features and rank over all scenarios."""
-    model = ctx.obj["model"]
-    interrogation = ctx.obj["interrogation"]
-    context = ctx.obj["context"]
+    scenario = ctx.obj["scenario"]
 
-    save_name = "evaluate_*_features"
-    if interrogation:
-        save_name += "_interrogation"
-    if context:
-        save_name += "_context"
-
-    shapley_results = {}
-    save_paths = list(Path("output", "igp2").glob(f"scenario*/results/{save_name}.pkl"))
+    save_paths = get_save_paths(ctx, eval_model)
     if not save_paths:
-        logger.error("No results found for the given parameters.")
         return
 
+    shapley_results = {}
     for save_path in save_paths:
-        scenario = re.search(r"scenario(\d+)", str(save_path)).group(1)
-        eval_model = re.search(
-            rf"evaluate_([A-Za-z0-9-\.]+)_{model.value}_", str(save_path),
-        ).group(1)
-        if scenario != "1": continue
-        with save_path.open("rb") as f:
-            eval_results = pickle.load(f)
+        eval_results, (eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
+        if eval_results is None:
+            continue
 
         scores = {}
         for eval_dict in eval_results:
@@ -131,7 +59,17 @@ def shapley(ctx: typer.Context) -> None:
                 features.add("complexity")
             scores[frozenset(features)] = get_combined_score(eval_dict)
 
-        shapley_results[scenario + eval_model] = get_shapley_values(scores)
+        shapley_results[f"{scenario}_{eval_m_str}_{gen_m_str}"] = get_shapley_values(
+            scores,
+        )
+
+    if len(shapley_results) == 0:
+        logger.error("No Shapley results found.")
+        return
+    logger.info(
+        "Processed Shapley results for %d scenarios and models",
+        len(shapley_results),
+    )
 
     # Combine Shapley values across scenarios, calculate mean and std
     combined_shapley = {}
@@ -167,31 +105,25 @@ def shapley(ctx: typer.Context) -> None:
 
 
 @app.command()
-def actionable(ctx: typer.Context) -> None:
+def actionable(
+    ctx: typer.Context,
+    eval_model: Annotated[
+        LLMModels | None,
+        typer.Option("-em", "--eval-model", help="The model used for evaluation."),
+    ] = None,
+) -> None:
     """Calculate actionability scores for each feature and rank over all scenarios."""
-    model = ctx.obj["model"]
-    interrogation = ctx.obj["interrogation"]
-    context = ctx.obj["context"]
+    scenario = ctx.obj["scenario"]
 
-    save_name = "evaluate_*_features"
-    if interrogation:
-        save_name += "_interrogation"
-    if context:
-        save_name += "_context"
-
-    actionable_results = {}
-    save_paths = list(Path("output", "igp2").glob(f"scenario*/results/{save_name}.pkl"))
+    save_paths = get_save_paths(ctx, eval_model)
     if not save_paths:
-        logger.error("No results found for the given parameters.")
         return
 
+    actionable_results = {}
     for save_path in reversed(save_paths):
-        scenario = re.search(r"scenario(\d+)", str(save_path)).group(1)
-        eval_model = re.search(
-            rf"evaluate_([A-Za-z0-9-\.]+)_{model.value}_", str(save_path),
-        ).group(1)
-        with save_path.open("rb") as f:
-            eval_results = pickle.load(f)
+        eval_results, (eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
+        if eval_results is None:
+            continue
 
         scores = {
             "actionable_exp": {},
@@ -209,7 +141,19 @@ def actionable(ctx: typer.Context) -> None:
                     get_actionable_accuracy(eval_dict[explanation_given])
                 )
 
-        actionable_results[scenario + eval_model] = get_actionable_values(scores)
+        actionable_results[f"{scenario}_{eval_m_str}_{gen_m_str}"] = (
+            get_actionable_values(
+                scores,
+            )
+        )
+
+    logger.info(
+        "Processed actionable results for %d scenarios and models",
+        len(actionable_results),
+    )
+    if len(actionable_results) == 0:
+        logger.error("No actionable results found.")
+        return
 
     # Combine actionable values across scenarios, calculate mean and std
     combined_actionable = {
@@ -260,8 +204,30 @@ def run(ctx: typer.Context) -> None:
     interrogation = ctx.obj["interrogation"]
     context = ctx.obj["context"]
     n_max = ctx.obj["n_max"]
-
     complexity = [1, 2] if complexity is None else [complexity]
+    save_name = ctx.obj["save_name"]
+
+    if scenario == -1:
+        logger.warning("Cannot run feature analysis for all scenarios at once.")
+        return
+    if model.value == "all":
+        logger.warning("Cannot run feature analysis for all models at once.")
+        return
+
+    axs.util.init_logging(
+        level="INFO",
+        warning_only=[
+            "igp2.core.velocitysmoother",
+            "matplotlib",
+            "httpcore",
+            "openai",
+            "httpx",
+        ],
+        log_dir=f"output/igp2/scenario{scenario}/logs",
+        log_name=save_name,
+    )
+
+    logger.info("Running features with model %s; scenario %d", model.value, scenario)
 
     params = get_params(
         scenarios=[scenario],
@@ -272,6 +238,8 @@ def run(ctx: typer.Context) -> None:
         n_max=n_max if interrogation else 0,
     )
 
+    logger.info("Found %d parameters to evaluate", len(params))
+
     scenario_config = axs.Config(f"data/igp2/configs/scenario{scenario}.json")
     env = axs.util.load_env(scenario_config.env, scenario_config.env.render_mode)
     env.reset(seed=scenario_config.env.seed)
@@ -279,17 +247,22 @@ def run(ctx: typer.Context) -> None:
     logger.info("Created environment %s", scenario_config.env.name)
 
     agent_file = Path(scenario_config.output_dir, "agents", "agent_ep0.pkl")
-    save_name = ctx.obj["save_name"]
     save_path = Path(scenario_config.output_dir, "results", f"{save_name}.pkl")
+    logger.info("Using save path %s", save_path)
     if Path(save_path).exists():
         with save_path.open("rb") as f:
-            results = pickle.load(f)
+            try:
+                results = pickle.load(f)
+            except EOFError:
+                logger.exception("File is empty, starting fresh.")
+                results = []
     else:
         results = []
 
     for param in params:
         config = param.pop("config")
 
+        # We are only using prompt 1 for the feature selection evaluation
         prompt = axs.Prompt(**config.axs.user_prompts[1])
 
         truncations = [True]
@@ -331,6 +304,62 @@ def run(ctx: typer.Context) -> None:
             with save_path.open("wb") as f:
                 pickle.dump(results, f)
                 logger.info("Results saved to %s", save_path)
+
+
+@app.callback()
+def main(  # noqa: PLR0913
+    ctx: typer.Context,
+    scenario: Annotated[
+        int,
+        typer.Option(
+            "-s",
+            "--scenario",
+            help="The scenario to evaluate. -1 for all scenarios.",
+            min=-1,
+            max=9,
+        ),
+    ] = 1,
+    model: Annotated[
+        LLMModels | None,
+        typer.Option(
+            "-m",
+            "--model",
+            help="The LLM model to use to generate explanations.",
+        ),
+    ] = "all",
+    complexity: Annotated[
+        int | None,
+        typer.Option(help="Complexity levels to use in evaluation."),
+    ] = None,
+    interrogation: Annotated[
+        bool,
+        typer.Option(help="Whether to use interrogation."),
+    ] = True,
+    context: Annotated[
+        bool,
+        typer.Option(help="Whether to add context to prompts."),
+    ] = True,
+    n_max: Annotated[
+        int,
+        typer.Option(help="Maximum number of samples to use."),
+    ] = 6,
+) -> None:
+    """Set feature selection parameters."""
+    save_name = f"{model.value}_features"
+    if interrogation:
+        save_name += "_interrogation"
+    if context:
+        save_name += "_context"
+
+    ctx.obj = {
+        "scenario": scenario,
+        "model": model,
+        "complexity": complexity,
+        "interrogation": interrogation,
+        "context": context,
+        "n_max": n_max,
+        "save_name": save_name,
+    }
 
 
 if __name__ == "__main__":

@@ -5,9 +5,14 @@
         "temperature": 0.8,
         "top_p": 0.95
     },
+    "gpt-4.1": {
+        "inference_mode": "online",
+        "model": "gpt-4.1-2025-04-14",
+        "api_key_env_var": "OPENAI_API_KEY"
+    },
     "gpt-4o": {
         "inference_mode": "online",
-        "model": "GPT-4o-2024-11-20",
+        "model": "gpt-4o-2024-11-20",
         "api_key_env_var": "OPENAI_API_KEY"
     },
     "gpt-o1": {
