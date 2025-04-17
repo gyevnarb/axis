@@ -1,7 +1,9 @@
 """Run various baselines for AXS agent evaluation."""
 
+import json
 import logging
 import pickle
+from copy import deepcopy
 from pathlib import Path
 from typing import Annotated
 
@@ -109,10 +111,10 @@ def actionable(
     ctx: typer.Context,
     eval_model: Annotated[
         LLMModels | None,
-        typer.Option("-em", "--eval-model", help="The model used for evaluation."),
+        typer.Option("-e", "--eval-model", help="The model used for evaluation."),
     ] = "all",
 ) -> None:
-    """Calculate actionability scores for each feature and rank over all scenarios."""
+    """Calculate actionability scores for features and rank over all scenarios."""
     ctx.obj["eval_model"] = eval_model
 
     save_paths = get_save_paths(ctx)
@@ -192,7 +194,10 @@ def actionable(
                     std_score,
                 )
 
-    plot_actionable_barplot(combined_actionable)
+    # Remove memory_trunaction from the results
+    for explanation_given in ["actionable_exp", "actionable_no_exp"]:
+        del combined_actionable[explanation_given]["truncate"]
+    plot_actionable_barplot(combined_actionable, ctx)
 
 
 @app.command()
@@ -206,13 +211,7 @@ def run(ctx: typer.Context) -> None:
     n_max = ctx.obj["n_max"]
     complexity = [1, 2] if complexity is None else [complexity]
     save_name = ctx.obj["save_name"]
-
-    if scenario == -1:
-        logger.warning("Cannot run feature analysis for all scenarios at once.")
-        return
-    if model.value == "all":
-        logger.warning("Cannot run feature analysis for all models at once.")
-        return
+    features = ctx.obj["features"]
 
     axs.util.init_logging(
         level="INFO",
@@ -230,9 +229,10 @@ def run(ctx: typer.Context) -> None:
     logger.info("Running features with model %s; scenario %d", model.value, scenario)
 
     params = get_params(
-        scenarios=[scenario],
+        scenarios=[scenario] if scenario != -1 else range(10),
         complexity=complexity,
-        models=[model.value],
+        models=[model.value] if model != "all" else [m.value for m in LLMModels],
+        features=features,
         use_interrogation=interrogation,
         use_context=context,
         n_max=n_max if interrogation else 0,
@@ -266,8 +266,8 @@ def run(ctx: typer.Context) -> None:
         prompt = axs.Prompt(**config.axs.user_prompts[1])
 
         truncations = [True]
-        if not interrogation:
-            truncations.append(False)
+        # if not interrogation:
+        #     truncations.append(False)
 
         for truncate in truncations:
             param["truncate"] = truncate
@@ -294,7 +294,7 @@ def run(ctx: typer.Context) -> None:
             end_msg = f"{exp_results['success']} - {param}"
             logger.info(end_msg)
 
-            exp_results["param"] = param
+            exp_results["param"] = deepcopy(param)
             exp_results["truncate"] = truncate
             exp_results["config"] = config
 
@@ -329,7 +329,10 @@ def main(  # noqa: PLR0913
     ] = "all",
     complexity: Annotated[
         int | None,
-        typer.Option(help="Complexity levels to use in evaluation."),
+        typer.Option(
+            "-c", "--complexity",
+            help="Complexity levels to use in evaluation."
+        ),
     ] = None,
     interrogation: Annotated[
         bool,
@@ -343,13 +346,24 @@ def main(  # noqa: PLR0913
         int,
         typer.Option(help="Maximum number of samples to use."),
     ] = 6,
+    features: Annotated[
+        str | None,
+        typer.Option(help="List of features formatted as valid JSON string."),
+    ] = False,
 ) -> None:
     """Set feature selection parameters."""
-    save_name = f"{model.value}_features"
-    if interrogation:
-        save_name += "_interrogation"
-    if context:
-        save_name += "_context"
+    save_name = f"{model.value}"
+
+     # If no explicit features are given, iterate over feature combinations
+    if not features:
+        save_name += "_features"
+    save_name += "_interrogation" if interrogation else ""
+    save_name += "_context" if context else ""
+
+    if features:
+        features = json.loads(features)
+
+    print(save_name)
 
     ctx.obj = {
         "scenario": scenario,
@@ -359,6 +373,7 @@ def main(  # noqa: PLR0913
         "context": context,
         "n_max": n_max,
         "save_name": save_name,
+        "features": features,
     }
 
 

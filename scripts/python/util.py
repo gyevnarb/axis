@@ -57,7 +57,7 @@ class LLMModels(enum.Enum):
     qwen_72b = "qwen72b"
     gpt_4_1 = "gpt41"
     gpt_4o = "gpt4o"
-    gpt_o1 = "gpto1"
+    o1 = "o1"
     claude_3_5 = "claude35"
     claude_3_7 = "claude37"
     deepseek_v3 = "deepseekv3"
@@ -285,6 +285,7 @@ def get_params(
     scenarios: list[int],
     complexity: list[int],
     models: list[str],
+    features: list[str],
     use_interrogation: bool,
     use_context: bool,
     n_max: int,
@@ -322,12 +323,14 @@ def get_params(
         for llm_config in llm_configs.values():
             for c in complexity:
                 for vf in powerset(verbalizer_features):
+                    if features is not None and set(vf) != set(features):
+                        continue
                     new_config_dict = deepcopy(config_dict)
                     new_config_dict["axs"]["complexity"] = c
                     new_config_dict["llm"].update(llm_config)
                     if "add_actions" not in vf and "add_macro_actions" not in vf:
                         continue
-                    if use_context and vf != ():
+                    if vf != ():
                         vf_dict = new_config_dict["axs"]["verbalizer"]
                         vf_dict["params"] = dict.fromkeys(
                             vf,
@@ -346,24 +349,6 @@ def get_params(
                             "config": axs.Config(new_config_dict),
                         }
                         configs.append(params)
-                    elif not use_context and vf == ():
-                        new_config_dict["axs"]["verbalizer"]["params"] = dict.fromkeys(
-                            verbalizer_features,
-                            False,
-                        )
-                        new_config_dict["axs"]["verbalizer"]["params"]["subsample"] = 3
-                        params = {
-                            "complexity": c,
-                            "verbalizer_features": vf,
-                            "llm_config": llm_config,
-                            "scenario": scenario,
-                            "use_interrogation": use_interrogation,
-                            "use_context": use_context,
-                            "n_max": n_max,
-                            "config": axs.Config(new_config_dict),
-                        }
-                        configs.append(params)
-                        break
     return configs
 
 
@@ -387,7 +372,9 @@ def get_combined_score(eval_result: dict[str, Any]) -> float:
     fluent = eval_result["fluent"]["scores"]
     correct = np.array(list(correct.values()))
     fluent = np.array(list(fluent.values()))
+    return np.sqrt(correct[0] * fluent.mean())
 
+    return correct[0]
     # Calculate the geometric mean of the scores
     scores = np.concatenate((fluent, correct))
     # return np.log(correct[0])
@@ -757,11 +744,15 @@ def plot_shapley_waterfall(
     plt.close()
 
 
-def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) -> None:
+def plot_actionable_barplot(
+    combined_actionable: dict[str, dict[str, float]],
+    ctx: typer.Context,
+) -> None:
     """Plot actionable values for features with and without explanations as a barplot.
 
     Args:
         combined_actionable: Dictionary with feature actionability scores
+        ctx: Typer context for scenario and model information.
 
     """
     # Set publication-quality plot styling
@@ -945,6 +936,13 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
                 },
             )
 
+        s_name = ctx.obj["scenario"]
+        s_name = f"{s_name}" if s_name != -1 else "all"
+        gen_model = ctx.obj["model"].value
+        gen_model = gen_model if gen_model != "all" else "all"
+        eval_model = ctx.obj["eval_model"].value
+        eval_model = eval_model if eval_model != "all" else "all"
+
         axs[i].set_ylabel(f"{key.capitalize()} Accuracy")
         axs[i].set_title(f"{key.capitalize()} Actionability by Feature")
         axs[i].set_xticks(x)
@@ -979,7 +977,11 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
     ]
 
     # Position legend above the plot in a single row (better for academic papers)
-    fig.legend(
+    legend_title = (
+        f"Scenario: {s_name}; Eval model: {MODEL_NAME_MAP.get(eval_model, eval_model)};"
+        f" Gen model: {MODEL_NAME_MAP.get(gen_model, gen_model)}"
+)
+    legend = fig.legend(
         handles=handles,
         loc="upper center",
         ncol=3,
@@ -987,7 +989,9 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
         frameon=True,
         framealpha=0.9,
         edgecolor="lightgray",
+        title=legend_title,
     )
+    plt.setp(plt.setp(legend.get_title(), fontsize="small"))
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust layout to make room for the legend
 
@@ -995,17 +999,19 @@ def plot_actionable_barplot(combined_actionable: dict[str, dict[str, float]]) ->
     output_dir = Path("output", "igp2", "plots")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    save_name = f"actionable_s{s_name}_{eval_model}_{gen_model}"
+
     # Save in both PNG and PDF formats for academic publishing
     plt.savefig(
-        output_dir / "actionable_features_barplot.png",
+        output_dir / f"{save_name}.png",
         dpi=600,
         bbox_inches="tight",
     )
-    plt.savefig(output_dir / "actionable_features_barplot.pdf", bbox_inches="tight")
+    plt.savefig(output_dir / f"{save_name}.pdf", bbox_inches="tight")
 
     logger.info(
         "Actionability barplot saved to %s (.png and .pdf)",
-        output_dir / "actionable_features_barplot",
+        output_dir / f"{save_name}",
     )
     plt.close()
 
