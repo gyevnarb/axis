@@ -184,7 +184,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         if query.query_name == "what":
             time = query.get_time(len(observations))
             if vid not in infos[time]:
-                error_msg = f"Vehicle {vid} does not exist at time {time}."
+                error_msg = f"Vehicle {vid} is not observed at time {time}."
                 raise axs.SimulationError(error_msg)
 
             macros = {
@@ -322,7 +322,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                     i + 1
                 ].macro_name not in ["TurnLeft", "TurnRight", "GoStraightJunction"]:
                     error_msg = (
-                        "Action GiveWay must be followed by one of "
+                        "Action GiveWay must be followed by "
                         "TurnLeft, TurnRight, or GoStraightJunction."
                     )
                     raise axs.SimulationError(error_msg)

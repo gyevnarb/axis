@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 from itertools import chain, combinations
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -18,8 +18,6 @@ import numpy as np
 import typer
 from matplotlib import rcParams
 from matplotlib.patches import Patch, Polygon
-from rich.console import Console
-from rich.table import Table
 from scipy.special import factorial
 
 import axs
@@ -33,7 +31,8 @@ MODEL_NAME_MAP = {
     "qwen72b": "Qwen-2.5 72B",
     "gpt41": "GPT-4.1",
     "gpt4o": "GPT-4o",
-    "gpto1": "o1",
+    "gpt4omini": "GPT-4o-mini",
+    "o1": "o1",
     "claude35": "Claude 3.5",
     "claude37": "Claude 3.7",
     "deepseekv3": "DeepSeek-V3",
@@ -57,126 +56,13 @@ class LLMModels(enum.Enum):
     qwen_72b = "qwen72b"
     gpt_4_1 = "gpt41"
     gpt_4o = "gpt4o"
+    gpt_4o_mini = "gpt4omini"
     o1 = "o1"
     claude_3_5 = "claude35"
     claude_3_7 = "claude37"
     deepseek_v3 = "deepseekv3"
     deepseek_r1 = "deepseekr1"
     all_model = "all"
-
-
-def parse_filename(filename: str) -> dict:
-    """Parse the filename to extract evaluation details."""
-    pattern = r"evaluate_(?P<eval_llm>[^_]+)_(?P<gen_llm>[^_]+)_(?P<features>features)?(?P<interrogation>_interrogation)?(?P<context>_context)?\.pkl"
-    match = re.match(pattern, filename)
-    if match:
-        return {
-            "Evaluation LLM": match.group("eval_llm"),
-            "Generation LLM": match.group("gen_llm"),
-            "Feature Evaluation": "Yes" if match.group("features") else "No",
-            "Interrogation": "Yes" if match.group("interrogation") else "No",
-            "Context": "Yes" if match.group("context") else "No",
-        }
-    # Handle non-evaluate file names
-    gen_llm_match = re.match(r"(?P<gen_llm>[^_]+)_.*\.pkl", filename)
-    return {
-        "Evaluation LLM": "-",  # Default value for non-evaluate files
-        "Generation LLM": gen_llm_match.group("gen_llm") if gen_llm_match else "-",
-        "Feature Evaluation": "Yes" if "features" in filename else "No",
-        "Interrogation": "Yes" if "_interrogation" in filename else "No",
-        "Context": "Yes" if "_context" in filename else "No",
-    }
-
-
-@app.command()
-def results_summary(
-    show_file_length: Annotated[
-        bool,
-        typer.Option(
-            "-l",
-            "--length",
-            help="Whether to show number of items in each file. Slow",
-        ),
-    ] = False,
-) -> False:
-    """Print the contents of all scenario results directories in a table.
-
-    Args:
-        show_file_length (bool): Whether to include a column for file length.
-
-    """
-    base_dir = Path("output", "igp2")
-    console = Console()
-    table = Table(title="Results Directory Contents (All Scenarios)")
-
-    # Add table columns
-    table.add_column("Scenario", justify="center", style="cyan", no_wrap=True)
-    table.add_column("File Name", justify="left", style="cyan", no_wrap=True)
-    table.add_column("Result Type", justify="center", style="magenta")
-    table.add_column("Evaluation LLM", justify="center", style="magenta")
-    table.add_column("Generation LLM", justify="center", style="green")
-    table.add_column("Interrogation", justify="center", style="blue")
-    table.add_column("Context", justify="center", style="red")
-    if show_file_length:
-        table.add_column("File Length (N)", justify="right", style="yellow")
-
-    # Check if the base directory exists
-    if not base_dir.exists():
-        console.print(f"[red]Error:[/red] Base directory '{base_dir}' does not exist.")
-        return
-
-    # Iterate through all scenario directories
-    for scenario_dir in sorted(base_dir.glob("scenario*/results")):
-        scenario_name = scenario_dir.parent.name
-        if not scenario_dir.exists():
-            continue
-
-        # Iterate through files in the results directory
-        for file in sorted(scenario_dir.glob("*.pkl")):
-            parsed_data = parse_filename(file.name)
-            result_type = file.name.split("_")[0] if "_" in file.name else "None"
-
-            # Change "evaluate" to "feature" if the file indicates feature evaluation
-            result_name = ""
-            if result_type == "evaluate":
-                result_name += "eval"
-            else:
-                result_name += "gen"
-            if "features" in file.name:
-                result_name += "_feats"
-
-            if show_file_length:
-                with file.open("rb") as f:
-                    file_length = len(pickle.load(f))
-
-            if parsed_data:
-                row = [
-                    scenario_name.replace("scenario", ""),
-                    file.name,
-                    result_name,
-                    parsed_data["Evaluation LLM"],
-                    parsed_data["Generation LLM"],
-                    parsed_data["Interrogation"],
-                    parsed_data["Context"],
-                ]
-                if show_file_length:
-                    row.append(str(file_length))
-                table.add_row(*row)
-            else:
-                row = [
-                    scenario_name.replace("scenario", ""),
-                    file.name,
-                    result_name,
-                    "-",
-                    "-",
-                    "-",
-                    "-",
-                ]
-                if show_file_length:
-                    row.append(str(file_length))
-                table.add_row(*row)
-
-    console.print(table)
 
 
 def get_agent(config: axs.Config) -> axs.AXSAgent:
@@ -372,13 +258,8 @@ def get_combined_score(eval_result: dict[str, Any]) -> float:
     fluent = eval_result["fluent"]["scores"]
     correct = np.array(list(correct.values()))
     fluent = np.array(list(fluent.values()))
-    return np.sqrt(correct[0] * fluent.mean())
-
     return correct[0]
-    # Calculate the geometric mean of the scores
-    scores = np.concatenate((fluent, correct))
-    # return np.log(correct[0])
-    return np.exp(np.log(scores).mean())
+    return np.sqrt(correct[0] * fluent.mean())
 
 
 def get_shapley_values(features_scores: list[str, float]) -> dict[str, float]:
@@ -659,20 +540,7 @@ def plot_shapley_waterfall(
 
     # Formatting for academic publication
     # Use a more descriptive, precise title
-    s_name = ctx.obj["scenario"]
-    s_name = f"{s_name}" if s_name != -1 else "all"
-    gen_model = ctx.obj["model"].value
-    gen_model = gen_model if gen_model != "all" else "all"
-    eval_model = ctx.obj["eval_model"].value
-    eval_model = eval_model if eval_model != "all" else "all"
-    ax.set_xlabel(
-        (
-            f"Reward Contribution (Scenario: {s_name}; "
-            f"Eval: {MODEL_NAME_MAP.get(eval_model, eval_model)}; "
-            f"Gen: {MODEL_NAME_MAP.get(gen_model, gen_model)})"
-        ),
-        fontsize=10,
-    )
+    ax.set_xlabel("Contribution to Reward", fontsize=10)
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
     # Add a subtle grid
@@ -699,15 +567,30 @@ def plot_shapley_waterfall(
             label="Total Impact",
         ),
     ]
+
     # Position legend above the plot
-    ax.legend(
+    s_name = ctx.obj["scenario"]
+    s_name = f"{s_name}" if s_name != -1 else "all"
+    gen_model = ctx.obj["model"].value
+    gen_model = gen_model if gen_model != "all" else "all"
+    eval_model = ctx.obj["eval_model"].value
+    eval_model = eval_model if eval_model != "all" else "all"
+    legend_title = (
+        f"Scenario: {s_name}; "
+        f"Eval: {MODEL_NAME_MAP.get(eval_model, eval_model)}; "
+        f"Gen: {MODEL_NAME_MAP.get(gen_model, gen_model)}"
+    )
+
+    legend = ax.legend(
         handles=legend_elements,
         loc="upper center",
         ncol=3,  # Three columns for more compact legend
-        bbox_to_anchor=(0.5, 1.12),  # Position above the plot
+        bbox_to_anchor=(0.5, 1.22),  # Position above the plot
         framealpha=0.9,
+        title=legend_title,
         edgecolor="lightgray",
     )
+    plt.setp(plt.setp(legend.get_title(), fontsize="small"))
 
     # Show total value as text next to the total bar
     plt.text(

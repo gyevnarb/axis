@@ -349,7 +349,7 @@ def main(  # noqa: PLR0913
     features: Annotated[
         str | None,
         typer.Option(help="List of features formatted as valid JSON string."),
-    ] = False,
+    ] = None,
 ) -> None:
     """Set feature selection parameters."""
     save_name = f"{model.value}"
@@ -362,8 +362,6 @@ def main(  # noqa: PLR0913
 
     if features:
         features = json.loads(features)
-
-    print(save_name)
 
     ctx.obj = {
         "scenario": scenario,

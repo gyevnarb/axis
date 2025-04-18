@@ -36,6 +36,9 @@ class IGP2Policy(axs.Policy):
             self.agent._forced_visible_agents = env.simulation.agents[
                 self.agent.agent_id
             ]._forced_visible_agents
+            self.agent._occlusions = env.simulation.agents[
+                self.agent.agent_id
+            ]._occlusions
         if observations or infos:
             self.update(observations, infos)
 

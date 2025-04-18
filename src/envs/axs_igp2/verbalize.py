@@ -12,6 +12,7 @@ from igp2.opendrive.elements.geometry import ramer_douglas
 import axs
 from envs.axs_igp2 import util
 from envs.axs_igp2.macroaction import IGP2MacroAction
+import itertools
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +27,12 @@ ROAD_LAYOUT_PRETEXT = """- Metadata:
     - Distances are in meters.
     - Angles are in radians in the range [-pi, pi].
   - Road layout:
-    - The road layout consists of roads identified by a numeric ID.
-    - Roads are made up of lanes identified as road ID:lane ID.
+    - The road layout consists of roads identified as Road(road ID).
+    - Roads are made up of lanes identified as Road(road ID:lane ID).
     - Lanes are divided into left and right lanes.
-    - Right lanes have a negative ID and left lanes have a positive ID.
-    - Lanes are 3.5 meters wide.
   - Intersections:
-    - Roads are connected by intersections.
-    - Intersections are made up of connections between incoming and connecting roads.
+    - Roads are connected by intersections identified as Intersection(intersection ID).
+    - Intersections are made up of connections between anincoming and connecting lanes.
 """
 
 REWARD_NAME_MAP = {
@@ -94,7 +93,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 - rounding (int): Number of decimal places to round the values to.
                 - state_signals (list[str]): List of control signals to include.
                         Possible values: ["times", "timesteps", "path",
-                                          "velocity", "heading"].
+                                          "velocity", "heading", "lanes"].
                         Default is all control signals except time.
                 - resolution: The resolution of the road midline (0.01).
                 - fps: The frames per second of the simulation (20).
@@ -119,12 +118,13 @@ class IGP2Verbalizer(axs.Verbalizer):
         context = ""
         ret = {}
 
-        if kwargs.get("add_layout", False) and not IGP2Verbalizer.layout_printed:
+        add_layout = kwargs.get("add_layout", False)
+        if add_layout and not IGP2Verbalizer.layout_printed:
             context += IGP2Verbalizer.convert_environment(env, **kwargs) + "\n\n"
             IGP2Verbalizer.layout_printed = True
 
         actions_dict = IGP2Verbalizer._convert_macro_actions(macro_actions)
-        infos_dict = IGP2Verbalizer._convert_infos(infos, **kwargs)
+        infos_dict = IGP2Verbalizer._convert_infos(infos, env.scenario_map, **kwargs)
         if set(actions_dict.keys()) != set(infos_dict.keys()):
             error_msg = "Agent IDs in actions and infos do not match."
             raise ValueError(error_msg)
@@ -134,24 +134,26 @@ class IGP2Verbalizer(axs.Verbalizer):
         add_actions = kwargs.get("add_actions", False)
         add_rewards = kwargs.get("add_rewards", False)
 
-        for aid in actions_dict:
+        for aid, info_dict in infos_dict.items():
             context += f"- Vehicle {aid}:\n"
             if add_observations or add_actions:
                 context += "  - Observations:\n"
             if add_observations:
-                for signal, data in infos_dict[aid].items():
-                    if signal in ["Steering", "Acceleration"]:
+                for signal, data in info_dict.items():
+                    if signal in ["Steering", "Acceleration", "Lanes"]:
                         continue  # Do not include actions here
                     context += f"    - {signal}: {data}\n"
             if add_actions:
                 # context += "  - Actions:\n"
                 if not add_observations:
-                    context += f"    - Timesteps: {infos_dict[aid]['Timesteps']}\n"
-                context += f"    - Steering: {infos_dict[aid]['Steering']}\n"
-                context += f"    - Acceleration: {infos_dict[aid]['Acceleration']}\n"
+                    context += f"    - Timesteps: {info_dict['Timesteps']}\n"
+                context += f"    - Steering: {info_dict['Steering']}\n"
+                context += f"    - Acceleration: {info_dict['Acceleration']}\n"
             if add_macro_actions:
                 context += "  - Macro actions (as macro[from-to]): "
                 context += f"[{actions_dict[aid]}]\n"
+            if add_layout:
+                context += f"  - Lane sequence (as Lane(road ID:lane ID)[from-to]): [{info_dict['Lanes']}]\n"
             if (
                 add_rewards
                 and rewards is not None
@@ -236,6 +238,7 @@ class IGP2Verbalizer(axs.Verbalizer):
     @staticmethod
     def _convert_infos(
         infos: dict[int, list[IGP2MacroAction]],
+        scenario_map: ip.Map,
         **kwargs: dict[str, Any],
     ) -> dict[int, dict[str, str]]:
         trajectories = defaultdict(list)
@@ -254,7 +257,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         rounding = kwargs.get("rounding", 2)
         state_signals = kwargs.get(
             "state_signals",
-            ["timesteps", "path", "velocity"],
+            ["timesteps", "path", "velocity", "lanes"],
         )
         # We always calculate these as they may be included as part of the actions
         state_signals.extend(["angular_velocity", "acceleration"])
@@ -274,6 +277,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                         signal,
                         rounding,
                         sampled_trajectory,
+                        scenario_map,
                     )
                     for signal in state_signals
                 ],
@@ -352,14 +356,14 @@ class IGP2Verbalizer(axs.Verbalizer):
         # Describe intersections
         if kwargs.get("add_intersections", True):
             for jid, junction in scenario_map.junctions.items():
-                ret += f"  - Intersection {jid}:\n"
+                ret += f"  - Intersection({jid}):\n"
                 for conn in junction.connections:
                     if kwargs.get("add_intersection_links", False):
                         for lane_link in conn.lane_links:
-                            ret += f"    - {conn.incoming_road.id}:{lane_link.from_id}"
-                            ret += f"->{conn.connecting_road.id}:{lane_link.to_id}\n"
+                            ret += f"    - Lane({conn.incoming_road.id}:{lane_link.from_id})"
+                            ret += f"->Lane({conn.connecting_road.id}:{lane_link.to_id})\n"
                     else:
-                        ret += f"    - {conn.incoming_road.id}->{conn.connecting_road.id}\n"  # noqa: E501
+                        ret += f"    - Road({conn.incoming_road.id})->Road({conn.connecting_road.id})\n"  # noqa: E501
 
         # Verbalize static objects
         if kwargs.get("add_buildings", True):
@@ -392,15 +396,15 @@ class IGP2Verbalizer(axs.Verbalizer):
             if not road.drivable:
                 continue
 
-            ret += f"  - Road {rid}:\n"
-            ret += f"    - Length: {road.length} m\n"
+            ret += f"  - Road({rid}):\n"
+            # ret += f"    - Length: {road.length} m\n"
 
-            midline = ramer_douglas(
-                np.array(road.midline.coords),
-                dist=kwargs.get("resolution", 0.02),
-            )
-            midline = util.ndarray2str(midline)
-            ret += f"    - Midline coordinates: {midline}\n"
+            # midline = ramer_douglas(
+            #     np.array(road.midline.coords),
+            #     dist=kwargs.get("resolution", 0.02),
+            # )
+            # midline = util.ndarray2str(midline)
+            # ret += f"    - Midline coordinates: {midline}\n"
 
             left_lanes = [
                 lane
@@ -418,11 +422,11 @@ class IGP2Verbalizer(axs.Verbalizer):
                 if left_lanes:
                     ret += "    - Left lanes:\n"
                     for lane in left_lanes:
-                        ret += f"      - Lane {rid}:{lane.id}\n"
+                        ret += f"      - Lane({rid}:{lane.id})\n"
                 if right_lanes:
                     ret += "    - Right lanes:\n"
                     for lane in right_lanes:
-                        ret += f"      - Lane {rid}:{lane.id}\n"
+                        ret += f"      - Lane({rid}:{lane.id})\n"
         return ret
 
     @staticmethod
@@ -430,6 +434,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         signal: str,
         precision: int,
         trajectory: ip.StateTrajectory,
+        scenario_map: ip.Map,
     ) -> tuple[str, str]:
         name = {
             "times": "Time",
@@ -441,12 +446,30 @@ class IGP2Verbalizer(axs.Verbalizer):
             "acceleration": "Acceleration",
             "heading": "Heading",
             "angular_velocity": "Steering",
+            "lanes": "Lanes",
         }[signal]
         data = None
 
         if signal == "timesteps":
             timesteps = np.array([s.time for s in trajectory.states])
             data = util.ndarray2str(timesteps)
+        elif signal == "lanes":
+            lane_seq = []
+            times = []
+            last_lane = None
+            for state in trajectory.states:
+                lane = scenario_map.best_lane_at(state.position, state.heading)
+                if lane is not None and last_lane != lane:
+                    times.append(state.time)
+                    lane_seq.append([lane.parent_road.id, lane.id])
+                    last_lane = lane
+            times = list(itertools.pairwise([*times, state.time]))
+            data = []
+            for (t_s, t_e), (road_id, lane_id) in zip(
+                times, lane_seq, strict=True,
+            ):
+                data.append(f"Lane({road_id}:{lane_id})[{t_s}-{t_e}]")
+            data = ", ".join(data)
         elif signal == "maneuver":
             data = [s.maneuver for s in trajectory.states]
         elif signal == "macro":

@@ -54,9 +54,9 @@ class IGP2Query(axs.Query):
         if self.query_name == "remove":
             vid = self.params["vehicle"]
             if vid == 0:
-                error_msg = "Cannot remove the ego vehicle."
+                error_msg = "Cannot remove vehicle 0."
                 raise axs.QueryError(error_msg)
-            if vid not in infos[0]:
+            if not any(vid in info for info in infos):
                 error_msg = f"Vehicle {vid} does not exist."
                 raise axs.QueryError(error_msg)
 

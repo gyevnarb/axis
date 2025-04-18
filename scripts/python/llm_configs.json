@@ -20,6 +20,11 @@
         "model": "o1-2024-12-17",
         "api_key_env_var": "OPENAI_API_KEY"
     },
+    "gpt4omini": {
+        "inference_mode": "online",
+        "model": "gpt-4o-mini-2024-07-18",
+        "api_key_env_var": "OPENAI_API_KEY"
+    },
     "deepseekv3": {
         "inference_mode": "online",
         "model": "deepseek-chat",
