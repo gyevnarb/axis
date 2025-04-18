@@ -313,13 +313,13 @@ class AXSAgent:
         logger.info("Interrogation prompt: %s", interrogation_prompt)
 
         for n_tries in range(1, self.config.axs.n_tries + 1):  # noqa: B007
-            # query_outputs, usage = self._llm.chat(self.episodic_memory.memory)
-            # query_output = query_outputs[0]
-            # query_content = query_output["content"]
+            query_outputs, usage = self._llm.chat(self.episodic_memory.memory)
+            query_output = query_outputs[0]
+            query_content = query_output["content"]
 
-            # self.episodic_memory.learn(query_output)
-            # statistics["usage"].append(usage)
-            query_content = "whatif(vehicle=2, actions=['FollowLane'], time=60)"
+            self.episodic_memory.learn(query_output)
+            statistics["usage"].append(usage)
+
             if query_content == "DONE":
                 return "DONE"
 
