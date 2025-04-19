@@ -143,10 +143,8 @@ def actionable(
                     get_actionable_accuracy(eval_dict[explanation_given])
                 )
 
-        actionable_results[f"{sid}_{eval_m_str}_{gen_m_str}"] = (
-            get_actionable_values(
-                scores,
-            )
+        actionable_results[f"{sid}_{eval_m_str}_{gen_m_str}"] = get_actionable_values(
+            scores,
         )
 
     logger.info(
@@ -194,9 +192,6 @@ def actionable(
                     std_score,
                 )
 
-    # Remove memory_trunaction from the results
-    for explanation_given in ["actionable_exp", "actionable_no_exp"]:
-        del combined_actionable[explanation_given]["truncate"]
     plot_actionable_barplot(combined_actionable, ctx)
 
 
@@ -207,11 +202,10 @@ def run(ctx: typer.Context) -> None:
     model = ctx.obj["model"]
     complexity = ctx.obj["complexity"]
     interrogation = ctx.obj["interrogation"]
-    context = ctx.obj["context"]
-    n_max = ctx.obj["n_max"]
     complexity = [1, 2] if complexity is None else [complexity]
     save_name = ctx.obj["save_name"]
     features = ctx.obj["features"]
+    prompt_idx = ctx.obj["prompt"]
 
     axs.util.init_logging(
         level="INFO",
@@ -234,8 +228,8 @@ def run(ctx: typer.Context) -> None:
         models=[model.value] if model != "all" else [m.value for m in LLMModels],
         features=features,
         use_interrogation=interrogation,
-        use_context=context,
-        n_max=n_max if interrogation else 0,
+        use_context=ctx.obj["context"],
+        n_max=ctx.obj["n_max"] if interrogation else 0,
     )
 
     logger.info("Found %d parameters to evaluate", len(params))
@@ -253,27 +247,43 @@ def run(ctx: typer.Context) -> None:
         with save_path.open("rb") as f:
             try:
                 results = pickle.load(f)
+                logger.info("Loaded %d results", len(results))
             except EOFError:
                 logger.exception("File is empty, starting fresh.")
                 results = []
     else:
         results = []
 
+    # Backward compatibility: drop truncate from result params
+    for result in results:
+        if "truncate" in result["param"]:
+            del result["param"]["truncate"]
+        if "truncate" in result:
+            del result["truncate"]
+
     for param in params:
         config = param.pop("config")
 
         # We are only using prompt 1 for the feature selection evaluation
-        prompt = axs.Prompt(**config.axs.user_prompts[1])
+        if prompt_idx is not None:
+            prompts = [axs.Prompt(**config.axs.user_prompts[prompt_idx])]
+        else:
+            prompts = [
+                axs.Prompt(**config.axs.user_prompts[i])
+                for i in range(len(config.axs.user_prompts))
+            ]
+        if not prompts:
+            logger.error("No prompts found in config.")
+            raise typer.Exit(code=1)
+        logger.info("Using %d prompts", len(prompts))
 
-        truncations = [True]
-        # if not interrogation:
-        #     truncations.append(False)
-
-        for truncate in truncations:
-            param["truncate"] = truncate
+        for prompt in prompts:
             logger.info(param)
 
-            if any(param == result["param"] for result in results):
+            if any(
+                param == result["param"] and prompt == result["prompt"]
+                for result in results
+            ):
                 logger.info("Already evaluated %s", param)
                 continue
 
@@ -282,7 +292,7 @@ def run(ctx: typer.Context) -> None:
             axs_agent.load_state(agent_file)
 
             # Truncate the semantic memory until the current time
-            if truncate and prompt.time is not None:
+            if prompt.time is not None:
                 semantic_memory = axs_agent.semantic_memory.memory
                 for key in axs_agent.semantic_memory.memory:
                     semantic_memory[key] = semantic_memory[key][: prompt.time]
@@ -295,7 +305,7 @@ def run(ctx: typer.Context) -> None:
             logger.info(end_msg)
 
             exp_results["param"] = deepcopy(param)
-            exp_results["truncate"] = truncate
+            exp_results["prompt"] = prompt
             exp_results["config"] = config
 
             # Save results
@@ -330,8 +340,7 @@ def main(  # noqa: PLR0913
     complexity: Annotated[
         int | None,
         typer.Option(
-            "-c", "--complexity",
-            help="Complexity levels to use in evaluation."
+            "-c", "--complexity", help="Complexity levels to use in evaluation."
         ),
     ] = None,
     interrogation: Annotated[
@@ -350,11 +359,19 @@ def main(  # noqa: PLR0913
         str | None,
         typer.Option(help="List of features formatted as valid JSON string."),
     ] = None,
+    prompt: Annotated[
+        int | None,
+        typer.Option(
+            "-p",
+            "--prompt",
+            help="The prompt index to use. If not given, all prompts are used.",
+        ),
+    ] = None,
 ) -> None:
     """Set feature selection parameters."""
     save_name = f"{model.value}"
 
-     # If no explicit features are given, iterate over feature combinations
+    # If no explicit features are given, iterate over feature combinations
     if not features:
         save_name += "_features"
     save_name += "_interrogation" if interrogation else ""
@@ -372,6 +389,7 @@ def main(  # noqa: PLR0913
         "n_max": n_max,
         "save_name": save_name,
         "features": features,
+        "prompt": prompt,
     }
 
 

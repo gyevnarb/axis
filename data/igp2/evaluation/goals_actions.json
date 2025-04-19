@@ -40,7 +40,8 @@
             "1": "Turn left.",
             "2": "Go straight through the junction.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 did not stop because it saw Vehicle 1 coming to a halt at the intersection. Vehicle 0 inferred that Vehicle 1 was going to give way to Vehicle 2 which was maintaining its velocity. Vehicle 0 saw this as an opportunity to turn right without stopping to give way to Vehicle 1 which was more efficient and still safe."
     },
     "3": {
         "goals": {

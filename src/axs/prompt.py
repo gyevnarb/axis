@@ -39,6 +39,12 @@ class Prompt:
         """Return the string representation of the Prompt object."""
         return repr(self)
 
+    def __eq__(self, other: object) -> bool:
+        """Check if two Prompt objects are equal."""
+        if not isinstance(other, Prompt):
+            return False
+        return self.template == other.template and self.time == other.time
+
     def fill(
         self, context_dict: dict[str, str] | None = None, **content: dict[str, Any],
     ) -> str:
