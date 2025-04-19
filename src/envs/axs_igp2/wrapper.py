@@ -224,7 +224,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         self,
         query: IGP2Query,
         info: dict[int, ip.AgentState],
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[dict[str], list[IGP2MacroAction]]:
         """Add a new TrafficAgent to the IGP2 simulation.
 
         Args:
@@ -260,8 +260,10 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 next_agent_id
             ]
         except IndexError as e:
-            error_msg = (f"Cannot spawn vehicle at {query.params['location']}. "
-                         f"Spawn location does not intersect the road midline.")
+            error_msg = (
+                f"Cannot spawn vehicle at {query.params['location']}. "
+                f"Spawn location does not intersect the road midline."
+            )
             raise axs.SimulationError(error_msg) from e
 
         new_info[next_agent_id] = new_initial_state
@@ -283,7 +285,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         self,
         query: IGP2Query,
         info: dict[int, ip.AgentState],
-    ) -> tuple[np.ndarray, dict]:
+    ) -> tuple[dict[str], list[IGP2MacroAction]]:
         """Reset the environment and remove an agent from the IGP2 simulation.
 
         Args:
@@ -294,12 +296,14 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         agent_id = query.params["vehicle"]
-        env.simulation.remove_agent(agent_id)
-        new_info = {aid: state for aid, state in info.items() if aid != agent_id}
+        obs = env.simulation.remove_agent(agent_id)
+        return obs.frame, {}
 
-        return new_info, {}
-
-    def _whatif(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
+    def _whatif(
+        self,
+        query: axs.Query,
+        info: dict[int, ip.AgentState],
+    ) -> tuple[dict[str], list[IGP2MacroAction]]:
         """Set the macro action of the selected agent."""
 
         def _adjust_final_position(state: ip.AgentState, eps: float = 1e-6) -> None:
@@ -360,6 +364,10 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
         return info, {agent_id: macro_actions}
 
-    def _what(self, query: axs.Query, info: dict[int, ip.AgentState]) -> None:
+    def _what(
+        self,
+        query: axs.Query,
+        info: dict[int, ip.AgentState],
+    ) -> tuple[dict[str], list[IGP2MacroAction]]:
         """Get the macro action of the selected agent."""
         return info, {}

@@ -60,7 +60,9 @@
           "seed": 42,
           "max_steps": 1000,
           "ignore_vehicle_in_front_chance": 0.2,
-          "check_oncoming": false
+          "check_oncoming": false,
+          "default_stop_duration": 100.0,
+          "min_switch_length": 20
         },
         "agents": [
           {
@@ -117,7 +119,7 @@
                 "time": 1.0,
                 "jerk": -0.1,
                 "angular_velocity": -0.1,
-                "curvature": -0.1
+                "curvature": -0.0
               }
             },
             "explainer": {
