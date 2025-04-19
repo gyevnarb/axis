@@ -31,7 +31,7 @@ MODEL_NAME_MAP = {
     "qwen72b": "Qwen-2.5 72B",
     "gpt41": "GPT-4.1",
     "gpt4o": "GPT-4o",
-    "gpt4omini": "GPT-4o-mini",
+    "gpt41mini": "GPT-4.1-mini",
     "o1": "o1",
     "claude35": "Claude 3.5",
     "claude37": "Claude 3.7",
@@ -56,7 +56,7 @@ class LLMModels(enum.Enum):
     qwen_72b = "qwen72b"
     gpt_4_1 = "gpt41"
     gpt_4o = "gpt4o"
-    gpt_4o_mini = "gpt4omini"
+    gpt_4_1_mini = "gpt41mini"
     o1 = "o1"
     claude_3_5 = "claude35"
     claude_3_7 = "claude37"
@@ -258,8 +258,12 @@ def get_combined_score(eval_result: dict[str, Any]) -> float:
     fluent = eval_result["fluent"]["scores"]
     correct = np.array(list(correct.values()))
     fluent = np.array(list(fluent.values()))
-    return correct[0]
-    return np.sqrt(correct[0] * fluent.mean())
+    # return correct[0]
+    # return fluent.mean()
+    # return np.sqrt(correct[0] * fluent.mean())
+    # return scores.mean()
+    scores = np.concatenate((correct, fluent))
+    return np.exp(np.log(scores).mean())
 
 
 def get_shapley_values(features_scores: list[str, float]) -> dict[str, float]:

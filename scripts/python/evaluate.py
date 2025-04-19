@@ -281,8 +281,7 @@ def main(
     for result in results:
         scores = {}
 
-        new_params = result["param"].copy()
-        new_params["truncate"] = result["truncate"]
+        new_params = result["param"]
 
         if any(new_params == res["param"] for res in scores_results):
             logger.info("Already evaluated %s", new_params)

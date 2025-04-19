@@ -52,8 +52,10 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         time = max(0, min(len(observations), time) - 1)
         logger.debug("Setting simulation state to timestep %d", time + 1)
 
-        if time < len(observations) - 1 and query.query_name == "what":
-            time += 1  # Sets the simulator to next state for lookup with 'what'.
+        if query.query_name == "what":
+            if time < len(observations) - 1:
+                time += 1  # Sets the simulator to next state for lookup with 'what'.
+            time = max(2, time)
 
         info = {}
         if time == 0:
