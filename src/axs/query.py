@@ -69,9 +69,7 @@ class Query(Registerable, class_type=None):
                 raise QueryError(error_msg)
             for match in desc_arg_re.findall(description):
                 if match not in cls.args_and_types[query_name]:
-                    error_msg = (
-                        f"Invalid query variable: {match} in description: {description}."
-                    )
+                    error_msg = f"Invalid query variable: {match} in description: {description}."
                     raise QueryError(error_msg)
 
     def __repr__(self) -> str:
@@ -85,8 +83,9 @@ class Query(Registerable, class_type=None):
 
     def __eq__(self, value: "Query") -> bool:
         """Return true if the name and params of the compared object are the same."""
-        return (value.query_name == self.query_name
-                and str(value.params) == str(self.params))
+        return value.query_name == self.query_name and str(value.params) == str(
+            self.params
+        )
 
     def verify(
         self,
@@ -210,6 +209,17 @@ class Query(Registerable, class_type=None):
                 error_msg = f"Missing argument name: {arg_name}"
                 raise QueryError(error_msg)
             try:
+                if arg_type is not str:
+                    # Remove quotes from non-strings
+                    if isinstance(params[arg_name], list):
+                        params[arg_name] = [
+                            x.replace("'", "").replace('"', "")
+                            for x in params[arg_name]
+                        ]
+                    else:
+                        params[arg_name] = (
+                            params[arg_name].replace("'", "").replace('"', "")
+                        )
                 params[arg_name] = cls._parse_type(arg_type, params[arg_name])
             except ValueError as e:
                 error_msg = str(e)
@@ -236,8 +246,11 @@ class Query(Registerable, class_type=None):
 
         if origin is list:
             if isinstance(params, str):
-                logger.warning("Attempting to convert raw string to list: %s. "
-                               "Wrapping in list manually.", params)
+                logger.warning(
+                    "Attempting to convert raw string to list: %s. "
+                    "Wrapping in list manually.",
+                    params,
+                )
                 return [args[0](params)]
             return [args[0](x) for x in params]
         error_msg = f"Invalid argument type: {arg_type}."

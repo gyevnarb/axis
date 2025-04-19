@@ -1,5 +1,6 @@
 """Verbalize IGP2 simulation data."""
 
+import itertools
 import logging
 from collections import defaultdict
 from typing import Any
@@ -7,12 +8,11 @@ from typing import Any
 import gofi
 import igp2 as ip
 import numpy as np
-from igp2.opendrive.elements.geometry import ramer_douglas
+from shapely import Polygon
 
 import axs
 from envs.axs_igp2 import util
 from envs.axs_igp2.macroaction import IGP2MacroAction
-import itertools
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         add_observations = kwargs.get("add_observations", False)
         add_macro_actions = kwargs.get("add_macro_actions", False)
         add_actions = kwargs.get("add_actions", False)
-        add_rewards = kwargs.get("add_rewards", False)
+        add_rewards = kwargs.get("add_rewards", True)
 
         for aid, info_dict in infos_dict.items():
             context += f"- Vehicle {aid}:\n"
@@ -161,7 +161,9 @@ class IGP2Verbalizer(axs.Verbalizer):
                 and aid in rewards
             ):
                 context += "  - Rewards:\n"
-                reward_str = IGP2Verbalizer._convert_reward(rewards[aid], **kwargs)
+                reward_str = IGP2Verbalizer._convert_reward(
+                    rewards[aid], infos, **kwargs,
+                )
                 context += f"{reward_str}\n"
             context += "\n"
         context = context[:-2]  # Remove trailing newlines
@@ -191,7 +193,11 @@ class IGP2Verbalizer(axs.Verbalizer):
         return ret[:-1]
 
     @staticmethod
-    def _convert_reward(reward: ip.Reward, **kwargs: dict[str, Any]) -> str:
+    def _convert_reward(
+        reward: ip.Reward,
+        infos: list[dict[str, Any]],
+        **kwargs: dict[str, Any],
+    ) -> str:
         """Verbalize the IGP2 reward class of an agent.
 
         Args:
@@ -206,8 +212,41 @@ class IGP2Verbalizer(axs.Verbalizer):
             if key in kwargs.get("exclude_rewards", []) or value is None:
                 continue
             reward_name = REWARD_NAME_MAP.get(key, key)
+            colliding_agents = []
+            if key == "coll":
+                ego_box = None
+                for info in infos[::-1]:
+                    for aid, state in info.items():
+                        if aid == 0:
+                            ego_box = Polygon(
+                                ip.Box(
+                                    state.position,
+                                    state.metadata.length + 1.0,
+                                    state.metadata.width,
+                                    state.heading,
+                                ).boundary,
+                            )
+                            continue
+                        if ego_box is not None:
+                            agent_box = Polygon(
+                                ip.Box(
+                                    state.position,
+                                    state.metadata.length + 1.0,
+                                    state.metadata.width,
+                                    state.heading,
+                                ).boundary,
+                            )
+                            if ego_box.intersects(agent_box):
+                                colliding_agents.append(f"Vehicle {aid}")
+                    if colliding_agents:
+                        break
+
             rounded_value = np.round(value, kwargs.get("rounding", 3))
-            ret += f"    - {reward_name}: {rounded_value}\n"
+            if colliding_agents:
+                colliding_agents = ", ".join(map(str, colliding_agents))
+                ret += f"    - {reward_name}: {rounded_value} (with: {colliding_agents})\n"
+            else:
+                ret += f"    - {reward_name}: {rounded_value}\n"
         return ret[:-1]
 
     @staticmethod
@@ -361,7 +400,9 @@ class IGP2Verbalizer(axs.Verbalizer):
                     if kwargs.get("add_intersection_links", False):
                         for lane_link in conn.lane_links:
                             ret += f"    - Lane({conn.incoming_road.id}:{lane_link.from_id})"
-                            ret += f"->Lane({conn.connecting_road.id}:{lane_link.to_id})\n"
+                            ret += (
+                                f"->Lane({conn.connecting_road.id}:{lane_link.to_id})\n"
+                            )
                     else:
                         ret += f"    - Road({conn.incoming_road.id})->Road({conn.connecting_road.id})\n"  # noqa: E501
 
@@ -466,7 +507,9 @@ class IGP2Verbalizer(axs.Verbalizer):
             times = list(itertools.pairwise([*times, state.time]))
             data = []
             for (t_s, t_e), (road_id, lane_id) in zip(
-                times, lane_seq, strict=True,
+                times,
+                lane_seq,
+                strict=True,
             ):
                 data.append(f"Lane({road_id}:{lane_id})[{t_s}-{t_e}]")
             data = ", ".join(data)

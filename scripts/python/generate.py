@@ -212,6 +212,7 @@ def run(ctx: typer.Context) -> None:
     complexity = [1, 2] if complexity is None else [complexity]
     save_name = ctx.obj["save_name"]
     features = ctx.obj["features"]
+    override = ctx.obj["override"]
 
     axs.util.init_logging(
         level="INFO",
@@ -249,7 +250,7 @@ def run(ctx: typer.Context) -> None:
     agent_file = Path(scenario_config.output_dir, "agents", "agent_ep0.pkl")
     save_path = Path(scenario_config.output_dir, "results", f"{save_name}.pkl")
     logger.info("Using save path %s", save_path)
-    if Path(save_path).exists():
+    if not override and Path(save_path).exists():
         with save_path.open("rb") as f:
             try:
                 results = pickle.load(f)
@@ -350,6 +351,14 @@ def main(  # noqa: PLR0913
         str | None,
         typer.Option(help="List of features formatted as valid JSON string."),
     ] = None,
+    override: Annotated[
+        bool,
+        typer.Option(
+            "-o",
+            "--override",
+            help="Whether to override the existing results.",
+        ),
+    ] = False,
 ) -> None:
     """Set feature selection parameters."""
     save_name = f"{model.value}"
@@ -372,6 +381,7 @@ def main(  # noqa: PLR0913
         "n_max": n_max,
         "save_name": save_name,
         "features": features,
+        "override": override,
     }
 
 
