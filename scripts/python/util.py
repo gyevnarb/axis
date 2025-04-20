@@ -214,8 +214,6 @@ def get_params(
                     new_config_dict = deepcopy(config_dict)
                     new_config_dict["axs"]["complexity"] = c
                     new_config_dict["llm"].update(llm_config)
-                    if "add_actions" not in vf and "add_macro_actions" not in vf:
-                        continue
                     if vf != ():
                         vf_dict = new_config_dict["axs"]["verbalizer"]
                         vf_dict["params"] = dict.fromkeys(
@@ -258,7 +256,7 @@ def get_combined_score(eval_result: dict[str, Any]) -> float:
     fluent = eval_result["fluent"]["scores"]
     correct = np.array(list(correct.values()))
     fluent = np.array(list(fluent.values()))
-    # return correct[0]
+    return correct[0]
     # return fluent.mean()
     # return np.sqrt(correct[0] * fluent.mean())
     # return scores.mean()

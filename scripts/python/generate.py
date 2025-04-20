@@ -55,9 +55,8 @@ def shapley(
         for eval_dict in eval_results:
             param = eval_dict.pop("param")
             features = set(param["verbalizer_features"])
-            if param["truncate"]:
-                features.add("truncate")
-            if param["complexity"] == 2:
+            high_complexity = 2
+            if param["complexity"] == high_complexity:
                 features.add("complexity")
             scores[frozenset(features)] = get_combined_score(eval_dict)
 
@@ -88,19 +87,19 @@ def shapley(
         if np.mean(scores) != 0 or np.std(scores) != 0
     }
     for feature, scores in combined_shapley.items():
-        scores = np.array(scores)
-        mean_score = np.mean(scores)
-        std_score = np.std(scores)
+        np_scores = np.array(scores)
+        mean_score = np.mean(np_scores)
+        std_score = np.std(np_scores)
         combined_shapley[feature] = {
             "mean": mean_score,
-            "std": std_score,
+            "std": std_score / np.sqrt(len(save_paths)),
         }
         logger.info(
             "Feature: %s, Mean: %f, Std: %f, Scores: %s",
             feature,
             mean_score,
             std_score,
-            axs_igp2.verbalize.util.ndarray2str(scores, 4),
+            axs_igp2.verbalize.util.ndarray2str(np_scores, 4),
         )
 
     plot_shapley_waterfall(combined_shapley, ctx)
@@ -134,9 +133,8 @@ def actionable(
         for eval_dict in eval_results:
             param = eval_dict.pop("param")
             features = set(param["verbalizer_features"])
-            if param["truncate"]:
-                features.add("truncate")
-            if param["complexity"] == 2:
+            high_complexity = 2
+            if param["complexity"] == high_complexity:
                 features.add("complexity")
             for explanation_given in ["actionable_exp", "actionable_no_exp"]:
                 scores[explanation_given][frozenset(features)] = (
@@ -341,7 +339,7 @@ def main(  # noqa: PLR0913
     complexity: Annotated[
         int | None,
         typer.Option(
-            "-c", "--complexity", help="Complexity levels to use in evaluation."
+            "-c", "--complexity", help="Complexity levels to use in evaluation.",
         ),
     ] = None,
     interrogation: Annotated[

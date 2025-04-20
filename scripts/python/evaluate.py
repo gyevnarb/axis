@@ -267,6 +267,7 @@ def main(
     results_path = Path("output/igp2", f"scenario{scenario}/results/{results_file}")
     with results_path.open("rb") as f:
         results = pickle.load(f)
+    logger.info("Loaded %s results from %s", len(results), results_path)
 
     if save_path.exists():
         with save_path.open("rb") as f:
@@ -276,7 +277,13 @@ def main(
                 scores_results = []
     else:
         scores_results = []
-    logger.info("Loaded %s results from %s", len(scores_results), save_path)
+    logger.info("Loaded %s saves from %s", len(scores_results), save_path)
+
+    for scores_result in scores_results:
+        if "truncate" in scores_result["param"]:
+            del scores_result["param"]["truncate"]
+        if "truncate" in scores_result:
+            del scores_result["truncate"]
 
     for result in results:
         scores = {}
