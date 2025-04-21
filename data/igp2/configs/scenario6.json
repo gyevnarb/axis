@@ -1,5 +1,5 @@
 {
-    "output_dir": "output/igp2/scenario1",
+    "output_dir": "output/igp2/scenario6",
     "save_results": true,
     "llm": {
         "inference_mode": "localhost",
