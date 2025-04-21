@@ -25,6 +25,8 @@ ROAD_LAYOUT_PRETEXT = """- Metadata:
     - The road layout consists of roads identified as Road(road ID).
     - Roads are made up of lanes identified as Road(road ID:lane ID).
     - Lanes are divided into left and right lanes.
+    - Left lanes have positive lane IDs, while right lanes have negative lane IDs.
+    - In intersections, some roads have priority over others, written as Road(ID) > Road(other ID), Road(another ID), etc.
 """
 
 REWARD_NAME_MAP = {
@@ -411,6 +413,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         if kwargs.get("add_roads", True):
             ret += "- Road layout:\n"
             ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
+            ret += IGP2Verbalizer._add_road_priority(ret, scenario_map, **kwargs)
 
         # Describe intersections
         if add_intersections:
@@ -481,13 +484,26 @@ class IGP2Verbalizer(axs.Verbalizer):
             # Describe lanes
             if kwargs.get("add_lanes", True):
                 if left_lanes:
-                    ret += "    - Left lanes:\n"
+                    # ret += "    - Left lanes:\n"
                     for lane in left_lanes:
                         ret += f"      - Lane({rid}:{lane.id})\n"
                 if right_lanes:
-                    ret += "    - Right lanes:\n"
+                    # ret += "    - Right lanes:\n"
                     for lane in right_lanes:
                         ret += f"      - Lane({rid}:{lane.id})\n"
+        return ret
+
+    @staticmethod
+    def _add_road_priority(ret: str, scenario_map: ip.Map, **kwargs) -> str:
+        ret += "  - Priorities:\n"
+        groups = defaultdict(list)
+        for junction in scenario_map.junctions.values():
+            for priority in junction.priorities:
+                groups[priority.high_id].append(priority.low_id)
+        for high_id, low_ids in groups.items():
+            ret += f"    - Road({high_id}) > "
+            ret += ", ".join([f"Road({low_id})" for low_id in low_ids])
+            ret += "\n"
         return ret
 
     @staticmethod
