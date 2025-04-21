@@ -26,7 +26,6 @@ ROAD_LAYOUT_PRETEXT = """- Metadata:
     - Roads are made up of lanes identified as Road(road ID:lane ID).
     - Lanes are divided into left and right lanes.
     - Left lanes have positive lane IDs, while right lanes have negative lane IDs.
-    - In intersections, some roads have priority over others, written as Road(ID) > Road(other ID), Road(another ID), etc.
 """
 
 REWARD_NAME_MAP = {
@@ -160,7 +159,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 context += "  - Macro actions (as macro[from-to]): "
                 context += f"[{actions_dict[aid]}]\n"
             if add_layout:
-                context += f"  - Lane sequence (as Lane(road ID:lane ID)[from-to]): [{info_dict['Lanes']}]\n"  # noqa: E501
+                context += f"  - Lane sequence (as Road(...)[from-to]): [{info_dict['Lanes']}]\n"  # noqa: E501
             if (
                 add_rewards
                 and rewards is not None
@@ -395,7 +394,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 ret += "  - Coordinate system:\n"
                 ret += "    - Distances are in meters.\n"
                 ret += "    - Coordinates are on a 2D Cartesian plane.\n"
-                ret += "    - Coordinates are written as [x y].\n"
+                ret += "    - Coordinates are written as [x, y].\n"
                 ret += "    - Angles are in radians in the range [-pi, pi].\n"
             if add_intersections:
                 ret += "  -Intersections:\n"
@@ -413,7 +412,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         if kwargs.get("add_roads", True):
             ret += "- Road layout:\n"
             ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
-            ret += IGP2Verbalizer._add_road_priority(ret, scenario_map, **kwargs)
+            ret = IGP2Verbalizer._add_road_priority(ret, scenario_map, **kwargs)
 
         # Describe intersections
         if add_intersections:
@@ -460,7 +459,7 @@ class IGP2Verbalizer(axs.Verbalizer):
             if not road.drivable:
                 continue
 
-            ret += f"  - Road({rid}):\n"
+            ret += f"  - Road({rid}): "
             # ret += f"    - Length: {road.length} m\n"
 
             # midline = ramer_douglas(
@@ -481,16 +480,13 @@ class IGP2Verbalizer(axs.Verbalizer):
                 if lane.type == ip.LaneTypes.DRIVING
             ]
 
-            # Describe lanes
-            if kwargs.get("add_lanes", True):
-                if left_lanes:
-                    # ret += "    - Left lanes:\n"
-                    for lane in left_lanes:
-                        ret += f"      - Lane({rid}:{lane.id})\n"
-                if right_lanes:
-                    # ret += "    - Right lanes:\n"
-                    for lane in right_lanes:
-                        ret += f"      - Lane({rid}:{lane.id})\n"
+            all_lanes = left_lanes + right_lanes
+            if all_lanes:
+                lane_str = ", ".join(
+                    [f"Road({rid}:{lane.id})" for lane in all_lanes],
+                )
+                ret += f"{lane_str}\n"
+
         return ret
 
     @staticmethod
@@ -501,7 +497,7 @@ class IGP2Verbalizer(axs.Verbalizer):
             for priority in junction.priorities:
                 groups[priority.high_id].append(priority.low_id)
         for high_id, low_ids in groups.items():
-            ret += f"    - Road({high_id}) > "
+            ret += f"    - Road({high_id}) has priority over: "
             ret += ", ".join([f"Road({low_id})" for low_id in low_ids])
             ret += "\n"
         return ret
@@ -547,7 +543,7 @@ class IGP2Verbalizer(axs.Verbalizer):
                 lane_seq,
                 strict=True,
             ):
-                data.append(f"Lane({road_id}:{lane_id})[{t_s}-{t_e}]")
+                data.append(f"Road({road_id}:{lane_id})[{t_s}-{t_e}]")
             data = ", ".join(data)
         elif signal in ["acceleration", "angular_velocity"]:
             last_action = None
