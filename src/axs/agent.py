@@ -71,7 +71,10 @@ class AXSAgent:
         self._setup_folders(config)
 
         # Prompting components
-        self._prompts = {k: Prompt(v) for k, v in config.axs.prompts.items()}
+        self._prompts = {
+            k: Prompt(v, occlusions=config.axs.occlusions)
+            for k, v in config.axs.prompts.items()
+        }
 
         # Memory components
         self._semantic_memory = SemanticMemory(
@@ -250,9 +253,11 @@ class AXSAgent:
             if simulation_results == "DONE":
                 break
             if simulation_results == "FAIL":
-                error_msg = (f"The simulation querying failed after "
-                             f"{self.config.axs.n_tries} attempts. "
-                             f"Interrogation is no longer possible.")
+                error_msg = (
+                    f"The simulation querying failed after "
+                    f"{self.config.axs.n_tries} attempts. "
+                    f"Interrogation is no longer possible."
+                )
                 self.episodic_memory.learn(LLMWrapper.wrap("user", error_msg))
                 break
 

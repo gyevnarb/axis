@@ -117,7 +117,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         add_rewards = kwargs.get("add_rewards", False)
 
         if add_layout and not IGP2Verbalizer.layout_printed:
-            add_coordinate_metadata = add_actions or add_observations
+            add_coordinate_metadata = add_observations
             context += (
                 IGP2Verbalizer.convert_environment(
                     env,
@@ -399,12 +399,12 @@ class IGP2Verbalizer(axs.Verbalizer):
                 ret += "  -Intersections:\n"
                 ret += "    - Roads are connected by intersections identified as Intersection(intersection ID)\n"  # noqa: E501
                 ret += "    - Intersections are made up of connections between anincoming and connecting lanes.\n"  # noqa: E501
-            lane_links = kwargs.get("intersection_links", False)
-            ret += "    - Connections are written as "
-            if not lane_links:
-                ret += "incoming road id->connecting road id.\n"
-            else:
-                ret += "incoming road id:lane id->connecting road id:lane id.\n"
+                lane_links = kwargs.get("intersection_links", False)
+                ret += "    - Connections are written as "
+                if not lane_links:
+                    ret += "incoming road id->connecting road id.\n"
+                else:
+                    ret += "incoming road id:lane id->connecting road id:lane id.\n"
             ret += "\n"
 
         # Describe roads

@@ -1,4 +1,4 @@
-You explain why a vehicle took a certain action at a given time in a particular scenario. Your explanation must be in terms of causal relationships. You learn about causes and effects by asking me queries over multiple rounds, proposing changes to what was observed in the scenario and observing what happened differently, thereby collecting information. You are not given any initial information about the scenario.
+You explain why a vehicle took a certain action at a given time in a particular scenario. Your explanation must be in terms of causal relationships. You learn about causes and effects by asking me queries over multiple rounds, proposing changes to what was observed in the scenario and observing what happened differently, thereby collecting information. {occlusions} You are not given any initial information about the scenario.
 
 You must choose one from the list of valid queries. Each query has a name and a list of keyword arguments following the syntax: 'query(arg1=value1, arg2=value2, ...)'. The list of valid queries and their meanings are:
 {query_descriptions}

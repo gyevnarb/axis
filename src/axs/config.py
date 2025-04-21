@@ -31,6 +31,9 @@ EXPLANATION_STYLE = ("Do not include raw state or action arrays. Do not include 
                      "explicit references to road, lane, and intersection IDs. "
                      "Refer to casual releationships.")
 
+OCCLUSIONS_FLAG = ("Note, the observations may be incomplete and the context may "
+                  "contain occluded agents.")
+
 
 class Registerable:
     """Abstract base class for registerable classes."""
@@ -322,6 +325,20 @@ class AXSConfig(ConfigBase):
         Default: True.
         """
         return self._config.get("use_interrogation", True)
+
+    @property
+    def occlusions(self) -> bool:
+        """Whether to there are occlusions in the environment.
+
+        Default: False.
+        """
+        occlusions = self._config.get("occlusions", False)
+        occlusions_text_path = Path(self.prompts_dir, "occlusions.txt")
+        if occlusions and occlusions_text_path.exists():
+            with occlusions_text_path.open("r") as f:
+                global OCCLUSIONS_FLAG  # noqa: PLW0603
+                OCCLUSIONS_FLAG = f.read()
+        return occlusions
 
     @property
     def macro_action(self) -> MacroActionConfig:

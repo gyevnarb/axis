@@ -1,3 +1,4 @@
 Generate your explanation based on the context given to you in response to the question: {user_prompt}
+{occlusions}
 {explanation_style}
 {complexity}

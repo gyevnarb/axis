@@ -1,3 +1,4 @@
 Generate your final explanation using all previous information in response to the question: {user_prompt}
+{occlusions}
 {explanation_style}
 {complexity}

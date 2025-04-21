@@ -19,16 +19,23 @@ class Prompt:
     such that they can be formatted using the `str.format` method.
     """
 
-    def __init__(self, template: str, time: int | None = None) -> "Prompt":
+    def __init__(
+        self,
+        template: str,
+        time: int | None = None,
+        occlusions: bool = False,
+    ) -> "Prompt":
         """Initialize Prompt with template and optional timestep for when it is valid.
 
         Args:
             template (str): The template string with placeholders for context variables.
             time (int): The time step when the prompt becomes valid
+            occlusions (bool): Whether to use occlusion flags in the prompt.
 
         """
         self.template = template
         self.time = time
+        self.occlusions = occlusions
 
     def __repr__(self) -> str:
         """Return a string representation of the Prompt object."""
@@ -43,10 +50,18 @@ class Prompt:
         """Check if two Prompt objects are equal."""
         if not isinstance(other, Prompt):
             return False
-        return self.template == other.template and self.time == other.time
+        if not hasattr(other, "occlusions"):
+            other.occlusions = False
+        return (
+            self.template == other.template
+            and self.time == other.time
+            and self.occlusions == other.occlusions
+        )
 
     def fill(
-        self, context_dict: dict[str, str] | None = None, **content: dict[str, Any],
+        self,
+        context_dict: dict[str, str] | None = None,
+        **content: dict[str, Any],
     ) -> str:
         """Complete the prompt from the template and context.
 
@@ -63,11 +78,20 @@ class Prompt:
 
         all_vars = {k for d in [context_dict, content] for k in d}
         for k in self.placeholders:
-            if k not in all_vars:
+            if k not in all_vars and k != "occlusions":
                 error_msg = f"Placeholder '{k}' not specified in context."
                 raise ValueError(error_msg)
 
         temp_str = self.template.format_map(SafeDict(context_dict))
+
+        if self.occlusions:
+            from axs.config import OCCLUSIONS_FLAG
+            temp_str = temp_str.format_map(
+                SafeDict({"occlusions": OCCLUSIONS_FLAG}),
+            )
+        else:
+            temp_str = temp_str.format_map(SafeDict({"occlusions": ""}))
+
         return temp_str.format_map(SafeDict(content))
 
     @property

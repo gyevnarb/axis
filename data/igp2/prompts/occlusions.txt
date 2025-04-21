@@ -1,0 +1,1 @@
+Note, the context observations and actions may be incomplete as the scenario could potentially contain occluded vehicles.

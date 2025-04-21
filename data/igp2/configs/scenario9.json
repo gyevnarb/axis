@@ -12,6 +12,7 @@
         }
     },
     "axs": {
+        "occlusions": true,
         "macro_action": {
             "type_name": "IGP2MacroAction",
             "params": {
