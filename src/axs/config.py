@@ -29,7 +29,7 @@ COMPLEXITY_PROMPTS = {
 }
 EXPLANATION_STYLE = ("Do not include raw state or action arrays. Do not include "
                      "explicit references to road, lane, and intersection IDs. "
-                     "Refer to casual releationships.")
+                     "Refer to casual relationships.")
 
 OCCLUSIONS_FLAG = ("Note, the observations may be incomplete and the context may "
                   "contain occluded agents.")

@@ -87,7 +87,7 @@
     },
     "6": {
         "goals": {
-            "0": "Reach the end of the current road as fast as possible.",
+            "0": "Reach the end of the current road as efficiently as possible.",
             "1": "Turn right at the junction and reach the end of that road.",
             "2": "Stop before the junction.",
             "3": "Always stay in the left lane."
@@ -97,7 +97,8 @@
             "1": "Turn right.",
             "2": "Change lanes to the right.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 did not change lanes because it was the most efficient way to reach its goal. In addition, the behaviour of Vehicle 1, which was erratic and unpredictable, made it necessary to maintain a safe distance from Vehicle 1. Vehicle 2's actions did not influence Vehicle 0 as Vehicle 2 was giving way at a junction."
     },
     "7": {
         "goals": {

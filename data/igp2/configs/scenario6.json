@@ -37,6 +37,10 @@
             {
                 "time": 100,
                 "template": "Why did vehicle 0 not change lanes to the left?"
+            },
+            {
+                "time": 140,
+                "template": "Why did vehicle 1 change lanes right then back left?"
             }
         ]
     },

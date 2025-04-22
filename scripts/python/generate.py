@@ -298,7 +298,11 @@ def run(ctx: typer.Context) -> None:
 
             # Generate explanation to prompt
             user_query = prompt.fill()
-            _, exp_results = axs_agent.explain(user_query)
+            try:
+                _, exp_results = axs_agent.explain(user_query)
+            except Exception as e:
+                logger.exception("ERROR - %s - %s", prompt, param)
+                typer.Exit(code=1)
 
             end_msg = f"{exp_results['success']} - {param}"
             logger.info(end_msg)
