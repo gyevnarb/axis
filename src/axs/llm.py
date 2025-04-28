@@ -3,6 +3,7 @@
 Supports offline, localhost, and online LLM models.
 """
 
+import importlib
 import logging
 import os
 
@@ -68,10 +69,18 @@ class LLMWrapper:
             messages (List[Dict[str, str]]): List of messages to send to the LLM model.
 
         """
-        if isinstance(self._sampling_params, dict):
-            from vllm import SamplingParams
+        vllm_installed = importlib.util.find_spec("vllm") is not None
+        if self._mode == "offline" and not vllm_installed:
+            error_msg = "vLLM not install but offline sampling was given."
+            raise ValueError(error_msg)
 
-            self._sampling_params = SamplingParams(**self._sampling_params)
+        if isinstance(self._sampling_params, dict):
+            if vllm_installed:
+                from vllm import SamplingParams
+                self._sampling_params = SamplingParams(**self._sampling_params)
+            else:
+                from axs.config import SamplingParams
+                self._sampling_params = SamplingParams(self._sampling_params)
 
         _messages = self.merge_consecutive_messages(messages)
 
@@ -96,6 +105,7 @@ class LLMWrapper:
                 f"Multiple models found for {self.config.model}: {internal_name}"
             )
             raise ValueError(error_msg)
+
         # TODO: Add support for the responses OpenAI API
         if isinstance(self._llm, anthropic.Anthropic):
             system_prompt = messages.pop(0)
