@@ -35,12 +35,12 @@
         "prompts_dir": "data/igp2/prompts",
         "user_prompts": [
             {
-                "time": 100,
-                "template": "Why did vehicle 0 not stop?"
+                "time": 140,
+                "template": "Why did vehicle 1 stop?"
             },
             {
-                "time": 100,
-                "template": "Why did vehicle 0 turn instead of stopping?"
+                "time": 140,
+                "template": "Why did vehicle 0 not stop to give way?"
             }
         ]
     },
@@ -55,7 +55,7 @@
         "params": {
             "config": {
                 "scenario": {
-                    "map_path": "data/igp2/maps/scenario9.xodr",
+                    "map_path": "data/igp2/maps/scenario4.xodr",
                     "max_speed": 10.0,
                     "fps": 20,
                     "seed": 42,
@@ -97,7 +97,7 @@
                         "goal": {
                             "box": {
                                 "center": [
-                                    -92.4193548387097,
+                                    -25.4193548387097,
                                     1.758793290043265
                                 ],
                                 "length": 3.5,
@@ -133,13 +133,7 @@
                                 "curvature": -0.1
                             }
                         },
-                        "explainer": {
-                            "cf_n_simulations": 30,
-                            "cf_max_depth": 5,
-                            "alpha_occlusion": 1.0,
-                            "allow_hide_occluded": false
-                        },
-                        "view_radius": 500,
+                        "view_radius": 200,
                         "stop_goals": true,
                         "occluded_factors_prior": 0.2
                     },
@@ -215,7 +209,7 @@
                         "occlusions": [
                             {
                                 "start": 0,
-                                "end": 200
+                                "end": 120
                             }
                         ]
                     }

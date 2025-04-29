@@ -411,8 +411,8 @@ class IGP2Verbalizer(axs.Verbalizer):
         # Describe roads
         if kwargs.get("add_roads", True):
             ret += "- Road layout:\n"
-            ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map, **kwargs)
-            ret = IGP2Verbalizer._add_road_priority(ret, scenario_map, **kwargs)
+            ret = IGP2Verbalizer._add_verbalized_roads(ret, scenario_map)
+            ret = IGP2Verbalizer._add_road_priority(ret, scenario_map)
 
         # Describe intersections
         if add_intersections:
@@ -450,11 +450,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         return ret
 
     @staticmethod
-    def _add_verbalized_roads(
-        ret: str,
-        scenario_map: ip.Map,
-        **kwargs: dict[str, Any],
-    ) -> None:
+    def _add_verbalized_roads(ret: str, scenario_map: ip.Map) -> None:
         for rid, road in scenario_map.roads.items():
             if not road.drivable:
                 continue
@@ -490,7 +486,7 @@ class IGP2Verbalizer(axs.Verbalizer):
         return ret
 
     @staticmethod
-    def _add_road_priority(ret: str, scenario_map: ip.Map, **kwargs) -> str:
+    def _add_road_priority(ret: str, scenario_map: ip.Map) -> str:
         ret += "  - Priorities:\n"
         groups = defaultdict(list)
         for junction in scenario_map.junctions.values():

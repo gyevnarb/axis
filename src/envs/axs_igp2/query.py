@@ -29,9 +29,6 @@ class IGP2Query(axs.Query):
 
         """
         super().__init__(name, params)
-        if name == "remove" and params["vehicle"] == 0:
-            error_msg = "Cannot remove vehicle 0."
-            raise axs.QueryError(error_msg)
 
     def verify(
         self,
@@ -51,14 +48,14 @@ class IGP2Query(axs.Query):
             infos (dict[str, Any]): Additional informations about the simulation.
 
         """
-        if self.query_name == "remove":
-            vid = self.params["vehicle"]
-            if vid == 0:
-                error_msg = "Cannot remove vehicle 0."
-                raise axs.QueryError(error_msg)
-            if not any(vid in info for info in infos):
-                error_msg = f"Vehicle {vid} does not exist."
-                raise axs.QueryError(error_msg)
+        # if self.query_name == "remove":
+        #     vid = self.params["vehicle"]
+        #     if vid == 0:
+        #         error_msg = "Cannot remove vehicle 0."
+        #         raise axs.QueryError(error_msg)
+        #     if not any(vid in info for info in infos):
+        #         error_msg = f"Vehicle {vid} does not exist."
+        #         raise axs.QueryError(error_msg)
 
         if self.query_name == "add":
             location = self.params["location"]
@@ -86,8 +83,10 @@ class IGP2Query(axs.Query):
                     ).boundary,
                 )
                 if spawn_box.intersects(vehicle_box):
-                    error_msg = ("Spawn location overlaps with or "
-                                 "is too close to another vehicle.")
+                    error_msg = (
+                        "Spawn location overlaps with or "
+                        "is too close to another vehicle."
+                    )
                     raise axs.QueryError(error_msg)
 
         final_t = next(iter(infos[-1].values())).time
