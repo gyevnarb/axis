@@ -467,9 +467,13 @@ class IGP2MacroAction(axs.MacroAction):
         """
         action_names = []
         state = trajectory.states[inx]
-        raw_action = np.array(
-            [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
-        )
+        if len(trajectory.states) > 1:
+            raw_action = np.array(
+                [trajectory.acceleration[inx], trajectory.angular_velocity[inx]],
+            )
+        else:
+            logger.warning("The trajectory has only one state.")
+            raw_action = np.array([0.0, 0.0])
 
         if trajectory.acceleration[inx] < -eps:
             action_names.append("SlowDown")
