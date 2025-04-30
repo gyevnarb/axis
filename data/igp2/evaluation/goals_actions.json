@@ -11,7 +11,8 @@
             "1": "Change lanes to the left.",
             "2": "Stop.",
             "3": "Follow lane."
-        }
+        },
+        "correct": "Vehicle 0 changed lanes left because it had to turn right at the junction. Vehicle 1 had no impact on its decision-making."
     },
     "1": {
         "goals": {
@@ -55,7 +56,8 @@
             "1": "Turn left.",
             "2": "Change lanes left.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 entered the roundabout without giving way to Vehicle 1, which was in the roundabout and thus had priority, because Vehicle 1 changed to the outter lane in the roundabout. From this, Vehicle 0 could infer that Vehicle 1 was going to exit the roundabout. Vehicle 0 therefore could enter the roundabout because it was safe to do so."
     },
     "4": {
         "goals": {
@@ -69,7 +71,8 @@
             "1": "Turn left.",
             "2": "Change lanes right.",
             "3": "Follow lane."
-        }
+        },
+        "correct": "Vehicle 0 turned left early at the junction because it save Vehicle 3 coming to a stop and leaving a gap for Vehicle 0 to merge onto the road. If Vehicle 3 had not left the gap and had continued to drive straight instead, then Vehicle 0 would have had to stop and wait to merge until the lane was clear."
     },
     "5": {
         "goals": {
@@ -83,7 +86,8 @@
             "1": "Turn left.",
             "2": "Go straight through the junction.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 collided with Vehicle 1 because Vehicle 1 was acting irrationally. Vehicle 1 first came to a stop at the junction, indicating that it was giving way to Vehicle 2 while waiting to turn left, but then it decided to go straight instead. Vehicle 0 was already in the process of turning right and could not stop in time to avoid the collision. Vehicle 0's decision to turn right was based on the assumption that Vehicle 1 would give way to it, which was not the case."
     },
     "6": {
         "goals": {
@@ -127,7 +131,8 @@
             "1": "Turn left.",
             "2": "Go straight junction.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 stopped to turn right at the junction because it saw Vehicle 1 coming to a stop at the junction. Vehicle 0 inferred that Vehicle 1 was going to give way to an occluded Vehicle 2. Vehicle 0 safely waited until Vehicle 2 passed before turning right."
     },
     "9": {
         "goals": {
@@ -141,6 +146,7 @@
             "1": "Turn right.",
             "2": "Go straight junction.",
             "3": "Stop."
-        }
+        },
+        "correct": "Vehicle 0 turned left without waiting for Vehicle 1 to pass, even though Vehicle 1 had priority, because Vehicle 1 came to a stop at the junction. Vehicle 0 inferred that the path of Vehicle 1 was blocked by an occluded Vehicle 2. Vehicle 0 therefore could turn left safely without stopping which was more efficient."
     }
 }

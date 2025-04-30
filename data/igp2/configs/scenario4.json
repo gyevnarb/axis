@@ -35,7 +35,7 @@
         "user_prompts": [
             {
                 "time": 120,
-                "template": "What if vehicle 3 had gone through the junction instead of stopping?"
+                "template": "What would vehicle 0 do if vehicle 3 had gone through the junction instead of stopping?"
             },
             {
                 "time": 120,

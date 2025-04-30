@@ -4,11 +4,12 @@ import json
 import logging
 import pickle
 import re
+from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
-from util import LLMModels, random_order_string
+from util import LLMModels, extract_all_explanations, random_order_string
 
 import axs
 
@@ -16,57 +17,87 @@ app = typer.Typer()
 logger = logging.getLogger(__name__)
 
 
+class ExplanationKind(str, Enum):
+    """Explanation kind for evaluation."""
+
+    final = "final"
+    all = "all"
+
+
 def get_fluent_score(
     results: dict,
     llm: axs.LLMWrapper,
     prompts: dict[str, axs.Prompt],
+    explanation_kind: ExplanationKind,
 ) -> dict[str, int]:
     """Get fluency score from LLM."""
     logger.info("Getting fluency score...")
 
     scenario_context = results["context"]["context"]
     question = results["user_prompt"]
-    explanation = results["explanation"]
+    if explanation_kind == ExplanationKind.final:
+        explanations = [results["explanation"]]
+    elif explanation_kind == ExplanationKind.all:
+        explanations = extract_all_explanations(results["messages"])
+    else:
+        error_msg = f"Unknown explanation kind: {explanation_kind.value}"
+        logger.error(error_msg)
 
-    prompt = prompts["prompt"].fill(
-        scenario=scenario_context,
-        question=question,
-        explanation=explanation,
-    )
+    ret = []
+    for i, explanation in enumerate(explanations):
+        logger.info(
+            "Evaluating fluency for explanation %s/%s: %s",
+            i + 1,
+            len(explanations),
+            explanation,
+            extra={"markup": True},
+        )
 
-    logger.debug("Prompt: %s", prompt)
+        prompt = prompts["prompt"].fill(
+            scenario=scenario_context,
+            question=question,
+            explanation=explanation,
+        )
 
-    messages = [
-        {"role": "system", "content": prompts["system"].fill()},
-        {"role": "user", "content": prompt},
-    ]
-    response, usage = llm.chat(messages)
-    content = response[0]["content"]
+        logger.debug("Prompt: %s", prompt)
 
-    sufficient_detail = int(re.search(r"\$ SufficientDetail: (\d+)", content).group(1))
-    satisfying = int(re.search(r"\$ Satisfying: (\d+)", content).group(1))
-    complete = int(re.search(r"\$ Complete: (\d+)", content).group(1))
-    trust = int(re.search(r"\$ Trust: (\d+)", content).group(1))
+        messages = [
+            {"role": "system", "content": prompts["system"].fill()},
+            {"role": "user", "content": prompt},
+        ]
+        response, usage = llm.chat(messages)
+        content = response[0]["content"]
 
-    logger.info(
-        "Fluency scores: SufficientDetail: %s, Satisfying: %s, Complete: %s, Trust: %s",
-        sufficient_detail,
-        satisfying,
-        complete,
-        trust,
-        extra={"markup": True},
-    )
+        sufficient_detail = int(
+            re.search(r"\$ SufficientDetail: (\d+)", content).group(1),
+        )
+        satisfying = int(re.search(r"\$ Satisfying: (\d+)", content).group(1))
+        complete = int(re.search(r"\$ Complete: (\d+)", content).group(1))
+        trust = int(re.search(r"\$ Trust: (\d+)", content).group(1))
 
-    return {
-        "scores": {
-            "SufficientDetail": sufficient_detail,
-            "Satisfying": satisfying,
-            "Complete": complete,
-            "Trust": trust,
-        },
-        "response": content,
-        "usage": usage,
-    }
+        logger.info(
+            "Fluency scores: SufficientDetail: %s, Satisfying: %s, Complete: %s, Trust: %s",  # noqa: E501
+            sufficient_detail,
+            satisfying,
+            complete,
+            trust,
+            extra={"markup": True},
+        )
+
+        ret.append(
+            {
+                "scores": {
+                    "SufficientDetail": sufficient_detail,
+                    "Satisfying": satisfying,
+                    "Complete": complete,
+                    "Trust": trust,
+                },
+                "explanation": explanation,
+                "response": content,
+                "usage": usage,
+            },
+        )
+    return ret
 
 
 def get_correct_score(
@@ -74,49 +105,73 @@ def get_correct_score(
     llm: axs.LLMWrapper,
     prompts: dict[str, axs.Prompt],
     ground_truth: str,
-) -> dict[str, int]:
+    explanation_kind: ExplanationKind,
+) -> list[dict[str, int]]:
     """Get fluency score from LLM."""
     logger.info("Getting correctness score...")
 
     scenario_context = results["context"]["context"]
     question = results["user_prompt"]
-    explanation = results["explanation"]
+    if explanation_kind == ExplanationKind.final:
+        explanations = [results["explanation"]]
+    elif explanation_kind == ExplanationKind.all:
+        explanations = extract_all_explanations(results["messages"])
+    else:
+        error_msg = f"Unknown explanation kind: {explanation_kind.value}"
+        logger.error(error_msg)
 
-    prompt = prompts["prompt"].fill(
-        scenario=scenario_context,
-        question=question,
-        explanation=explanation,
-        ground_truth=ground_truth,
-    )
+    ret = []
+    for i, explanation in enumerate(explanations):
+        logger.info(
+            "Evaluating correctness for explanation %s/%s: %s",
+            i + 1,
+            len(explanations),
+            explanation,
+            extra={"markup": True},
+        )
 
-    logger.debug(
-        "Prompt for correctness score:\n%s",
-        prompt,
-        extra={"markup": True},
-    )
+        if explanation == "":
+            continue
 
-    messages = [
-        {"role": "system", "content": prompts["system"].fill()},
-        {"role": "user", "content": prompt},
-    ]
-    response, usage = llm.chat(messages)
-    content = response[0]["content"]
+        prompt = prompts["prompt"].fill(
+            scenario=scenario_context,
+            question=question,
+            explanation=explanation,
+            ground_truth=ground_truth,
+        )
 
-    score = int(re.search(r"\$ Score: (\d+)", content).group(1))
+        logger.debug(
+            "Prompt for correctness score:\n%s",
+            prompt,
+            extra={"markup": True},
+        )
 
-    logger.info(
-        "Correctness score: %s",
-        score,
-        extra={"markup": True},
-    )
+        messages = [
+            {"role": "system", "content": prompts["system"].fill()},
+            {"role": "user", "content": prompt},
+        ]
+        response, usage = llm.chat(messages)
+        content = response[0]["content"]
 
-    return {
-        "scores": {
-            "Correct": score,
-        },
-        "response": content,
-        "usage": usage,
-    }
+        score = int(re.search(r"\$ Score: (\d+)", content).group(1))
+
+        logger.info(
+            "Correctness score: %s",
+            score,
+            extra={"markup": True},
+        )
+
+        ret.append(
+            {
+                "scores": {
+                    "Correct": score,
+                },
+                "explanation": explanation,
+                "response": content,
+                "usage": usage,
+            },
+        )
+    return ret
 
 
 def get_actionable_score(
@@ -125,8 +180,44 @@ def get_actionable_score(
     prompts: dict[str, axs.Prompt],
     goals_actions: dict[str, str],
     use_explanation: bool,
-) -> float:
+    explanation_kind: ExplanationKind,
+) -> list[dict[str, Any]]:
     """Get fluency score from LLM."""
+
+    def _score(_prompt: str) -> dict[str, Any]:
+        logger.debug(
+            "Prompt for actionable score:\n%s",
+            _prompt,
+            extra={"markup": True},
+        )
+
+        messages = [
+            {"role": "system", "content": prompts["system"].fill()},
+            {"role": "user", "content": _prompt},
+        ]
+        response, usage = llm.chat(messages)
+        content = response[0]["content"]
+        goal_selection = int(re.search(r"\$ Goal: (\d+)", content).group(1))
+        goal_selection_mapped = goal_order[goal_selection]
+        maneuver_selection = int(re.search(r"\$ Maneuver: (\d+)", content).group(1))
+        maneuver_selection_mapped = mans_order[maneuver_selection]
+
+        logger.info(
+            "Actionable scores (remapped): Goal: %s, Maneuver: %s",
+            goal_selection_mapped,
+            maneuver_selection_mapped,
+            extra={"markup": True},
+        )
+
+        return {
+            "scores": {
+                "Goal": goal_selection_mapped,
+                "Maneuver": maneuver_selection_mapped,
+            },
+            "reason": content,
+            "usage": usage,
+        }
+
     logger.info("Getting actionable score...")
     if use_explanation:
         logger.info("Using explanation for actionable score.")
@@ -138,53 +229,47 @@ def get_actionable_score(
     goals_str, goal_order = random_order_string(goals_actions["goals"])
     maneuvers_str, mans_order = random_order_string(goals_actions["maneuvers"])
 
-    if use_explanation:
-        explanation = results["explanation"]
+    if not use_explanation:
+        prompt = prompts["no_exp_prompt"].fill(
+            scenario=scenario_context,
+            goals=goals_str,
+            maneuvers=maneuvers_str,
+        )
+        score_dict = _score(prompt)
+        score_dict["explanation"] = ""
+        return [score_dict]
+
+    if explanation_kind == ExplanationKind.final:
+        explanations = [results["explanation"]]
+    elif explanation_kind == ExplanationKind.all:
+        explanations = extract_all_explanations(results["messages"])
+    else:
+        error_msg = f"Unknown explanation kind: {explanation_kind.value}"
+        raise ValueError(error_msg)
+
+    ret = []
+    for i, explanation in enumerate(explanations):
+        logger.info(
+            "Evaluating actionability for explanation %s/%s: %s",
+            i + 1,
+            len(explanations),
+            explanation,
+            extra={"markup": True},
+        )
+
+        if explanation == "":
+            continue
+
         prompt = prompts["exp_prompt"].fill(
             scenario=scenario_context,
             explanation=explanation,
             goals=goals_str,
             maneuvers=maneuvers_str,
         )
-    else:
-        prompt = prompts["no_exp_prompt"].fill(
-            scenario=scenario_context,
-            goals=goals_str,
-            maneuvers=maneuvers_str,
-        )
-
-    logger.debug(
-        "Prompt for actionable score:\n%s",
-        prompt,
-        extra={"markup": True},
-    )
-
-    messages = [
-        {"role": "system", "content": prompts["system"].fill()},
-        {"role": "user", "content": prompt},
-    ]
-    response, usage = llm.chat(messages)
-    content = response[0]["content"]
-    goal_selection = int(re.search(r"\$ Goal: (\d+)", content).group(1))
-    goal_selection_mapped = goal_order[goal_selection]
-    maneuver_selection = int(re.search(r"\$ Maneuver: (\d+)", content).group(1))
-    maneuver_selection_mapped = mans_order[maneuver_selection]
-
-    logger.info(
-        "Actionable scores (remapped): Goal: %s, Maneuver: %s",
-        goal_selection_mapped,
-        maneuver_selection_mapped,
-        extra={"markup": True},
-    )
-
-    return {
-        "scores": {
-            "Goal": goal_selection_mapped,
-            "Maneuver": maneuver_selection_mapped,
-        },
-        "reason": content,
-        "usage": usage,
-    }
+        score_dict = _score(prompt)
+        score_dict["explanation"] = explanation
+        ret.append(score_dict)
+    return ret
 
 
 @app.command()
@@ -192,7 +277,11 @@ def main(
     scenario: Annotated[
         int,
         typer.Option(
-            "-s", "--scenario", help="The scenario to evaluate.", min=0, max=9,
+            "-s",
+            "--scenario",
+            help="The scenario to evaluate.",
+            min=0,
+            max=9,
         ),
     ] = 1,
     model: Annotated[
@@ -207,6 +296,12 @@ def main(
             help="Name of the results file to evaluate.",
         ),
     ] = None,
+    explanation_kind: Annotated[
+        ExplanationKind,
+        typer.Option(
+            "-e", "--explanation-kind", help="The explanations to use for evaluation.",
+        ),
+    ] = ExplanationKind.final,
 ) -> None:
     """Evaluate AXSAgent generated explanations with Claude or Llama (for debug)."""
     results_file = Path(results_file)
@@ -300,22 +395,30 @@ def main(
             llm,
             prompts["actionable"],
             goals_actions,
-            use_explanation=True,
+            use_explanation=False,
+            explanation_kind=explanation_kind,
         )
         scores["actionable_no_exp"] = get_actionable_score(
             result,
             llm,
             prompts["actionable"],
             goals_actions,
-            use_explanation=False,
+            use_explanation=True,
+            explanation_kind=explanation_kind,
         )
         scores["correct"] = get_correct_score(
             result,
             llm,
             prompts["correct"],
             goals_actions["correct"],
+            explanation_kind=explanation_kind,
         )
-        scores["fluent"] = get_fluent_score(result, llm, prompts["fluent"])
+        scores["fluent"] = get_fluent_score(
+            result,
+            llm,
+            prompts["fluent"],
+            explanation_kind=explanation_kind,
+        )
 
         scores_results.append(scores)
 
