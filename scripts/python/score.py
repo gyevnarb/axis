@@ -1,8 +1,6 @@
 """Obtain scores from results for a given scenario and model."""
 
 import logging
-import pickle
-from pathlib import Path
 from typing import Annotated
 
 import numpy as np

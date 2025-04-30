@@ -40,7 +40,7 @@ FEATURE_LABELS = {
     "add_actions": "Actions",
     "add_layout": "Layout",
     "add_macro_actions": "Macros",
-    "add_observations": "Observations",
+    "add_observations": "Observ's",
     "complexity": "Complex",
     "truncate": "Memory Truncation",
 }

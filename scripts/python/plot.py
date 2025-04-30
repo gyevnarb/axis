@@ -90,7 +90,7 @@ def plot_shapley_waterfall(
     rcParams["axes.titlesize"] = 11
     rcParams["axes.labelsize"] = 10
     rcParams["xtick.labelsize"] = 9
-    rcParams["ytick.labelsize"] = 9
+    rcParams["ytick.labelsize"] = 10
     rcParams["legend.fontsize"] = 8
     rcParams["figure.dpi"] = 300
 
@@ -296,7 +296,7 @@ def plot_shapley_waterfall(
 
     # Formatting for academic publication
     # Use a more descriptive, precise title
-    ax.set_xlabel(f"Contribution to Reward ({MODEL_NAME_MAP[gen_model]})", fontsize=10)
+    ax.set_xlabel(f"Contribution to Reward ({MODEL_NAME_MAP[gen_model]})", fontsize=12)
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
     # Add a subtle grid
@@ -361,7 +361,7 @@ def plot_shapley_waterfall(
     ax.axvline(x=0, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
 
     # Tight layout for proper spacing, with more padding at the top for legend
-    plt.tight_layout(pad=0.05, rect=[0, 0, 1, 0.92])
+    plt.tight_layout(pad=0.01, rect=[0, 0, 1, 1.0])
 
     # Create directory if it doesn't exist
     save_dir = Path("output", "igp2", "plots")

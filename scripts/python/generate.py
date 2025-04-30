@@ -11,7 +11,7 @@ import typer
 from util import LLMModels, get_params
 
 import axs
-from envs import axs_igp2
+from envs import axs_igp2  # noqa: F401
 
 app = typer.Typer()
 

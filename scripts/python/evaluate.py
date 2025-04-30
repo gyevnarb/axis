@@ -174,7 +174,7 @@ def get_correct_score(
     return ret
 
 
-def get_actionable_score(
+def get_actionable_score(  # noqa: PLR0913
     results: dict,
     llm: axs.LLMWrapper,
     prompts: dict[str, axs.Prompt],
