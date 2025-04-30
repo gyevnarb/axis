@@ -46,8 +46,7 @@ def init_igp2(ctx: typer.Context, fn_name: str, save_logs: bool) -> None:
     axs.util.init_logging(
         level="DEBUG" if debug else "INFO",
         warning_only=[
-            "igp2" if not debug else "igp2.core.velocitysmoother",
-            "gofi" if not debug else None,
+            None if not debug else "igp2.core.velocitysmoother",
             "matplotlib",
             "httpcore",
             "openai",

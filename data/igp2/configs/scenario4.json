@@ -35,7 +35,15 @@
         "user_prompts": [
             {
                 "time": 120,
-                "template": "What if vehicle 1 had gone through the junction instead of stopping?"
+                "template": "What would vehicle 0 do if vehicle 3 had gone through the junction instead of stopping?"
+            },
+            {
+                "time": 120,
+                "template": "Why did vehicle 0 not stop at the junction?"
+            },
+            {
+                "time": 120,
+                "template": "Why did vehicle 0 turn early at the junction?"
             }
         ]
     },
@@ -43,7 +51,7 @@
         "name": "igp2-v0",
         "wrapper_type": "IGP2QueryableWrapper",
         "policy_type": "IGP2Policy",
-        "max_iter": 300,
+        "max_iter": 500,
         "n_epsiodes": 1,
         "seed": 28,
         "render_mode": "human",
@@ -79,8 +87,8 @@
                         "goal": {
                             "box": {
                                 "center": [
-                                    40.0,
-                                    -1.75
+                                    1.75,
+                                    -20.0
                                 ],
                                 "length": 5,
                                 "width": 3.5,
@@ -105,7 +113,7 @@
                             "t_update": 2.0,
                             "n_simulations": 30,
                             "max_depth": 5,
-                            "store_results": "all",
+                            "store_results": null,
                             "trajectory_agents": false,
                             "reward_factors": {
                                 "time": 1.0,
@@ -148,8 +156,8 @@
                                     1.75,
                                     25.5
                                 ],
-                                "length": 3.5,
-                                "width": 5,
+                                "length": 1.0,
+                                "width": 1.0,
                                 "heading": 0.0
                             }
                         },
@@ -179,8 +187,8 @@
                                     1.75,
                                     -18.0
                                 ],
-                                "length": 3.5,
-                                "width": 3.5,
+                                "length": 1.0,
+                                "width": 1.0,
                                 "heading": 0.0
                             },
                             "velocity": [

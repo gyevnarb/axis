@@ -35,12 +35,12 @@
     "prompts_dir": "data/igp2/prompts",
     "user_prompts": [
       {
-        "time": 120,
+        "time": 130,
         "template": "Why did vehicle 0 stop to give way?"
       },
       {
-        "time": 120,
-        "template": "Why did vehicle 0 not turn instead of stopping?"
+        "time": 130,
+        "template": "Why would vehicle 0 not turn when there is no vehicle to give way to?"
       }
     ]
   },
@@ -59,18 +59,14 @@
           "max_speed": 10.0,
           "fps": 20,
           "seed": 42,
-          "max_steps": 1000,
-          "give_way_distance": 20.0
+          "max_steps": 1000
         },
         "objects": [
           {
             "type": "building",
-            "shape": "box",
+            "shape":  "box",
             "params": {
-              "center": [
-                -27,
-                -16
-              ],
+              "center": [-27, -16],
               "width": 22,
               "length": 44
             }
@@ -84,7 +80,7 @@
               "box": {
                 "center": [
                   1.75,
-                  -50
+                  -45
                 ],
                 "length": 3.5,
                 "width": 3.5,
@@ -98,7 +94,7 @@
             "goal": {
               "box": {
                 "center": [
-                  92.4193548387097,
+                  15.4193548387097,
                   -1.758793290043265
                 ],
                 "length": 3.5,
@@ -111,7 +107,7 @@
               "beta": 1.0
             },
             "cost_factors": {
-              "time": 0.5,
+              "time": 1.0,
               "velocity": 0.0,
               "acceleration": 1.5,
               "jerk": 1.0,
@@ -123,7 +119,7 @@
             },
             "mcts": {
               "t_update": 1.0,
-              "n_simulations": 30,
+              "n_simulations": 15,
               "max_depth": 5,
               "store_results": null,
               "trajectory_agents": false,
@@ -131,18 +127,10 @@
                 "time": 1.0,
                 "jerk": -0.1,
                 "angular_velocity": -0.1,
-                "curvature": -0.1,
-                "dead": 0.5
+                "curvature": -0.1
               }
             },
-            "explainer": {
-              "cf_n_simulations": 30,
-              "cf_max_depth": 5,
-              "alpha": 0.01,
-              "alpha_occlusion": 1.0,
-              "allow_hide_occluded": true
-            },
-            "view_radius": 500,
+            "view_radius": 200,
             "stop_goals": false,
             "occluded_factors_prior": 0.2
           },
@@ -167,7 +155,7 @@
             "goal": {
               "box": {
                 "center": [
-                  0,
+                  -1.75,
                   -40
                 ],
                 "length": 3.5,
@@ -183,7 +171,7 @@
             "spawn": {
               "box": {
                 "center": [
-                  -50.58064516129032,
+                  -55.58064516129032,
                   -1.714584235209216
                 ],
                 "length": 3.5,

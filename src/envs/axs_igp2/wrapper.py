@@ -132,6 +132,9 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             and query.params["vehicle"] in info
             and query.params["time"] <= info[query.params["vehicle"]].time
         )
+        simulation_needed = simulation_needed and not (
+            query.query_name == "remove" and query.params["vehicle"] == 0
+        )  # Don't run simulation if vehicle 0 is removed.
         return self.env.unwrapped._get_obs(), info, macros, simulation_needed
 
     def process_results(
@@ -182,6 +185,18 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
             infos,
             self.env.unwrapped,
         )
+
+        if query.query_name == "remove" and vid == ego_id:
+            logger.warning("Removing vehicle 0.")
+            observations = [
+                {k: v[1:] for k, v in observation.items()}
+                for observation in observations
+            ]
+            infos = [
+                {k: info for k, info in info_dict.items() if k != ego_id}
+                for info_dict in infos
+            ]
+            macros = {k: macro for k, macro in macros.items() if k != vid}
 
         if query.query_name == "what":
             time = query.get_time(len(observations))
@@ -298,6 +313,13 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
         """
         env: ip.simplesim.SimulationEnv = self.env.unwrapped
         agent_id = query.params["vehicle"]
+        if agent_id == 0:
+            return info, {}
+
+        if agent_id not in env.simulation.agents:
+            error_msg = f"Agent {agent_id} not found in simulation."
+            raise axs.SimulationError(error_msg)
+
         obs = env.simulation.remove_agent(agent_id)
         return obs.frame, {}
 

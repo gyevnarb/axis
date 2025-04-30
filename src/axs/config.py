@@ -154,6 +154,90 @@ class EnvConfig(ConfigBase):
         return self._config.get("params", {})
 
 
+class SamplingParams(ConfigBase):
+    """LLM sampling parameter config class."""
+
+    @property
+    def seed(self) -> int:
+        """The seed for sampling.
+
+        Default: 0.
+        """
+        return self._config.get("seed", 0)
+
+    @property
+    def n(self) -> int:
+        """Number of outputs to sample.
+
+        Default: 1.
+        """
+        return self._config.get("n", 1)
+
+    @property
+    def logit_bias(self) -> dict[int, float] | None:
+        """Logit bias for sampling.
+
+        Default: None.
+        """
+        return self._config.get("logit_bias", None)
+
+    @property
+    def logprobs(self) -> int | None:
+        """Number of logprobs to return.
+
+        Default: None.
+        """
+        return self._config.get("logprobs", None)
+
+    @property
+    def max_tokens(self) -> int | None:
+        """Maximum number of tokens to generate.
+
+        Default: None.
+        """
+        return self._config.get("max_tokens", None)
+
+    @property
+    def presence_penalty(self) -> float | None:
+        """Presence penalty for sampling.
+
+        Default: None.
+        """
+        return self._config.get("presence_penalty", None)
+
+    @property
+    def frequency_penalty(self) -> float | None:
+        """Frequency penalty for sampling.
+
+        Default: None.
+        """
+        return self._config.get("frequency_penalty", None)
+
+    @property
+    def stop(self) -> list[str] | None:
+        """Stop sequences for sampling.
+
+        Default: None.
+        """
+        return self._config.get("stop", None)
+
+    @property
+    def temperature(self) -> float | None:
+        """Temperature for sampling.
+
+        Default: 1.0.
+        """
+        return self._config.get("temperature", 1.0)
+
+    @property
+    def top_p(self) -> float | None:
+        """Top-p sampling parameter.
+
+        Default: 1.0.
+        """
+        return self._config.get("top_p", 1.0)
+
+
 class LLMConfig(ConfigBase):
     """Configuration class for LLM model parameters."""
 
