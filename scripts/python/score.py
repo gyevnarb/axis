@@ -1,12 +1,14 @@
 """Obtain scores from results for a given scenario and model."""
 
 import logging
+import pickle
+from pathlib import Path
 from typing import Annotated
 
 import numpy as np
 import typer
 from generate import app
-from plot import plot_actionable_barplot, plot_shapley_waterfall
+from plot import plot_actionable_barplot, plot_combined_scores, plot_shapley_waterfall
 from util import (
     LLMModels,
     get_actionable_accuracy,
@@ -20,6 +22,7 @@ from util import (
 from envs import axs_igp2
 
 logger = logging.getLogger(__name__)
+
 
 @app.command()
 def shapley(
@@ -182,6 +185,36 @@ def actionable(
                 )
 
     plot_actionable_barplot(combined_actionable, ctx)
+
+
+@app.command()
+def evolution(
+    ctx: typer.Context,
+    eval_model: Annotated[
+        LLMModels | None,
+        typer.Option("-e", "--eval-model", help="The model used for evaluation."),
+    ] = "all",
+    features: Annotated[bool, typer.Option("--features", is_eager=True)] = False,
+) -> None:
+    """Plot the evolution of the combined score for a given scenario and model."""
+    ctx.obj["eval_model"] = eval_model
+    save_paths = get_save_paths(ctx, features=features)
+    if not save_paths:
+        return
+
+    scores = []
+    for save_path in reversed(save_paths):
+        eval_results, (sid, eval_m_str, gen_m_str) = load_eval_results(ctx, save_path)
+        if eval_results is None:
+            continue
+        for result in eval_results:
+            new_scores = {}
+            combined_score = get_combined_score(result, kind="combined")
+            new_scores["score"] = combined_score
+            new_scores["scenario"] = sid
+            new_scores["model"] = gen_m_str
+            scores.append(new_scores)
+    plot_combined_scores(scores, ctx)
 
 
 if __name__ == "__main__":

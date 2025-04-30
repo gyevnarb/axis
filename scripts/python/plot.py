@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -12,6 +13,70 @@ from matplotlib.patches import Patch, Polygon
 from util import FEATURE_LABELS, MODEL_NAME_MAP
 
 logger = logging.getLogger(__name__)
+
+
+def plot_combined_scores(scores: list[dict[str, Any]], ctx: typer.Context) -> None:
+    """Plot combined scores with error intervals in NeurIPS style.
+
+    Args:
+        scores (list): List of dictionaries containing scores, scenarios, and models.
+        ctx (typer.Context): Typer context for scenario and model information.
+
+    """
+    # Aggregate scores by index
+    combined_scores = np.array([score["score"] for score in scores])
+    indices = range(combined_scores.shape[1])
+
+    # Calculate mean and standard error for each index
+    means = np.array(combined_scores).mean(axis=0)
+    errors = np.std(combined_scores, axis=0) / np.sqrt(len(combined_scores))
+
+    # Set up NeurIPS-style plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(indices, means, label="Combined Score", color="blue", linewidth=2)
+    plt.fill_between(
+        indices,
+        means - errors,
+        means + errors,
+        color="blue",
+        alpha=0.2,
+        label="Error Interval",
+    )
+
+    # Add labels and title
+    plt.xlabel("Index", fontsize=12)
+    plt.ylabel("Combined Score", fontsize=12)
+    plt.title("Combined Scores Across Indices", fontsize=14)
+    plt.xticks(fontsize=10)
+    plt.yticks(fontsize=10)
+    plt.grid(visible=True, linestyle="--", alpha=0.5)
+
+    # Add legend
+    plt.legend(fontsize=10)
+
+    # Save the plot as a high-resolution image
+    # Tight layout for proper spacing, with more padding at the top for legend
+    plt.tight_layout(pad=0.5, rect=[0, 0, 1, 0.92])
+
+    # Create directory if it doesn't exist
+    save_dir = Path("output", "igp2", "plots")
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create filename with relevant parameters
+    s_name = ctx.obj["scenario"]
+    s_name = f"{s_name}" if s_name != -1 else "all"
+    gen_model = ctx.obj["model"].value
+    gen_model = gen_model if gen_model != "all" else "all"
+    eval_model = ctx.obj["eval_model"].value
+    eval_model = eval_model if eval_model != "all" else "all"
+    save_name = f"evolution_s{s_name}_{eval_model}_{gen_model}"
+
+    # Save the plot in high resolution for publication
+    plt.savefig(save_dir / f"{save_name}.png", dpi=600, bbox_inches="tight")
+    plt.savefig(save_dir / f"{save_name}.pdf", bbox_inches="tight")
+
+    plt.show()
+
 
 def plot_shapley_waterfall(
     combined_shapley: dict[str, float],
@@ -218,14 +283,14 @@ def plot_shapley_waterfall(
             lefts[-1] + widths[-1],
             *[lf + w for lf, w in zip(lefts, widths, strict=True)],
         )
-        - 0.25
+        - 0.15
     )  # Account for error bars on negative side
     x_max = (
         max(
             lefts[-1] + widths[-1],
             *[lf + w for lf, w in zip(lefts, widths, strict=True)],
         )
-        + 0.25
+        + 0.15
     )  # + max(stds)
     ax.set_xlim(x_min, x_max)
 
@@ -296,7 +361,7 @@ def plot_shapley_waterfall(
     ax.axvline(x=0, color="black", linestyle="-", linewidth=0.5, alpha=0.5)
 
     # Tight layout for proper spacing, with more padding at the top for legend
-    plt.tight_layout(pad=0.5, rect=[0, 0, 1, 0.92])
+    plt.tight_layout(pad=0.05, rect=[0, 0, 1, 0.92])
 
     # Create directory if it doesn't exist
     save_dir = Path("output", "igp2", "plots")
@@ -550,7 +615,7 @@ def plot_actionable_barplot(
     legend_title = (
         f"Scenario: {s_name}; Eval model: {MODEL_NAME_MAP.get(eval_model, eval_model)};"
         f" Gen model: {MODEL_NAME_MAP.get(gen_model, gen_model)}"
-)
+    )
     legend = fig.legend(
         handles=handles,
         loc="upper center",
@@ -584,4 +649,3 @@ def plot_actionable_barplot(
         output_dir / f"{save_name}",
     )
     plt.close()
-

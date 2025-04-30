@@ -20,3 +20,4 @@ output/
 playground.*
 nohup.out
 .env
+.DS_Store

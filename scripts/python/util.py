@@ -33,6 +33,7 @@ MODEL_NAME_MAP = {
     "claude37": "Claude 3.7",
     "deepseekv3": "DeepSeek-V3",
     "deepseekr1": "DeepSeek-R1",
+    "all": "All Models",
 }
 
 FEATURE_LABELS = {
@@ -71,12 +72,12 @@ def get_agent(config: axs.Config) -> axs.AXSAgent:
     return axs.AXSAgent(config, agent_policies)
 
 
-def get_save_paths(ctx: typer.Context) -> list[Path]:
+def get_save_paths(ctx: typer.Context, features: bool = True) -> list[Path]:
     """Load results from the specified directory.
 
     Args:
         ctx (typer.Context): Typer context.
-        eval_model (LLMModels): Evaluation model.
+        features (bool): Whether working with feature evaluations.
 
     """
     generation_model = ctx.obj["model"]
@@ -102,7 +103,8 @@ def get_save_paths(ctx: typer.Context) -> list[Path]:
     save_name += (
         f"_{generation_model.value}" if generation_model.value != "all" else "_*"
     )
-    save_name += "_features"
+    if features:
+        save_name += "_features"
     if interrogation:
         save_name += "_interrogation"
     if context:
@@ -121,6 +123,14 @@ def get_save_paths(ctx: typer.Context) -> list[Path]:
     if not save_paths:
         logger.error("No results found for the given parameters.")
         return []
+
+    if not features:
+        save_paths = [file for file in save_paths if "features" not in str(file)]
+    if not interrogation:
+        save_paths = [file for file in save_paths if "interrogation" not in str(file)]
+    if not context:
+        save_paths = [file for file in save_paths if "context" not in str(file)]
+
     logger.info(
         "Found %d results files: %s",
         len(save_paths),
@@ -262,7 +272,10 @@ def random_order_string(items: dict[str, str]) -> str:
     return "\n".join([f"{k}. {v}" for k, v in remapped_items.items()]), shuffle_mapping
 
 
-def get_combined_score(eval_result: dict[str, Any], kind: str = "correct") -> float:
+def get_combined_score(
+    eval_result: dict[str, list[Any] | Any],
+    kind: str = "correct",
+) -> list[float]:
     """Get combined score for fluency and correctness using geometric mean.
 
     Args:
@@ -270,16 +283,26 @@ def get_combined_score(eval_result: dict[str, Any], kind: str = "correct") -> fl
         kind (str): The kind of metric to calculate. Either 'correct' or 'combined'.
 
     """
-    correct = eval_result["correct"]["scores"]
-    fluent = eval_result["fluent"]["scores"]
-    correct = np.array(list(correct.values()))
-    fluent = np.array(list(fluent.values()))
+    if isinstance(eval_result["correct"], list):
+        correct_scores = np.array(
+            [res["scores"]["Correct"] for res in eval_result["correct"]],
+        )
+        fluent_scores = np.array(
+            [list(res["scores"].values()) for res in eval_result["fluent"]],
+        )
+    else:
+        correct_scores = np.array(
+            [eval_result["correct"]["scores"]["Correct"]],
+        )
+        fluent_scores = np.array(
+            [list(eval_result["fluent"]["scores"].values())],
+        )
 
     if kind == "correct":
-        return correct[0]
+        return correct_scores
     if kind == "combined":
-        scores = np.concatenate((correct, fluent))
-        return np.exp(np.log(scores).mean())
+        scores = np.append(fluent_scores, correct_scores[..., None], axis=1)
+        return np.exp(np.log(scores).mean(axis=1))
 
     error_msg = "Invalid kind. Must be 'correct' or 'combined'."
     raise ValueError(error_msg)
@@ -336,6 +359,8 @@ def get_actionable_accuracy(eval_result: dict[str, Any]) -> tuple[int, int]:
         eval_result (dict): Evaluation result dictionary.
 
     """
+    if isinstance(eval_result, list):
+        eval_result = eval_result[0]
     actionable = eval_result["scores"]
     goal_correct = actionable["Goal"] == 0  # Correct answer is always zero
     maneuver_correct = actionable["Maneuver"] == 0
