@@ -9,7 +9,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.table import Table
-from util import LLMModels
+from util import MODEL_NAME_MAP, LLMModels
 
 import axs
 
@@ -165,7 +165,11 @@ def explanations(
 ) -> None:
     """Display the contents of a results file in a rich table."""
     # Infer the results file path
-    save_name = f"{generation_model.value}"
+    if generation_model is None:
+        generation_model = LLMModels.all_model
+        save_name = "*"
+    else:
+        save_name = f"{generation_model.value}"
     save_name += "_features" if features else ""
     save_name += "_interrogation" if interrogation else ""
     save_name += "_context" if context else ""
@@ -183,6 +187,15 @@ def explanations(
         logger.error("Error: Save name '%s' does not exist.", save_name)
         raise typer.Exit(code=0)
 
+    if not interrogation:
+        save_paths = [
+            path for path in save_paths if "_interrogation" not in path.name
+        ]
+    if not context:
+        save_paths = [path for path in save_paths if "_context" not in path.name]
+    if not features:
+        save_paths = [path for path in save_paths if "_features" not in path.name]
+
     # Order save paths by scenario ID
     save_paths.sort(key=lambda x: int(x.parent.parent.name.replace("scenario", "")))
 
@@ -197,6 +210,7 @@ def explanations(
         padding=1,
     )
     table.add_column("Scenario", justify="center", style="cyan", no_wrap=True)
+    table.add_column("File Name", justify="left", style="magenta", max_width=20)  # New column
     for key in sorted(param_keys):  # Add a column for each param key
         table.add_column(
             key.capitalize(),
@@ -204,6 +218,7 @@ def explanations(
             style="cyan",
             max_width=20,
         )
+    table.add_column("User Prompt", justify="left", style="green", max_width=20)
     table.add_column("Explanation", justify="left", style="yellow")
 
     for result_file in save_paths:
@@ -224,19 +239,58 @@ def explanations(
         # Populate the table with results
         for result in results:
             param = result.get("param", {})
+            user_prompt = result.get("prompt", "N/A")  # Extract user prompt
+            if isinstance(user_prompt, axs.Prompt):
+                user_prompt = user_prompt.template
             explanation = result.get(
                 "explanation",
                 "N/A",
             )
 
             # Add a row with values for each param key
-            row = [scenario_id]
+            row = [scenario_id, result_file.name]  # Include file name
             row.extend([str(param.get(key, "N/A")) for key in sorted(param_keys)])
+            row.append(user_prompt)  # Add user prompt to the row
             row.extend([str(explanation)])
             table.add_row(*row)
 
     # Print the table
     console = Console()
+    console.print(table)
+
+
+@app.command()
+def models() -> None:
+    """List all available LLM models with a description."""
+    console = Console()
+    table = Table(title="Available LLM Models")
+
+    # Add table columns
+    table.add_column("Model Name", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Human-Readable Name", justify="left", style="green")
+    table.add_column("Description", justify="left", style="yellow")
+
+    # Define descriptions for each model
+    model_descriptions = {
+        "llama70b": "A large-scale language model optimized for general-purpose tasks.",
+        "qwen72b": "A high-capacity model designed for advanced reasoning and comprehension.",
+        "gpt41": "An advanced version of GPT-4, known for its accuracy and fluency.",
+        "gpt4o": "An optimized variant of GPT-4 for specific tasks.",
+        "gpt41mini": "A lightweight version of GPT-4.1 for resource-constrained environments.",
+        "o1": "A compact model designed for quick and efficient text processing.",
+        "claude35": "A conversational AI model focused on natural dialogue generation.",
+        "claude37": "An enhanced version of Claude 3.5 with improved reasoning capabilities.",
+        "deepseekv3": "A model specialized in deep search and retrieval tasks.",
+        "deepseekr1": "A robust model for retrieval-based tasks with high accuracy.",
+        "all": "Represents all available models for batch operations.",
+    }
+
+    # Populate the table with model data
+    for model, human_readable_name in MODEL_NAME_MAP.items():
+        description = model_descriptions.get(model, "No description available.")
+        table.add_row(model, human_readable_name, description)
+
+    # Print the table
     console.print(table)
 
 

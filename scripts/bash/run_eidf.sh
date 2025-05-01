@@ -1,4 +1,30 @@
-#!/bin/bash
+#!/bin/sh
+
+# Go to working directory
+cd /pvc/axs
+source .env
+
+
+# Install uv
+if ! command -v uv &> /dev/null
+then
+    echo "uv could not be found"
+    echo "Installing uv"
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+else
+    echo "uv is already installed"
+fi
+
+source $HOME/.local/bin/env
+
+# Sync environment
+# Check whether .venv already exists if so delete it and uv snyc
+echo ".venv already exists"
+echo "Deleting .venv"
+rm -rf .venv
+echo "Syncing virtual environment"
+uv sync -U --all-extras
+
 
 # Check if the model argument is provided
 if [ -z "$1" ]; then
@@ -7,17 +33,24 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+
 # Define variables
 MODEL=$1  # Model is passed as a command-line argument
-COMPLEXITY=${2:-2}  # Complexity is optional, default is 2
+
+# Set complexity and features based on the model
+if [ "$MODEL" = "llama70b" ] || [ "$MODEL" = "qwen72b" ]; then
+  COMPLEXITY=1
+  FEATURES='["add_macro_actions", "add_actions"]'
+else
+  COMPLEXITY=2
+  FEATURES='["add_macro_actions", "add_observations"]'
+fi
+
 SCENARIOS=$(seq 0 9)  # Scenarios 0 to 9
-FEATURES='["add_macro_actions", "add_layout", "add_observations"]'
 LOG_FILE="run_success.log"
 
 # Clear the log file
 echo "Run success log for generate.py" > $LOG_FILE
-
-cd /pvc/axs
 
 # Iterate over scenarios
 for SCENARIO in $SCENARIOS; do
