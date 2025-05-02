@@ -299,7 +299,9 @@ def main(
     explanation_kind: Annotated[
         ExplanationKind,
         typer.Option(
-            "-e", "--explanation-kind", help="The explanations to use for evaluation.",
+            "-e",
+            "--explanation-kind",
+            help="The explanations to use for evaluation.",
         ),
     ] = ExplanationKind.final,
 ) -> None:
@@ -385,10 +387,14 @@ def main(
 
         new_params = result["param"]
 
-        if any(new_params == res["param"] for res in scores_results):
+        if any(
+            new_params == res["param"] and res["prompt"] == result["prompt"]
+            for res in scores_results
+        ):
             logger.info("Already evaluated %s", new_params)
             continue
 
+        scores["prompt"] = result["prompt"]
         scores["param"] = new_params
         scores["actionable_exp"] = get_actionable_score(
             result,

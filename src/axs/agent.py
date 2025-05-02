@@ -264,7 +264,7 @@ class AXSAgent:
             # Explanation stage
             explanation = self._explanation(user_prompt, simulation_results, statistics)
 
-            prev_explanation = explanation
+            prev_explanation = explanation  # noqa: F841
             distance = float("inf")  # self._distance(explanation, prev_explanation)
             n += 1
 
@@ -324,6 +324,8 @@ class AXSAgent:
 
             self.episodic_memory.learn(query_output)
             statistics["usage"].append(usage)
+
+            # query_content = "whatif(vehicle=1, actions=['TurnLeft'], time=69)"
 
             if query_content == "DONE":
                 return "DONE"

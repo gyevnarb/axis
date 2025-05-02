@@ -43,7 +43,7 @@
             },
             {
                 "time": 120,
-                "template": "Why did vehicle 0 turn early at the junction?"
+                "template": "Why did vehicle 0 merge instead of giving way?"
             }
         ]
     },
