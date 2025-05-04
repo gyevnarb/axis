@@ -28,7 +28,7 @@ MODEL_NAME_MAP = {
     "gpt41": "GPT-4.1",
     "gpt4o": "GPT-4o",
     "gpt41mini": "GPT-4.1-mini",
-    "o1": "o1",
+    "o4mini": "o4-mini",
     "claude35": "Claude 3.5",
     "claude37": "Claude 3.7",
     "deepseekv3": "DeepSeek-V3",
@@ -54,7 +54,7 @@ class LLMModels(enum.Enum):
     gpt_4_1 = "gpt41"
     gpt_4o = "gpt4o"
     gpt_4_1_mini = "gpt41mini"
-    o1 = "o1"
+    o4mini = "o4mini"
     claude_3_5 = "claude35"
     claude_3_7 = "claude37"
     deepseek_v3 = "deepseekv3"

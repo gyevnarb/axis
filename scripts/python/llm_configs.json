@@ -15,9 +15,9 @@
         "model": "gpt-4o-2024-11-20",
         "api_key_env_var": "OPENAI_API_KEY"
     },
-    "gpto1": {
+    "o4mini": {
         "inference_mode": "online",
-        "model": "o1-2024-12-17",
+        "model": "o4-mini-2025-04-16",
         "api_key_env_var": "OPENAI_API_KEY"
     },
     "gpt41mini": {

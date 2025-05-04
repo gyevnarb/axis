@@ -9,7 +9,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 from rich.table import Table
-from util import MODEL_NAME_MAP, LLMModels
+from util import MODEL_NAME_MAP, LLMModels, extract_all_explanations
 
 import axs
 
@@ -218,6 +218,7 @@ def explanations(
             style="cyan",
             max_width=20,
         )
+    table.add_column("N_exp", justify="right", style="green")
     table.add_column("User Prompt", justify="left", style="green", max_width=20)
     table.add_column("Explanation", justify="left", style="yellow")
 
@@ -250,6 +251,7 @@ def explanations(
             # Add a row with values for each param key
             row = [scenario_id, result_file.name]  # Include file name
             row.extend([str(param.get(key, "N/A")) for key in sorted(param_keys)])
+            row.append(str(len(extract_all_explanations(result["messages"]))))
             row.append(user_prompt)  # Add user prompt to the row
             row.extend([str(explanation)])
             table.add_row(*row)

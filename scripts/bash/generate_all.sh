@@ -60,9 +60,13 @@ fi
 SCENARIOS=$(seq 0 9)  # Scenarios 0 to 9
 LOG_FILE="run_success.log"
 
-# Clear the log file
-echo "Run success log for generate.py" > $LOG_FILE
-
+# Check if the log file exists
+if [ -f "$LOG_FILE" ]; then
+  echo "Appending to existing log file: $LOG_FILE"
+  echo "----- Appending new run details -----" >> $LOG_FILE
+else
+  echo "Run success log for generate.py" > $LOG_FILE
+fi
 
 # Iterate over scenarios
 for SCENARIO in $SCENARIOS; do

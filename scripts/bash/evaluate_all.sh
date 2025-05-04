@@ -10,7 +10,7 @@ source .env
 
 # Check if the model argument is provided
 if [ -z "$1" ]; then
-  echo "Usage: $0 <model> [--use-features|--no-features] [--use-interrogation|--no-interrogation] [--use-context|--no-context] [--explanation-kind <final|all>]"
+  echo "Usage: $0 <genmodel> [--use-features|--no-features] [--use-interrogation|--no-interrogation] [--use-context|--no-context] [--explanation-kind <final|all>]"
   echo "Example: $0 llama70b 3 --no-interrogation --use-context --explanation-kind final"
   exit 1
 fi
@@ -69,7 +69,7 @@ for SCENARIO in $SCENARIOS; do
     continue
   fi
 
-  COMMAND="uv run python scripts/python/evaluate.py --scenario $SCENARIO --model claude37 --results-file $RESULTS_FILE --explanation-kind $EXPLANATION_KIND"
+  COMMAND="uv run python scripts/python/evaluate.py --scenario $SCENARIO --model claude35 --results-file $RESULTS_FILE --explanation-kind $EXPLANATION_KIND"
   echo "Running command: $COMMAND"
 
   $COMMAND

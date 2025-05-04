@@ -77,9 +77,11 @@ class LLMWrapper:
         if isinstance(self._sampling_params, dict):
             if vllm_installed:
                 from vllm import SamplingParams
+
                 self._sampling_params = SamplingParams(**self._sampling_params)
             else:
                 from axs.config import SamplingParams
+
                 self._sampling_params = SamplingParams(self._sampling_params)
 
         _messages = self.merge_consecutive_messages(messages)
@@ -108,14 +110,14 @@ class LLMWrapper:
 
         # TODO: Add support for the responses OpenAI API
         if isinstance(self._llm, anthropic.Anthropic):
-            system_prompt = messages.pop(0)
+            system_prompt = messages[0]
             if system_prompt["role"] != "system":
                 error_msg = "First message must be system prompt."
                 raise ValueError(error_msg)
 
             message = self._llm.messages.create(
                 model=internal_name[0],
-                messages=messages,
+                messages=messages[1:],  # Skip the system prompt
                 stream=False,
                 max_tokens=self._sampling_params.max_tokens,
                 stop_sequences=self._sampling_params.stop,
@@ -134,6 +136,42 @@ class LLMWrapper:
                 + message.usage.cache_creation_input_tokens
                 + message.usage.cache_read_input_tokens,
             }
+        elif "o4-mini" in internal_name[0]:
+            system_prompt = messages[0]
+            if system_prompt["role"] != "system":
+                error_msg = "First message must be system prompt."
+                raise ValueError(error_msg)
+
+            system_prompt_content = system_prompt["content"]
+            system_prompt_content = system_prompt_content.replace(
+                "\nEnd all of your responses with '<|endoftext|>'.", "",
+            )
+            response = self._llm.responses.create(
+                model="o4-mini",
+                instructions=system_prompt_content,
+                reasoning={"effort": "medium"},
+                input=messages[1:],
+                max_output_tokens=16384,
+            )
+
+            if (
+                response.status == "incomplete"
+                and response.incomplete_details.reason == "max_output_tokens"
+            ):
+                logger.warning("Ran out of tokens")
+                if response.output_text:
+                    logger.warning("Partial output: %s", response.output_text)
+                else:
+                    logger.warning("Ran out of tokens during reasoning")
+
+            responses = [self.wrap("assistant", response.output_text)]
+            usage = {
+                "prompt_tokens": response.usage.input_tokens,
+                "completion_tokens": response.usage.output_tokens,
+                "total_tokens": response.usage.input_tokens
+                + response.usage.output_tokens,
+            }
+
         else:
             completions = self._llm.chat.completions.create(
                 model=internal_name[0],
@@ -143,10 +181,10 @@ class LLMWrapper:
                 n=self._sampling_params.n,
                 logit_bias=self._sampling_params.logit_bias,
                 logprobs=self._sampling_params.logprobs,
-                max_tokens=self._sampling_params.max_tokens,
                 presence_penalty=self._sampling_params.presence_penalty,
                 frequency_penalty=self._sampling_params.frequency_penalty,
                 stop=self._sampling_params.stop,
+                max_tokens=self._sampling_params.max_tokens,
                 temperature=self._sampling_params.temperature,
                 top_p=self._sampling_params.top_p,
             )

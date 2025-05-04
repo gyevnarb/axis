@@ -200,7 +200,15 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
         if query.query_name == "what":
             time = query.get_time(len(observations))
-            if vid not in infos[time]:
+            final_t = infos[-1][ego_id].time
+            ix = time
+
+            if time >= len(infos) and time < final_t:
+                ix = time - infos[0][vid].time
+                logger.warning(
+                    "Time %d is out of bounds. Setting to %d.", time, ix,
+                )
+            if vid not in infos[ix]:
                 error_msg = f"Vehicle {vid} is not observed at time {time}."
                 raise axs.SimulationError(error_msg)
 
@@ -211,8 +219,8 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
                 if macro.start_t <= time <= macro.end_t and aid == vid
             }
 
-            start_t = max(0, time - 1)
-            end_t = min(len(observations), time + 2)
+            start_t = max(0, ix - 1)
+            end_t = min(len(observations), ix + 2)
             if start_t == 0:
                 end_t = start_t + 3
             if end_t == len(observations):
@@ -225,7 +233,7 @@ class IGP2QueryableWrapper(axs.QueryableWrapper):
 
             observations = observations[start_t:end_t]
             infos = [{vid: info[vid]} for info in infos[start_t:end_t] if vid in info]
-            if vid != ego_id or time < end_t - 1:
+            if vid != ego_id or time < final_t:
                 rewards = None
 
         ret = {
