@@ -58,7 +58,7 @@ else
 fi
 
 SCENARIOS=$(seq 0 9)  # Scenarios 0 to 9
-LOG_FILE="run_success.log"
+LOG_FILE="gen_success.log"
 
 # Check if the log file exists
 if [ -f "$LOG_FILE" ]; then

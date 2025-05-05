@@ -39,6 +39,15 @@ def init_logging(
         handlers=[RichHandler(rich_tracebacks=True)],
     )
 
+    if warning_only is None:
+        warning_only = [
+            "gymnasium",
+            "pettingzoo",
+            "rich",
+            "rich.traceback",
+            "rich.logging",
+        ]
+
     for mute in warning_only:
         if not mute:
             continue

@@ -304,6 +304,13 @@ def main(
             help="The explanations to use for evaluation.",
         ),
     ] = ExplanationKind.final,
+    override: Annotated[
+        bool,
+        typer.Option(
+            "--override",
+            help="Override existing results.",
+        ),
+    ] = False,
 ) -> None:
     """Evaluate AXSAgent generated explanations with Claude or Llama (for debug)."""
     results_file = Path(results_file)
@@ -366,7 +373,7 @@ def main(
         results = pickle.load(f)
     logger.info("Loaded %s results from %s", len(results), results_path)
 
-    if save_path.exists():
+    if not override and save_path.exists():
         with save_path.open("rb") as f:
             try:
                 scores_results = pickle.load(f)
@@ -396,7 +403,7 @@ def main(
 
         scores["prompt"] = result["prompt"]
         scores["param"] = new_params
-        scores["actionable_exp"] = get_actionable_score(
+        scores["actionable_no_exp"] = get_actionable_score(
             result,
             llm,
             prompts["actionable"],
@@ -404,7 +411,7 @@ def main(
             use_explanation=False,
             explanation_kind=explanation_kind,
         )
-        scores["actionable_no_exp"] = get_actionable_score(
+        scores["actionable_exp"] = get_actionable_score(
             result,
             llm,
             prompts["actionable"],

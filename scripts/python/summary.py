@@ -45,12 +45,28 @@ def parse_filename(filename: str) -> dict:
 
 @app.command()
 def files(
-    show_file_length: Annotated[
+    model: Annotated[
+        LLMModels | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Model to filter results by.",
+        ),
+    ] = None,
+    scenario: Annotated[
+        int,
+        typer.Option(
+            "--scenario",
+            "-s",
+            help="Scenario to filter results by.",
+        ),
+    ] = -1,
+    evaluation: Annotated[
         bool,
         typer.Option(
-            "-l",
-            "--length",
-            help="Whether to show number of items in each file. Slow",
+            "-e",
+            "--evaluation",
+            help="Whether to filter for evaluation files.",
         ),
     ] = False,
 ) -> False:
@@ -60,6 +76,7 @@ def files(
         show_file_length (bool): Whether to include a column for file length.
 
     """
+    show_file_length = True
     base_dir = Path("output", "igp2")
     console = Console()
     table = Table(title="Results Directory Contents (All Scenarios)")
@@ -68,10 +85,11 @@ def files(
     table.add_column("Scenario", justify="center", style="cyan", no_wrap=True)
     table.add_column("File Name", justify="left", style="cyan", no_wrap=True)
     table.add_column("Result Type", justify="center", style="magenta")
-    table.add_column("Evaluation LLM", justify="center", style="magenta")
+    if not evaluation:
+        table.add_column("Evaluation LLM", justify="center", style="magenta")
     table.add_column("Generation LLM", justify="center", style="green")
     table.add_column("Interrogation", justify="center", style="blue")
-    table.add_column("Context", justify="center", style="red")
+    table.add_column("Explanations", justify="center", style="red")
     if show_file_length:
         table.add_column("File Length (N)", justify="right", style="yellow")
 
@@ -88,6 +106,13 @@ def files(
 
         # Iterate through files in the results directory
         for file in sorted(scenario_dir.glob("*.pkl")):
+            if evaluation and "evaluate" not in file.name:
+                continue
+            if model and model.value not in file.name:
+                continue
+            if scenario != -1 and scenario_name != f"scenario{scenario}":
+                continue
+
             parsed_data = parse_filename(file.name)
             result_type = file.name.split("_")[0] if "_" in file.name else "None"
 
@@ -102,19 +127,38 @@ def files(
 
             if show_file_length:
                 with file.open("rb") as f:
-                    file_length = len(pickle.load(f))
+                    results = pickle.load(f)
+                    file_length = len(results)
+                    if "evaluate" in file.name:
+                        # For evaluation files, count the number of explanations
+                        n_explanations = tuple(
+                            len(r["actionable_exp"]) for r in results
+                        )
+                    else:
+                        n_explanations = tuple(
+                            len(extract_all_explanations(r["messages"])) for r in results
+                        )
 
             if parsed_data:
-                row = [
-                    scenario_name.replace("scenario", ""),
-                    file.name,
-                    result_name,
-                    parsed_data["Evaluation LLM"],
-                    parsed_data["Generation LLM"],
-                    parsed_data["Interrogation"],
-                    parsed_data["Context"],
-                ]
+                if not evaluation:
+                    row = [
+                        scenario_name.replace("scenario", ""),
+                        file.name,
+                        result_name,
+                        parsed_data["Evaluation LLM"],
+                        parsed_data["Generation LLM"],
+                        parsed_data["Interrogation"],
+                    ]
+                else:
+                    row = [
+                        scenario_name.replace("scenario", ""),
+                        file.name,
+                        result_name,
+                        parsed_data["Generation LLM"],
+                        parsed_data["Interrogation"],
+                    ]
                 if show_file_length:
+                    row.append(str(n_explanations))
                     row.append(str(file_length))
                 table.add_row(*row)
             else:
@@ -188,9 +232,7 @@ def explanations(
         raise typer.Exit(code=0)
 
     if not interrogation:
-        save_paths = [
-            path for path in save_paths if "_interrogation" not in path.name
-        ]
+        save_paths = [path for path in save_paths if "_interrogation" not in path.name]
     if not context:
         save_paths = [path for path in save_paths if "_context" not in path.name]
     if not features:
@@ -205,12 +247,16 @@ def explanations(
     # Create a rich table
     param_keys = {"n_max", "complexity", "verbalizer_features"}
     table = Table(
-        title=(f"Model: {generation_model.value}; Interrogation: {interrogation}; "
-               f"Content: {context}; Features: {features}"),
+        title=(
+            f"Model: {generation_model.value}; Interrogation: {interrogation}; "
+            f"Content: {context}; Features: {features}"
+        ),
         padding=1,
     )
     table.add_column("Scenario", justify="center", style="cyan", no_wrap=True)
-    table.add_column("File Name", justify="left", style="magenta", max_width=20)  # New column
+    table.add_column(
+        "File Name", justify="left", style="magenta", max_width=20
+    )  # New column
     for key in sorted(param_keys):  # Add a column for each param key
         table.add_column(
             key.capitalize(),

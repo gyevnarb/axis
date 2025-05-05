@@ -116,6 +116,7 @@ class IGP2MacroAction(axs.MacroAction):
             # Sometimes a single length macro action may appear at the start
             # due to the way the simulation is set up. We remove that here.
             if len(groups) > 1 and groups[0].start_t == groups[0].end_t:
+                groups[1].action_segments[0].times.insert(0, groups[0].start_t)
                 groups.pop(0)
             ret[agent_id] = groups
 

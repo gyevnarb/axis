@@ -10,8 +10,8 @@ source .env
 
 # Check if the model argument is provided
 if [ -z "$1" ]; then
-  echo "Usage: $0 <genmodel> [--use-features|--no-features] [--use-interrogation|--no-interrogation] [--use-context|--no-context] [--explanation-kind <final|all>]"
-  echo "Example: $0 llama70b 3 --no-interrogation --use-context --explanation-kind final"
+  echo "Usage: $0 <genmodel> [--use-features|--no-features] [--use-interrogation|--no-interrogation] [--use-context|--no-context] [--explanation-kind <final|all>] [--override]"
+  echo "Example: $0 llama70b 3 --no-interrogation --use-context --explanation-kind final --override"
   exit 1
 fi
 
@@ -23,6 +23,7 @@ EXPLANATION_KIND="final"  # Default explanation kind
 USE_INTERROGATION=true
 USE_CONTEXT=true
 USE_FEATURES=true
+OVERRIDE=false
 
 # Shift past the first argument (model)
 shift
@@ -36,16 +37,22 @@ while [[ "$#" -gt 0 ]]; do
     --use-features) USE_FEATURES=true ;;
     --no-features) USE_FEATURES=false ;;
     --explanation-kind) shift; EXPLANATION_KIND=$1 ;;  # Set explanation kind
+    --override) OVERRIDE=true ;;  # Add override flag
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
   shift
 done
 
-SCENARIOS=$(seq 0 9)  # Scenarios 0 to 9
-LOG_FILE="run_success.log"
+SCENARIOS=$(seq 2 9)  # Scenarios 0 to 9
+LOG_FILE="eval_success.log"
 
-# Clear the log file
-echo "Run success log for generate.py" > $LOG_FILE
+# Check if the log file exists
+if [ -f "$LOG_FILE" ]; then
+  echo "Appending to existing log file: $LOG_FILE"
+  echo "----- Appending new run details -----" >> $LOG_FILE
+else
+  echo "Run success log for generate.py" > $LOG_FILE
+fi
 
 # Iterate over scenarios
 for SCENARIO in $SCENARIOS; do
@@ -70,6 +77,9 @@ for SCENARIO in $SCENARIOS; do
   fi
 
   COMMAND="uv run python scripts/python/evaluate.py --scenario $SCENARIO --model claude35 --results-file $RESULTS_FILE --explanation-kind $EXPLANATION_KIND"
+  if [ "$OVERRIDE" = true ]; then
+    COMMAND+=" --override"  # Append override flag
+  fi
   echo "Running command: $COMMAND"
 
   $COMMAND
