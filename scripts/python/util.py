@@ -37,9 +37,9 @@ MODEL_NAME_MAP = {
 }
 
 FEATURE_LABELS = {
-    "add_actions": "Actions",
+    "add_actions": "L-Macro",
     "add_layout": "Layout",
-    "add_macro_actions": "Macros",
+    "add_macro_actions": "H-Macro",
     "add_observations": "Observ's",
     "complexity": "Complex",
     "truncate": "Memory Truncation",

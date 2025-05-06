@@ -212,7 +212,7 @@ def plot_shapley_waterfall(
     # Set plot limits and labels
     ax.set_ylim(-0.5, len(labels) - 0.5)
     ax.set_yticks(range(len(labels)))
-    ax.set_yticklabels(labels)
+    ax.set_yticklabels(labels, fontweight="bold")
 
     # Calculate adequate x-limits to make room for labels and error bars
     x_min = (
@@ -233,7 +233,11 @@ def plot_shapley_waterfall(
 
     # Formatting for academic publication
     # Use a more descriptive, precise title
-    ax.set_xlabel(f"Contribution to Reward ({MODEL_NAME_MAP[gen_model]})", fontsize=12)
+    ax.set_xlabel(
+        f"Contribution to Reward ({MODEL_NAME_MAP[gen_model]})",
+        fontsize=12,
+        fontweight="bold",
+    )
     ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
     # Add a subtle grid
@@ -516,7 +520,7 @@ def plot_actionable_barplot(
         eval_model = eval_model if eval_model != "all" else "all"
 
         axs[i].set_ylabel(f"{key.capitalize()} Accuracy")
-        axs[i].set_title(f"{key.capitalize()} Actionability by Feature")
+        # axs[i].set_title(f"{key.capitalize()} Actionability by Feature")
         axs[i].set_xticks(x)
         axs[i].set_xticklabels(readable_features, rotation=45, ha="right")
         axs[i].grid(
@@ -638,23 +642,53 @@ def plot_evolution_from_csv(
     # Set publication-quality plot styling
     plt.rcParams["font.family"] = "serif"
     plt.rcParams["font.serif"] = ["Times New Roman", "DejaVu Serif", "serif"]
-    plt.rcParams["font.size"] = 10
+    plt.rcParams["font.size"] = 12
     plt.rcParams["axes.titlesize"] = 12
     plt.rcParams["axes.labelsize"] = 11
-    plt.rcParams["xtick.labelsize"] = 10
+    plt.rcParams["xtick.labelsize"] = 13
     plt.rcParams["ytick.labelsize"] = 10
-    plt.rcParams["legend.fontsize"] = 9
+    plt.rcParams["legend.fontsize"] = 8  # Smaller font for more compact legend
     plt.rcParams["figure.dpi"] = 300
 
-    # Adjust figure size when showing all score types
-    fig_width = 5.0 if show_all_scores else 3.5  # Wider figure when showing all scores
-    fig_height = (
-        3.5 if show_all_scores else 3.0
-    )  # Taller figure when showing all scores
+    # Define score type label mapping
+    score_type_labels = {
+        "combined": "Combined",
+        "correctness": "Correctness",
+        "fluency": "Fluency",
+        "actionable": "Actionability",
+    }
 
-    # Create publication figure
-    fig = plt.figure(figsize=(fig_width, fig_height))
-    ax = fig.add_subplot(111)
+    # Separate actionable results from other scores if showing all scores
+    actionable_data = None
+    if show_all_scores:
+        # Create a separate dataframe for actionable data
+        actionable_data = df_results[
+            df_results["score_type"].isin(["actionable_exp", "actionable_no_exp"])
+        ].copy()
+        # Remove actionable data from main dataframe
+        df_results = df_results[
+            ~df_results["score_type"].isin(["actionable_exp", "actionable_no_exp"])
+        ]
+
+        if actionable_data.empty:
+            actionable_data = None
+
+    # Determine subplot configuration
+    has_actionable = actionable_data is not None
+
+    # Set up the figure with subplots
+    if has_actionable:
+        # Create a figure with two horizontal subplots
+        fig_width = 8.0  # Wider figure for two subplots
+        fig_height = 3.0
+        fig, axes = plt.subplots(1, 2, figsize=(fig_width, fig_height))
+        ax_main = axes[0]  # Left subplot for main scores
+        ax_actionable = axes[1]  # Right subplot for actionable scores
+    else:
+        # Single plot for combined or non-actionable scores
+        fig_width = 6.0 if show_all_scores else 5.0
+        fig_height = 4.0
+        fig, ax_main = plt.subplots(figsize=(fig_width, fig_height))
 
     # Set a scientific color palette for different models/score types
     # Using ColorBrewer colors which are colorblind-friendly and work well in print
@@ -671,16 +705,10 @@ def plot_evolution_from_csv(
     markers = ["o", "s", "^", "D", "v", "p", "*", "x"]
     linestyles = ["-", "--", "-.", ":", "-", "--", "-.", ":"]
 
-    legend_elements = []
+    legend_elements_main = []
+    legend_elements_actionable = []
 
-    # Define score type label mapping
-    score_type_labels = {
-        "combined": "Combined",
-        "correctness": "Correctness",
-        "fluency": "Fluency",
-        "actionable": "Actionability",
-    }
-
+    # Process main scores first
     if aggregate_all:
         # If showing all score types, we'll iterate through score types
         if show_all_scores:
@@ -708,10 +736,12 @@ def plot_evolution_from_csv(
                 score_line = linestyles[s_idx % len(linestyles)]
 
                 # Get readable score type name
-                score_label = score_type_labels.get(score_type, score_type)
+                score_label = score_type_labels.get(score_type, score_type).capitalize()
+                if score_label == "Fluent":
+                    score_label = "Preference"
 
                 # Plot line with error band
-                line = ax.plot(
+                line = ax_main.plot(
                     x,
                     mean_scores.values,
                     marker=score_marker,
@@ -719,11 +749,11 @@ def plot_evolution_from_csv(
                     linestyle=score_line,
                     linewidth=2.0,
                     markersize=6,
-                    label=f"{score_label} (Aggregate)",
+                    label=f"{score_label}",
                 )
 
                 # Add error bands
-                ax.fill_between(
+                ax_main.fill_between(
                     x,
                     mean_scores.to_numpy() - errors.to_numpy(),
                     mean_scores.to_numpy() + errors.to_numpy(),
@@ -731,20 +761,27 @@ def plot_evolution_from_csv(
                     alpha=0.2,
                 )
 
-                # Add data points count as annotations (only for combined score to avoid clutter)
-                if score_type == "combined":
+                # Add data point counts as bold annotations above the lines
+                if s_idx == 0:
                     for _, (idx, count) in enumerate(counts.items()):
-                        ax.annotate(
+                        ax_main.annotate(
                             f"n={count}",
                             xy=(idx, mean_scores[idx]),
-                            xytext=(0, 10),
+                            xytext=(0, -15),  # Place above the line
                             textcoords="offset points",
                             ha="center",
-                            fontsize=7,
-                            color="dimgray",
+                            fontsize=8,
+                            fontweight="bold",  # Make bold as requested
+                            color="black",  # Color-code to match the line
+                            bbox={
+                                "facecolor": "white",
+                                "alpha": 0.7,
+                                "edgecolor": "none",
+                                "pad": 1,
+                            },
                         )
 
-                legend_elements.append(line[0])
+                legend_elements_main.append(line[0])
         else:
             # Original behavior for aggregate with combined score only
             # Group only by explanation index and calculate aggregate statistics
@@ -759,7 +796,7 @@ def plot_evolution_from_csv(
 
             # Plot aggregate line with error band
             aggregate_color = "#1b9e77"  # First color in the palette
-            line = ax.plot(
+            line = ax_main.plot(
                 x,
                 mean_scores.values,
                 marker="o",
@@ -767,11 +804,11 @@ def plot_evolution_from_csv(
                 linestyle="-",
                 linewidth=2.0,
                 markersize=6,
-                label="Aggregate (All Models)",
+                label="Aggregate",
             )
 
             # Add error bands
-            ax.fill_between(
+            ax_main.fill_between(
                 x,
                 mean_scores.to_numpy() - errors.to_numpy(),
                 mean_scores.to_numpy() + errors.to_numpy(),
@@ -779,21 +816,26 @@ def plot_evolution_from_csv(
                 alpha=0.2,
             )
 
-            # Add data points count as annotations
+            # Add data point counts as bold annotations above the lines
             for _, (idx, count) in enumerate(counts.items()):
-                ax.annotate(
+                ax_main.annotate(
                     f"n={count}",
                     xy=(idx, mean_scores[idx]),
-                    xytext=(0, 10),
+                    xytext=(0, -15),  # Place above the line
                     textcoords="offset points",
                     ha="center",
-                    fontsize=7,
-                    color="dimgray",
+                    fontsize=8,
+                    fontweight="bold",  # Make bold as requested
+                    color=aggregate_color,  # Match the line color
+                    bbox={
+                        "facecolor": "white",
+                        "alpha": 0.7,
+                        "edgecolor": "none",
+                        "pad": 1,
+                    },
                 )
 
-            legend_elements.append(line[0])
-
-        num_models = len(legend_elements)  # Count of legend entries
+            legend_elements_main.append(line[0])
     else:
         # Group by model for separate lines
         if show_all_scores:
@@ -810,7 +852,8 @@ def plot_evolution_from_csv(
 
             if not model_score_groups:
                 logger.error("No data to plot after filtering")
-                return
+                if not has_actionable:  # If no actionable data either, return
+                    return
 
             # Plot each model and score type combination
             for i, (model_name, score_type, group_df) in enumerate(model_score_groups):
@@ -818,7 +861,9 @@ def plot_evolution_from_csv(
                 readable_name = MODEL_NAME_MAP.get(model_name, model_name)
 
                 # Get readable score type
-                score_label = score_type_labels.get(score_type, score_type)
+                score_label = score_type_labels.get(score_type, score_type).capitalize()
+                if score_label == "Fluent":
+                    score_label = "Preference"
 
                 # Choose colors based on model and line style based on score type
                 model_names = list(df_results["gen_llm"].unique())
@@ -842,7 +887,7 @@ def plot_evolution_from_csv(
                 x = np.array(mean_scores.index)
 
                 # Plot line with error band
-                line = ax.plot(
+                line = ax_main.plot(
                     x,
                     mean_scores.values,
                     marker=markers[marker_idx],
@@ -850,11 +895,11 @@ def plot_evolution_from_csv(
                     linestyle=linestyles[line_idx],
                     linewidth=1.5,
                     markersize=5,
-                    label=f"{readable_name} - {score_label}",
+                    label=f"{readable_name}-{score_label}",
                 )
 
                 # Add error bands
-                ax.fill_between(
+                ax_main.fill_between(
                     x,
                     mean_scores.to_numpy() - errors.to_numpy(),
                     mean_scores.to_numpy() + errors.to_numpy(),
@@ -862,14 +907,35 @@ def plot_evolution_from_csv(
                     alpha=0.2,
                 )
 
-                legend_elements.append(line[0])
+                # Add data point counts as bold annotations above the lines
+                if i == 0:  # Only add counts for the first model
+                    for _, (idx, count) in enumerate(counts.items()):
+                        ax_main.annotate(
+                            f"n={count}",
+                            xy=(idx, mean_scores[idx]),
+                            xytext=(0, -15),  # Place above the line
+                            textcoords="offset points",
+                            ha="center",
+                            fontsize=8,
+                            fontweight="bold",
+                            color=colors[color_idx],
+                            bbox={
+                                "facecolor": "white",
+                                "alpha": 0.7,
+                                "edgecolor": "none",
+                                "pad": 1,
+                            },
+                        )
+
+                legend_elements_main.append(line[0])
         else:
             # Original behavior - only plot combined scores by model
             model_groups = df_results.groupby("gen_llm")
 
             if len(model_groups) == 0:
                 logger.error("No data to plot after filtering")
-                return
+                if not has_actionable:  # If no actionable data either, return
+                    return
 
             # Plot each model with a different color/style
             for i, (model_name, model_df) in enumerate(model_groups):
@@ -890,7 +956,7 @@ def plot_evolution_from_csv(
                 x = np.array(mean_scores.index)
 
                 # Plot line with error band
-                line = ax.plot(
+                line = ax_main.plot(
                     x,
                     mean_scores.values,
                     marker=markers[marker_idx],
@@ -902,7 +968,7 @@ def plot_evolution_from_csv(
                 )
 
                 # Add error bands
-                ax.fill_between(
+                ax_main.fill_between(
                     x,
                     mean_scores.to_numpy() - errors.to_numpy(),
                     mean_scores.to_numpy() + errors.to_numpy(),
@@ -910,84 +976,250 @@ def plot_evolution_from_csv(
                     alpha=0.2,
                 )
 
-                legend_elements.append(line[0])
+                # Add data point counts as bold annotations above the lines
+                if i == 0:
+                    for _, (idx, count) in enumerate(counts.items()):
+                        ax_main.annotate(
+                            f"n={count}",
+                            xy=(idx, mean_scores[idx]),
+                            xytext=(0, -15),  # Place above the line
+                            textcoords="offset points",
+                            ha="center",
+                            fontsize=8,
+                            fontweight="bold",
+                            color=colors[color_idx],
+                            bbox={
+                                "facecolor": "white",
+                                "alpha": 0.7,
+                                "edgecolor": "none",
+                                "pad": 1,
+                            },
+                        )
 
-        num_models = len(legend_elements)  # Count of legend entries
+                legend_elements_main.append(line[0])
 
-    # Add labels and title
-    ax.set_xlabel("Explanation Round", fontweight="bold")
+    # Format main plot
+    # ax_main.set_xlabel("Explanation Round", fontweight="bold")
 
     # Update y-label based on whether showing all scores
     if show_all_scores:
-        ax.set_ylabel("Score Value", fontweight="bold")
+        ax_main.set_ylabel("Preference and Correctness", fontweight="bold", fontsize=12)
     else:
-        ax.set_ylabel("Combined Score", fontweight="bold")
+        ax_main.set_ylabel("Combined Score", fontweight="bold", fontsize=12)
 
     # Format grid for better readability
-    ax.grid(visible=True, linestyle="--", alpha=0.7, linewidth=0.5)
-    ax.set_axisbelow(True)  # Place grid behind the data
+    ax_main.grid(visible=True, linestyle="--", alpha=0.7, linewidth=0.5)
+    ax_main.set_axisbelow(True)  # Place grid behind the data
 
     # Make x-axis integers
-    ax.set_xticks(x)
-    ax.set_xticklabels([str(int(i)) for i in x])
+    ax_main.set_xticks(x)
+    ax_main.set_xticklabels([str(int(i)) for i in x])
 
     # Add a subtle box around the plot
-    for spine in ax.spines.values():
+    for spine in ax_main.spines.values():
         spine.set_linewidth(0.5)
 
-    # Format title based on filters
+    # Format title for main plot
     title_parts = []
     if scenario_id != -1:
         title_parts.append(f"Scenario {scenario_id}")
     if eval_model != "all":
         eval_model_name = MODEL_NAME_MAP.get(eval_model, eval_model)
-        title_parts.append(f"Evaluator: {eval_model_name}")
+        title_parts.append(f"Eval: {eval_model_name}")
     if aggregate_all and not show_all_scores:
-        title_parts.append("Aggregate across all models")
-    if show_all_scores:
-        title_parts.append("All Score Types")
+        title_parts.append("Aggregate")
 
+    main_title = "Performance Metrics" if show_all_scores else "Combined Score"
     if title_parts:
-        ax.set_title(" | ".join(title_parts), fontsize=11)
+        main_title += " | " + " | ".join(title_parts)
 
-    # Add legend with positioning based on number of entries
-    if num_models > 0:
-        # Adjust legend position based on number of entries
-        if show_all_scores or num_models > 3:
-            # For many entries, position below the plot
-            legend_ncol = min(3, num_models)
-            legend = ax.legend(
-                handles=legend_elements,
-                loc="upper center",
-                bbox_to_anchor=(0.5, -0.15),
-                frameon=True,
-                framealpha=0.9,
-                edgecolor="lightgray",
-                ncol=legend_ncol,
-            )
-            legend.get_title().set_fontweight("bold")
+    # ax_main.set_title(main_title, fontsize=11)
 
-            # Adjust figure to make room for legend below
-            plt.subplots_adjust(bottom=0.25)
+    # Now process actionable data for the second subplot if available
+    if has_actionable:
+        if aggregate_all:
+            for actionable_score_name in ["actionable_exp", "actionable_no_exp"]:
+                for j, score_type in enumerate(["goal", "maneuver"]):
+                    # Group by explanation index for aggregate view
+                    grouped = actionable_data.groupby("explanation_idx")[
+                        actionable_score_name + f"_{score_type}"
+                    ]
+                    mean_scores = grouped.mean()
+                    stds = grouped.std()
+                    counts = grouped.count()
+                    # Calculate standard error
+                    errors = stds / np.sqrt(counts)
+
+                    x_act = np.array(mean_scores.index)
+
+                    # Plot actionable data
+                    actionable_color = ["#FF2C2C", "#80EF80"][j]  # Use a distinct color for actionable data
+                    line = ax_actionable.plot(
+                        x_act,
+                        mean_scores.values,
+                        marker=markers[(3 + j) % len(markers)],  # Different marker shape for actionable
+                        color=actionable_color,
+                        linestyle=linestyles[(3 + j) % len(linestyles)],  # Different linestyle to distinguish from main plot
+                        linewidth=2.0,
+                        markersize=6,
+                        label=["Goal", "Maneuver"][j],
+                    )
+
+                    # Add error bands
+                    ax_actionable.fill_between(
+                        x_act,
+                        mean_scores.to_numpy() - errors.to_numpy(),
+                        mean_scores.to_numpy() + errors.to_numpy(),
+                        color=actionable_color,
+                        alpha=0.2,
+                    )
+
+                    if j == 1:
+                        # Add data point counts as bold annotations above the lines
+                        for _, (idx, count) in enumerate(counts.items()):
+                            ax_actionable.annotate(
+                                f"n={count}",
+                                xy=(idx, mean_scores[idx]),
+                                xytext=(0, -15),  # Place above the line
+                                textcoords="offset points",
+                                ha="center",
+                                fontsize=8,
+                                fontweight="bold",
+                                color="black",
+                                bbox={
+                                    "facecolor": "white",
+                                    "alpha": 0.7,
+                                    "edgecolor": "none",
+                                    "pad": 1,
+                                },
+                            )
+
+                    legend_elements_actionable.append(line[0])
         else:
-            # For fewer entries, position on the right
-            legend_title = "Aggregate Data" if aggregate_all else "Generation Models"
-            legend = ax.legend(
-                handles=legend_elements,
-                loc="center left",
-                bbox_to_anchor=(1.05, 0.5),
-                frameon=True,
-                framealpha=0.9,
-                edgecolor="lightgray",
-                title=legend_title,
-            )
-            legend.get_title().set_fontweight("bold")
+            # Plot actionable data by model
+            model_groups = actionable_data.groupby("gen_llm")
 
-            # Adjust figure to make room for the legend
-            plt.subplots_adjust(right=0.78)  # Leave space on the right for the legend
+            for i, (model_name, model_df) in enumerate(model_groups):
+                # Get readable model name from mapping
+                readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+                color_idx = i % len(colors)
 
-    # Tight layout for proper spacing
-    plt.tight_layout(pad=0.5)
+                # Group by explanation index and calculate statistics
+                grouped = model_df.groupby("explanation_idx")["actionable_exp_score"]
+                mean_scores = grouped.mean()
+                stds = grouped.std()
+                counts = grouped.count()
+                # Calculate standard error
+                errors = stds / np.sqrt(counts)
+
+                x_act = np.array(mean_scores.index)
+
+                # Plot line with error band
+                line = ax_actionable.plot(
+                    x_act,
+                    mean_scores.values,
+                    marker="s",  # Square marker for actionable data
+                    color=colors[color_idx],
+                    linestyle="--",  # Different linestyle to distinguish from main plot
+                    linewidth=1.5,
+                    markersize=5,
+                    label=f"{readable_name}",
+                )
+
+                # Add error bands
+                ax_actionable.fill_between(
+                    x_act,
+                    mean_scores.to_numpy() - errors.to_numpy(),
+                    mean_scores.to_numpy() + errors.to_numpy(),
+                    color=colors[color_idx],
+                    alpha=0.2,
+                )
+
+                # Add data point counts as bold annotations above the lines
+                for j, (idx, count) in enumerate(counts.items()):
+                    ax_actionable.annotate(
+                        f"n={count}",
+                        xy=(idx, mean_scores[idx]),
+                        xytext=(0, -15),  # Place above the line
+                        textcoords="offset points",
+                        ha="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=colors[color_idx],
+                        bbox={
+                            "facecolor": "white",
+                            "alpha": 0.7,
+                            "edgecolor": "none",
+                            "pad": 1,
+                        },
+                    )
+
+                legend_elements_actionable.append(line[0])
+
+        # Format actionable plot
+        # ax_actionable.set_xlabel("Explanation Round", fontweight="bold")
+        ax_actionable.set_ylabel("Actionability Score", fontweight="bold", fontsize=12)
+        # ax_actionable.set_title("Actionability", fontsize=11)
+        ax_actionable.grid(visible=True, linestyle="--", alpha=0.7, linewidth=0.5)
+        ax_actionable.set_axisbelow(True)
+
+        # Make x-axis integers
+        x_act_adjusted = x_act.copy()
+        # x_act_adjusted[0] -= 1.0
+        ax_actionable.set_xticks(x_act_adjusted)
+        xtickslabels = [str(int(i)) for i in x_act]
+        xtickslabels[0] = "NoExp"
+        ax_actionable.set_xticklabels(xtickslabels)
+
+        # Add a subtle box around the plot
+        for spine in ax_actionable.spines.values():
+            spine.set_linewidth(0.5)
+
+    # Create a single, more compact legend for the entire figure
+    all_legend_elements = []
+    all_legend_labels = []
+
+    # First add main plot elements
+    for element in legend_elements_main:
+        all_legend_elements.append(element)
+        all_legend_labels.append(element.get_label())
+
+    # Add actionable elements if they exist
+    if has_actionable and legend_elements_actionable:
+        for element in legend_elements_actionable:
+            # Only add if label doesn't already exist (avoid duplication)
+            label = element.get_label()
+            if label not in all_legend_labels:
+                all_legend_elements.append(element)
+                all_legend_labels.append(label)
+
+    # Determine legend layout
+    if len(all_legend_elements) > 0:
+        # Use a more compact legend configuration
+        legend_ncol = min(4, len(all_legend_elements))  # More columns for compactness
+
+        # Create a unified legend at the bottom of the figure
+        legend = fig.legend(
+            handles=all_legend_elements,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.07),  # Position below the plots
+            frameon=True,
+            framealpha=0.9,
+            edgecolor="lightgray",
+            ncol=legend_ncol + 1,
+            fontsize=11,  # Smaller font for more compact legend
+            handletextpad=0.5,  # Less space between handle and text
+            columnspacing=1.0,  # Less space between columns
+        )
+
+        # Adjust figure to make room for legend below
+        plt.subplots_adjust(bottom=0.2)
+
+    # Tight layout with specific spacing between subplots
+    if has_actionable:
+        plt.tight_layout(pad=1.0, w_pad=1.0)
+    else:
+        plt.tight_layout(pad=1.0)
 
     # Create directory if it doesn't exist
     save_dir = Path("output", "igp2", "plots")

@@ -349,15 +349,15 @@ def latex_table(
     # Get list of unique scenarios and models
     scenarios = sorted(df_combined["scenario_id"].unique())
     models = sorted(df_combined["gen_llm"].unique())
-    
+
     # Calculate model averages across all scenarios
     model_averages = {}
     model_data = {}  # Store scores for each model/scenario
-    
+
     for model in models:
         model_scores = []
         model_data[model] = {}
-        
+
         for scenario in scenarios:
             try:
                 # Access pivot table correctly with 2-level MultiIndex
@@ -371,78 +371,78 @@ def latex_table(
                 model_data[model][scenario] = f"{mean:.2f} $\\pm$ {se:.2f}"
             except (KeyError, ValueError):
                 model_data[model][scenario] = "--"
-                
+
         # Calculate average across scenarios for this model
         if model_scores:
             avg = np.mean(model_scores)
             model_averages[model] = avg
         else:
             model_averages[model] = float('nan')
-    
+
     # Split scenarios into two equal (or nearly equal) groups
     mid_idx = len(scenarios) // 2
     scenarios_first = scenarios[:mid_idx]
     scenarios_second = scenarios[mid_idx:]
-    
+
     # Create LaTeX content
     latex_content = []
-    
+
     # First table with first half of scenarios
     latex_content.append(r"\begin{table}[ht]")
     latex_content.append(r"\centering")
     latex_content.append(r"\caption{Combined Evaluation Scores by Model and Scenario (Part 1)}")
     latex_content.append(r"\label{tab:combined_scores_part1}")
-    
+
     # Create table format
     col_fmt = "l" + "c" * len(scenarios_first)  # Left-align model names, center scores
     latex_content.append(f"\\begin{{tabular}}{{{col_fmt}}}")
-    
+
     # Table header with scenario numbers
     header_row = ["Model"] + [f"S{s}" for s in scenarios_first]
     latex_content.append(" & ".join(header_row) + r" \\")
     latex_content.append(r"\midrule")
-    
+
     # Add data rows
     for model in models:
         row = [f"{model}"]
         for scenario in scenarios_first:
             row.append(model_data[model][scenario])
         latex_content.append(" & ".join(row) + r" \\")
-    
+
     # End first table
     latex_content.append(r"\bottomrule")
     latex_content.append(r"\end{tabular}")
     latex_content.append(r"\end{table}")
-    
+
     # Second table with second half of scenarios and averages
     latex_content.append(r"\begin{table}[ht]")
     latex_content.append(r"\centering")
     latex_content.append(r"\caption{Combined Evaluation Scores by Model and Scenario (Part 2)}")
     latex_content.append(r"\label{tab:combined_scores_part2}")
-    
+
     # Create table format
     col_fmt = "l" + "c" * len(scenarios_second) + "c"  # Include average column
     latex_content.append(f"\\begin{{tabular}}{{{col_fmt}}}")
-    
+
     # Table header with scenario numbers and average
     header_row = ["Model"] + [f"S{s}" for s in scenarios_second] + ["Avg"]
     latex_content.append(" & ".join(header_row) + r" \\")
     latex_content.append(r"\midrule")
-    
+
     # Add data rows
     for model in models:
         row = [f"{model}"]
         for scenario in scenarios_second:
             row.append(model_data[model][scenario])
-            
+
         # Add average column
         if not np.isnan(model_averages[model]):
             row.append(f"{model_averages[model]:.2f}")
         else:
             row.append("--")
-            
+
         latex_content.append(" & ".join(row) + r" \\")
-    
+
     # End second table
     latex_content.append(r"\bottomrule")
     latex_content.append(r"\end{tabular}")

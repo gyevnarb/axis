@@ -51,7 +51,7 @@
         "name": "igp2-v0",
         "wrapper_type": "IGP2QueryableWrapper",
         "policy_type": "IGP2Policy",
-        "max_iter": 300,
+        "max_iter": 350,
         "n_epsiodes": 1,
         "seed": 28,
         "render_mode": "human",
@@ -87,7 +87,7 @@
                         "goal": {
                             "box": {
                                 "center": [
-                                    65.0,
+                                    35.0,
                                     -1.75
                                 ],
                                 "length": 5,
