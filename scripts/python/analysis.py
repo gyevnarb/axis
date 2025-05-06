@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Annotated, Any
 
+import numpy as np
 import pandas as pd
 import typer
 from rich.console import Console
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def parse_filename(filename: str) -> dict:
     """Parse the filename to extract evaluation details."""
-    rex = r"evaluate_(?P<eval_llm>[^_]+)_(?P<gen_llm>[^_]+)(?:_(?P<features>features))?(?:_(?P<interrogation>interrogation))?(?:_(?P<context>context))?\.pkl"
+    rex = r"evaluate_(?P<eval_llm>[^_]+)_(?P<gen_llm>[^_]+)(?:_(?P<features>features))?(?:_(?P<interrogation>interrogation))?(?:_(?P<context>context))?\.pkl"  # noqa: E501
     match = re.match(rex, filename)
     if match:
         return {
@@ -47,18 +48,16 @@ def extract_fluent_scores(fluent_data: list[dict[str, Any]]) -> list[dict[str, f
 
     for idx, fluent_item in enumerate(fluent_data):
         scores = fluent_item.get("scores", {})
-        explanation = fluent_item.get("explanation", "")
-        explanation_truncated = (
-            explanation[:100] + "..." if len(explanation) > 100 else explanation
-        )
+
+        all_scores = np.array(list(scores.values()))
 
         score_data = {
-            "explanation_idx": idx,
-            # "explanation": explanation_truncated,
+            "explanation_idx": idx,  # This will be the only explanation_idx
             "sufficient_detail": scores.get("SufficientDetail", 0),
             "satisfying": scores.get("Satisfying", 0),
             "complete": scores.get("Complete", 0),
             "trust": scores.get("Trust", 0),
+            "score": np.exp(np.log(all_scores).mean()),
         }
         scores_list.append(score_data)
 
@@ -73,15 +72,10 @@ def extract_correct_scores(
 
     for idx, correct_item in enumerate(correct_data):
         scores = correct_item.get("scores", {})
-        explanation = correct_item.get("explanation", "")
-        explanation_truncated = (
-            explanation[:100] + "..." if len(explanation) > 100 else explanation
-        )
 
         score_data = {
-            "explanation_idx": idx,
-            # "explanation": explanation_truncated,
-            "correct": scores.get("Correct", 0),
+            "explanation_idx": idx,  # This will be the only explanation_idx
+            "score": scores.get("Correct", -1),
         }
         scores_list.append(score_data)
 
@@ -96,16 +90,15 @@ def extract_actionable_scores(
 
     for idx, actionable_item in enumerate(actionable_data):
         scores = actionable_item.get("scores", {})
-        explanation = actionable_item.get("explanation", "")
-        explanation_truncated = (
-            explanation[:100] + "..." if len(explanation) > 100 else explanation
-        )
+
+        goal_score = int(scores.get("Goal", -1) == 0)
+        maneuver_score = int(scores.get("Maneuver", -1) == 0)
 
         score_data = {
-            "explanation_idx": idx,
-            # "explanation": explanation_truncated,
-            "goal": scores.get("Goal", -1),
-            "maneuver": scores.get("Maneuver", -1),
+            "explanation_idx": idx,  # This will be the only explanation_idx
+            "goal": goal_score,
+            "maneuver": maneuver_score,
+            "score": (goal_score + maneuver_score) / 2,
         }
         scores_list.append(score_data)
 
@@ -187,7 +180,7 @@ def load_results_to_dataframe(  # noqa: PLR0913
                 logger.info("Loaded %d results from %s", len(eval_results), result_file)
 
                 # Process each evaluation result
-                for result in eval_results:
+                for result_id, result in enumerate(eval_results, 1):
                     # Extract parameter values
                     param = result.get("param", {})
 
@@ -205,8 +198,19 @@ def load_results_to_dataframe(  # noqa: PLR0913
                         result.get("actionable_no_exp", []),
                     )
 
-                    # Calculate combined score
-                    combined_score = get_combined_score(result, kind="combined")
+                    # Calculate combined score an array with scores for each explanation
+                    combined_scores = get_combined_score(result, kind="combined")
+
+                    # Make sure combined_scores is a list
+                    if not isinstance(combined_scores, list) and not isinstance(
+                        combined_scores,
+                        np.ndarray,
+                    ):
+                        combined_scores = [combined_scores]
+
+                    # Convert to list if it's a numpy array
+                    if isinstance(combined_scores, np.ndarray):
+                        combined_scores = combined_scores.tolist()
 
                     # Get list of features
                     features_list = list(param.get("verbalizer_features", []))
@@ -214,7 +218,7 @@ def load_results_to_dataframe(  # noqa: PLR0913
                     if param.get("complexity", 1) == high_complexity:
                         features_list.append("complexity")
 
-                    # Create base data for each row
+                    # Create base data for each row (without combined score)
                     base_data = {
                         "scenario_id": scenario_id,
                         "eval_llm": file_info["eval_llm"],
@@ -224,32 +228,49 @@ def load_results_to_dataframe(  # noqa: PLR0913
                         "context": file_info["context"],
                         "n_max": param.get("n_max", -1),
                         "complexity": param.get("complexity", -1),
-                        # "features": ",".join(features_list),
-                        "combined_score": combined_score.mean()
-                        if isinstance(combined_score, list)
-                        else 0,
+                        "features": ",".join(features_list),
+                        "result_id": result_id,
                     }
+
+                    # Create separate rows for combined scores as their own score type
+                    for idx, combined_score in enumerate(combined_scores):
+                        row_data = {
+                            **base_data,
+                            "explanation_idx": idx,
+                            "score_type": "combined",
+                            "combined_score": combined_score,
+                        }
+                        all_data.append(row_data)
 
                     # Add rows for fluent scores
                     for fluent_score in fluent_scores_list:
+                        explanation_idx = fluent_score.pop("explanation_idx")
                         row_data = {
                             **base_data,
+                            "explanation_idx": explanation_idx,
+                            "score_type": "fluent",
                             **{f"fluent_{k}": v for k, v in fluent_score.items()},
                         }
                         all_data.append(row_data)
 
                     # Add rows for correct scores
                     for correct_score in correct_scores_list:
+                        explanation_idx = correct_score.pop("explanation_idx")
                         row_data = {
                             **base_data,
+                            "explanation_idx": explanation_idx,
+                            "score_type": "correct",
                             **{f"correct_{k}": v for k, v in correct_score.items()},
                         }
                         all_data.append(row_data)
 
                     # Add rows for actionable scores with explanation
                     for actionable_exp_score in actionable_exp_scores_list:
+                        explanation_idx = actionable_exp_score.pop("explanation_idx")
                         row_data = {
                             **base_data,
+                            "explanation_idx": explanation_idx,
+                            "score_type": "actionable_exp",
                             **{
                                 f"actionable_exp_{k}": v
                                 for k, v in actionable_exp_score.items()
@@ -259,8 +280,11 @@ def load_results_to_dataframe(  # noqa: PLR0913
 
                     # Add rows for actionable scores without explanation
                     for actionable_no_exp_score in actionable_no_exp_scores_list:
+                        explanation_idx = actionable_no_exp_score.pop("explanation_idx")
                         row_data = {
                             **base_data,
+                            "explanation_idx": -1,  # Special value for no explanation
+                            "score_type": "actionable_no_exp",
                             **{
                                 f"actionable_no_exp_{k}": v
                                 for k, v in actionable_no_exp_score.items()
@@ -374,9 +398,9 @@ def all_df(
         typer.Option(
             "--output",
             "-o",
-            help="Path to save the consolidated DataFrame as a CSV file",
+            help="Path to save the full DataFrame as a CSV file",
         ),
-    ] = "consolidated_eval_results.csv",
+    ] = "all_eval_results.csv",
     eval_models: Annotated[
         list[str] | None,
         typer.Option(
@@ -388,11 +412,39 @@ def all_df(
             ),
         ),
     ] = None,
+    features: Annotated[
+        bool | None,
+        typer.Option(
+            "--features",
+            "-f",
+            help="Whether to filter by feature evaluation",
+        ),
+    ] = None,
+    interrogation: Annotated[
+        bool | None,
+        typer.Option(
+            "--interrogation",
+            "-i",
+            help="Whether to filter by interrogation",
+        ),
+    ] = None,
+    context: Annotated[
+        bool | None,
+        typer.Option(
+            "--context",
+            "-c",
+            help="Whether to filter by context",
+        ),
+    ] = None,
 ) -> pd.DataFrame:
     """Dataframe with all results from all scenarios and generation models.
 
     This command automatically finds all available scenarios and generation models,
     and creates a single dataframe containing all evaluation results across all configs.
+    
+    You can filter the results by specifying whether to include only entries with/without
+    features, interrogation, or context using the --features, --interrogation, and 
+    --context flags.
     """
     if eval_models is None:
         eval_models = ["claude35"]
@@ -477,6 +529,9 @@ def all_df(
                         eval_model=eval_model,
                         gen_model=gen_model,
                         scenario=scenario,
+                        features=features,
+                        interrogation=interrogation,
+                        context=context,
                     )
 
                     if not df_results.empty:
@@ -565,46 +620,344 @@ def analyze(
             "-g",
             help=(
                 "Column to group by for analysis "
-                "(e.g., scenario_id, gen_llm, eval_llm, features)"
+                "(e.g., scenario_id, gen_llm, features, result_id)"
             ),
         ),
     ] = "scenario_id",
+    score_type: Annotated[
+        str | None,
+        typer.Option(
+            "--score-type",
+            "-t",
+            help=(
+                "Filter by score type (combined, fluent, correct, actionable_exp, "
+                "actionable_no_exp). Leave empty for all types."
+            ),
+        ),
+    ] = None,
+    output_path: Annotated[
+        str | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Path to save analysis results as CSV",
+        ),
+    ] = None,
+    explanation_idx: Annotated[
+        int,
+        typer.Option(
+            "--explanation-idx",
+            "-e",
+            help="Filter by explanation index (-1 for all)",
+        ),
+    ] = -1,
 ) -> pd.DataFrame:
-    """Analyze scores from a previously created CSV file."""
+    """Analyze scores from a previously created CSV file with the new format.
+
+    This command provides detailed analysis of evaluation results, including:
+    - Score distribution by type
+    - Statistical summaries per group
+    - Comparison between features and conditions
+    - Performance profiles across scenarios
+    """
+    console = Console()
     df_results = pd.read_csv(csv_file)
 
-    # Group by the specified column and calculate mean, std for numeric columns
-    grouped = df_results.groupby(group_by).agg(["mean", "std"])
+    console.print(
+        f"[bold green]Loaded dataframe with {len(df_results)} rows[/bold green]"
+    )
 
-    # Flatten the column hierarchy
-    grouped.columns = [f"{col[0]}_{col[1]}" for col in grouped.columns]
+    # Apply filters if specified
+    if score_type:
+        df_results = df_results[df_results["score_type"] == score_type]
+        console.print(
+            f"[bold]Filtered to score_type '{score_type}': {len(df_results)} rows remaining[/bold]"
+        )
 
-    # Print the results
-    console = Console()
-    console.print(f"[bold green]Score Analysis by {group_by}:[/bold green]")
+    if explanation_idx >= 0:
+        df_results = df_results[df_results["explanation_idx"] == explanation_idx]
+        console.print(
+            f"[bold]Filtered to explanation_idx {explanation_idx}: {len(df_results)} rows remaining[/bold]"
+        )
 
-    # Create a table for each group
-    for group_value in df_results[group_by].unique():
-        group_data = grouped.loc[group_value]
+    if df_results.empty:
+        console.print("[bold red]No data matches the specified filters.[/bold red]")
+        return pd.DataFrame()
 
-        table = Table(title=f"{group_by}: {group_value}")
-        table.add_column("Metric", style="cyan")
-        table.add_column("Mean", style="green")
-        table.add_column("Std", style="yellow")
+    # Overall data summary
+    console.print("\n[bold blue]===== OVERALL DATA SUMMARY =====[/bold blue]")
 
-        # Add rows for important metrics
-        for metric_prefix in ["combined_score", "fluent", "correct", "actionable"]:
-            for col in grouped.columns:
-                if col.startswith(f"{metric_prefix}") and col.endswith("_mean"):
-                    metric_name = col.replace("_mean", "")
-                    mean_val = f"{group_data[col]:.3f}"
-                    std_val = f"{group_data[metric_name + '_std']:.3f}"
-                    table.add_row(metric_name, mean_val, std_val)
+    # Score type distribution
+    console.print("\n[bold]Distribution by Score Type:[/bold]")
+    type_counts = df_results["score_type"].value_counts().sort_index()
+    type_table = Table("Score Type", "Count", "Percentage")
+    for type_name, count in type_counts.items():
+        percentage = (count / len(df_results)) * 100
+        type_table.add_row(str(type_name), str(count), f"{percentage:.1f}%")
+    console.print(type_table)
 
-        console.print(table)
-        console.print("\n")
+    # Features distribution
+    if "features" in df_results.columns:
+        # Count occurrences of each feature across all rows
+        all_features = []
+        for feature_list in df_results["features"].dropna():
+            all_features.extend(feature_list.split(","))
 
-    return grouped
+        feature_counts = pd.Series(all_features).value_counts().sort_index()
+
+        console.print("\n[bold]Feature Distribution:[/bold]")
+        feature_table = Table("Feature", "Count", "Percentage")
+        for feature, count in feature_counts.items():
+            percentage = (count / len(all_features)) * 100
+            feature_table.add_row(feature, str(count), f"{percentage:.1f}%")
+        console.print(feature_table)
+
+    # Create groupwise analysis
+    console.print(
+        f"\n[bold blue]===== ANALYSIS BY {group_by.upper()} =====[/bold blue]"
+    )
+
+    # Detect numeric columns based on score type
+    numeric_columns = []
+    score_prefixes = [
+        "combined_score",
+        "fluent_",
+        "correct_",
+        "actionable_exp_",
+        "actionable_no_exp_",
+    ]
+    for col in df_results.columns:
+        if any(col.startswith(prefix) for prefix in score_prefixes):
+            numeric_columns.append(col)
+
+    # For grouping by score_type, we need special handling
+    if group_by == "score_type":
+        group_results = {}
+
+        for score_type_val in df_results["score_type"].unique():
+            subset = df_results[df_results["score_type"] == score_type_val]
+
+            # Get columns relevant to this score type
+            relevant_cols = [
+                col
+                for col in numeric_columns
+                if col.startswith(f"{score_type_val}_") or col == "combined_score"
+            ]
+            if not relevant_cols and score_type_val == "combined":
+                relevant_cols = ["combined_score"]
+
+            if relevant_cols:
+                stats = (
+                    subset[relevant_cols].agg(["mean", "std", "count", "min", "max"]).T
+                )
+                group_results[score_type_val] = stats
+
+        # Print results for each score type
+        for score_type_val, stats in group_results.items():
+            console.print(f"\n[bold]Score Type: {score_type_val}[/bold]")
+
+            stats_table = Table("Metric", "Mean", "Std", "Count", "Min", "Max")
+            for metric, row in stats.iterrows():
+                clean_metric = (
+                    metric.replace(f"{score_type_val}_", "")
+                    if score_type_val != "combined"
+                    else metric
+                )
+                stats_table.add_row(
+                    clean_metric,
+                    f"{row['mean']:.3f}",
+                    f"{row['std']:.3f}",
+                    f"{row['count']:.0f}",
+                    f"{row['min']:.3f}",
+                    f"{row['max']:.3f}",
+                )
+            console.print(stats_table)
+    else:
+        # Regular group-by analysis
+        grouped = df_results.groupby([group_by, "score_type"])
+
+        # For each group, compute statistics on relevant numeric columns
+        group_results = {}
+        for (group_val, score_type_val), group_df in grouped:
+            if group_val not in group_results:
+                group_results[group_val] = {}
+
+            # Get columns relevant to this score type
+            relevant_cols = [
+                col
+                for col in numeric_columns
+                if col.startswith(f"{score_type_val}_") or col == "combined_score"
+            ]
+            if not relevant_cols and score_type_val == "combined":
+                relevant_cols = ["combined_score"]
+
+            if relevant_cols:
+                stats = (
+                    group_df[relevant_cols]
+                    .agg(["mean", "std", "count", "min", "max"])
+                    .T
+                )
+                group_results[group_val][score_type_val] = stats
+
+        # Print results for each group
+        for group_val in sorted(group_results.keys()):
+            console.print(f"\n[bold]{group_by}: {group_val}[/bold]")
+
+            for score_type_val, stats in group_results[group_val].items():
+                console.print(f"\n[cyan]Score Type: {score_type_val}[/cyan]")
+
+                stats_table = Table("Metric", "Mean", "Std", "Count", "Min", "Max")
+                for metric, row in stats.iterrows():
+                    clean_metric = (
+                        metric.replace(f"{score_type_val}_", "")
+                        if score_type_val != "combined"
+                        else metric
+                    )
+                    stats_table.add_row(
+                        clean_metric,
+                        f"{row['mean']:.3f}",
+                        f"{row['std']:.3f}",
+                        f"{row['count']:.0f}",
+                        f"{row['min']:.3f}",
+                        f"{row['max']:.3f}",
+                    )
+                console.print(stats_table)
+
+    # Feature impact analysis
+    if "features" in df_results.columns and "combined_score" in df_results.columns:
+        console.print("\n[bold blue]===== FEATURE IMPACT ANALYSIS =====[/bold blue]")
+
+        # Extract all unique features
+        unique_features = set()
+        for feature_list in df_results["features"].dropna():
+            unique_features.update(feature_list.split(","))
+
+        # Create binary columns for each feature
+        for feature in unique_features:
+            df_results[f"has_{feature}"] = df_results["features"].apply(
+                lambda x: 1 if feature in str(x).split(",") else 0
+            )
+
+        # Analyze impact of features on combined scores
+        combined_df = df_results[df_results["score_type"] == "combined"]
+
+        if not combined_df.empty:
+            feature_impact = []
+            for feature in unique_features:
+                with_feature = combined_df[combined_df[f"has_{feature}"] == 1][
+                    "combined_score"
+                ]
+                without_feature = combined_df[combined_df[f"has_{feature}"] == 0][
+                    "combined_score"
+                ]
+
+                if len(with_feature) > 0 and len(without_feature) > 0:
+                    impact = {
+                        "Feature": feature,
+                        "With_Mean": with_feature.mean(),
+                        "Without_Mean": without_feature.mean(),
+                        "Difference": with_feature.mean() - without_feature.mean(),
+                        "With_Count": len(with_feature),
+                        "Without_Count": len(without_feature),
+                    }
+                    feature_impact.append(impact)
+
+            if feature_impact:
+                impact_df = pd.DataFrame(feature_impact).sort_values(
+                    "Difference", ascending=False
+                )
+
+                impact_table = Table(
+                    "Feature",
+                    "With Feature",
+                    "Without Feature",
+                    "Difference",
+                    "With Count",
+                    "Without Count",
+                )
+                for _, row in impact_df.iterrows():
+                    impact_table.add_row(
+                        row["Feature"],
+                        f"{row['With_Mean']:.3f}",
+                        f"{row['Without_Mean']:.3f}",
+                        f"{row['Difference']:.3f}",
+                        f"{row['With_Count']}",
+                        f"{row['Without_Count']}",
+                    )
+                console.print(impact_table)
+
+    # Cross-scenario analysis if possible
+    if "scenario_id" in df_results.columns and group_by != "scenario_id":
+        console.print("\n[bold blue]===== CROSS-SCENARIO ANALYSIS =====[/bold blue]")
+
+        # Only look at combined scores for simplicity
+        combined_df = df_results[df_results["score_type"] == "combined"]
+
+        if not combined_df.empty:
+            # Calculate mean combined score by scenario
+            scenario_means = (
+                combined_df.groupby("scenario_id")["combined_score"]
+                .mean()
+                .sort_values(ascending=False)
+            )
+
+            scenario_table = Table("Scenario ID", "Mean Combined Score", "Count")
+            for scenario_id, mean_score in scenario_means.items():
+                count = len(combined_df[combined_df["scenario_id"] == scenario_id])
+                scenario_table.add_row(
+                    str(scenario_id), f"{mean_score:.3f}", str(count)
+                )
+            console.print(scenario_table)
+
+    # Save results if output path is provided
+    if output_path:
+        if group_by == "score_type":
+            # Combine all score type results
+            result_dfs = []
+            for score_type_val, stats in group_results.items():
+                stats_reset = stats.reset_index()
+                stats_reset["score_type"] = score_type_val
+                result_dfs.append(stats_reset)
+
+            if result_dfs:
+                output_df = pd.concat(result_dfs)
+                output_df.to_csv(output_path, index=False)
+                console.print(f"\n[green]Analysis saved to {output_path}[/green]")
+        else:
+            # Create a complex DataFrame with hierarchical index
+            all_stats = []
+
+            for group_val, score_types in group_results.items():
+                for score_type_val, stats in score_types.items():
+                    stats_reset = stats.reset_index()
+                    stats_reset[group_by] = group_val
+                    stats_reset["score_type"] = score_type_val
+                    all_stats.append(stats_reset)
+
+            if all_stats:
+                output_df = pd.concat(all_stats)
+                output_df.to_csv(output_path, index=False)
+                console.print(f"\n[green]Analysis saved to {output_path}[/green]")
+
+    # Return the transformed data for further programmatic analysis
+    if group_by == "score_type":
+        return pd.concat(
+            [stats for stats in group_results.values()], keys=group_results.keys()
+        )
+    else:
+        # Create a multi-level DataFrame with hierarchical index
+        result_parts = []
+        for group_val, score_types in group_results.items():
+            group_part = pd.concat(
+                [stats for stats in score_types.values()],
+                keys=score_types.keys(),
+                names=["score_type"],
+            )
+            result_parts.append(group_part)
+
+        if result_parts:
+            return pd.concat(result_parts, keys=group_results.keys(), names=[group_by])
+        return pd.DataFrame()
 
 
 if __name__ == "__main__":

@@ -2,80 +2,17 @@
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import pandas as pd
 import typer
 from matplotlib import rcParams
 from matplotlib.patches import Patch, Polygon
 from util import FEATURE_LABELS, MODEL_NAME_MAP
 
 logger = logging.getLogger(__name__)
-
-
-def plot_combined_scores(scores: list[dict[str, Any]], ctx: typer.Context) -> None:
-    """Plot combined scores with error intervals in NeurIPS style.
-
-    Args:
-        scores (list): List of dictionaries containing scores, scenarios, and models.
-        ctx (typer.Context): Typer context for scenario and model information.
-
-    """
-    # Aggregate scores by index
-    combined_scores = np.array([score["score"] for score in scores])
-    indices = range(combined_scores.shape[1])
-
-    # Calculate mean and standard error for each index
-    means = np.array(combined_scores).mean(axis=0)
-    errors = np.std(combined_scores, axis=0) / np.sqrt(len(combined_scores))
-
-    # Set up NeurIPS-style plot
-    plt.figure(figsize=(8, 6))
-    plt.plot(indices, means, label="Combined Score", color="blue", linewidth=2)
-    plt.fill_between(
-        indices,
-        means - errors,
-        means + errors,
-        color="blue",
-        alpha=0.2,
-        label="Error Interval",
-    )
-
-    # Add labels and title
-    plt.xlabel("Index", fontsize=12)
-    plt.ylabel("Combined Score", fontsize=12)
-    plt.title("Combined Scores Across Indices", fontsize=14)
-    plt.xticks(fontsize=10)
-    plt.yticks(fontsize=10)
-    plt.grid(visible=True, linestyle="--", alpha=0.5)
-
-    # Add legend
-    plt.legend(fontsize=10)
-
-    # Save the plot as a high-resolution image
-    # Tight layout for proper spacing, with more padding at the top for legend
-    plt.tight_layout(pad=0.5, rect=[0, 0, 1, 0.92])
-
-    # Create directory if it doesn't exist
-    save_dir = Path("output", "igp2", "plots")
-    save_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create filename with relevant parameters
-    s_name = ctx.obj["scenario"]
-    s_name = f"{s_name}" if s_name != -1 else "all"
-    gen_model = ctx.obj["model"].value
-    gen_model = gen_model if gen_model != "all" else "all"
-    eval_model = ctx.obj["eval_model"].value
-    eval_model = eval_model if eval_model != "all" else "all"
-    save_name = f"evolution_s{s_name}_{eval_model}_{gen_model}"
-
-    # Save the plot in high resolution for publication
-    plt.savefig(save_dir / f"{save_name}.png", dpi=600, bbox_inches="tight")
-    plt.savefig(save_dir / f"{save_name}.pdf", bbox_inches="tight")
-
-    plt.show()
 
 
 def plot_shapley_waterfall(
@@ -648,4 +585,431 @@ def plot_actionable_barplot(
         "Actionability barplot saved to %s (.png and .pdf)",
         output_dir / f"{save_name}",
     )
+    plt.close()
+
+
+def plot_evolution_from_csv(
+    csv_path: str,
+    scenario_id: int = -1,
+    gen_model: str = "all",
+    eval_model: str = "all",
+    aggregate_all: bool = False,
+    show_all_scores: bool = False,
+) -> None:
+    """Plot the evolution of combined scores over explanation indices from a CSV file.
+
+    Args:
+        csv_path (str): Path to the CSV file containing analysis results.
+        scenario_id (int): Scenario ID to filter by (-1 for all scenarios).
+        gen_model (str): Generation model to filter by ("all" for all models).
+        eval_model (str): Evaluation model to filter by ("all" for all models).
+        aggregate_all (bool): If True, plot a single aggregated line across all models,
+                              rather than separate lines per model.
+        show_all_scores (bool): If True, display all score types as separate lines,
+                                not just the combined score.
+
+    """
+    # Load the CSV data
+    logger.info("Loading data from %s", csv_path)
+    df_results = pd.read_csv(csv_path)
+
+    # Apply additional filters if specified
+    if scenario_id != -1:
+        df_results = df_results[df_results["scenario_id"] == scenario_id]
+
+    if eval_model != "all":
+        df_results = df_results[df_results["eval_llm"] == eval_model]
+
+    if gen_model != "all" and not aggregate_all:
+        df_results = df_results[df_results["gen_llm"] == gen_model]
+
+    # Filter data based on show_all_scores parameter
+    if not show_all_scores:
+        # Filter data to include only combined scores (original behavior)
+        df_results = df_results[df_results["score_type"] == "combined"]
+
+    if df_results.empty:
+        logger.error("No data matches the specified filters")
+        return
+
+    # Get unique score types for plotting
+    score_types = df_results["score_type"].unique()
+
+    # Set publication-quality plot styling
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["font.serif"] = ["Times New Roman", "DejaVu Serif", "serif"]
+    plt.rcParams["font.size"] = 10
+    plt.rcParams["axes.titlesize"] = 12
+    plt.rcParams["axes.labelsize"] = 11
+    plt.rcParams["xtick.labelsize"] = 10
+    plt.rcParams["ytick.labelsize"] = 10
+    plt.rcParams["legend.fontsize"] = 9
+    plt.rcParams["figure.dpi"] = 300
+
+    # Adjust figure size when showing all score types
+    fig_width = 5.0 if show_all_scores else 3.5  # Wider figure when showing all scores
+    fig_height = (
+        3.5 if show_all_scores else 3.0
+    )  # Taller figure when showing all scores
+
+    # Create publication figure
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    ax = fig.add_subplot(111)
+
+    # Set a scientific color palette for different models/score types
+    # Using ColorBrewer colors which are colorblind-friendly and work well in print
+    colors = [
+        "#1b9e77",
+        "#d95f02",
+        "#7570b3",
+        "#e7298a",
+        "#66a61e",
+        "#e6ab02",
+        "#a6761d",
+        "#666666",
+    ]
+    markers = ["o", "s", "^", "D", "v", "p", "*", "x"]
+    linestyles = ["-", "--", "-.", ":", "-", "--", "-.", ":"]
+
+    legend_elements = []
+
+    # Define score type label mapping
+    score_type_labels = {
+        "combined": "Combined",
+        "correctness": "Correctness",
+        "fluency": "Fluency",
+        "actionable": "Actionability",
+    }
+
+    if aggregate_all:
+        # If showing all score types, we'll iterate through score types
+        if show_all_scores:
+            for s_idx, score_type in enumerate(score_types):
+                # Get data for this score type
+                type_df = df_results[df_results["score_type"] == score_type]
+
+                # Skip if no data for this type
+                if type_df.empty:
+                    continue
+
+                # Group by explanation index
+                grouped = type_df.groupby("explanation_idx")[f"{score_type}_score"]
+                mean_scores = grouped.mean()
+                stds = grouped.std()
+                counts = grouped.count()
+                # Calculate standard error
+                errors = stds / np.sqrt(counts)
+
+                x = np.array(mean_scores.index)
+
+                # Plot with unique color/style for each score type
+                score_color = colors[s_idx % len(colors)]
+                score_marker = markers[s_idx % len(markers)]
+                score_line = linestyles[s_idx % len(linestyles)]
+
+                # Get readable score type name
+                score_label = score_type_labels.get(score_type, score_type)
+
+                # Plot line with error band
+                line = ax.plot(
+                    x,
+                    mean_scores.values,
+                    marker=score_marker,
+                    color=score_color,
+                    linestyle=score_line,
+                    linewidth=2.0,
+                    markersize=6,
+                    label=f"{score_label} (Aggregate)",
+                )
+
+                # Add error bands
+                ax.fill_between(
+                    x,
+                    mean_scores.to_numpy() - errors.to_numpy(),
+                    mean_scores.to_numpy() + errors.to_numpy(),
+                    color=score_color,
+                    alpha=0.2,
+                )
+
+                # Add data points count as annotations (only for combined score to avoid clutter)
+                if score_type == "combined":
+                    for _, (idx, count) in enumerate(counts.items()):
+                        ax.annotate(
+                            f"n={count}",
+                            xy=(idx, mean_scores[idx]),
+                            xytext=(0, 10),
+                            textcoords="offset points",
+                            ha="center",
+                            fontsize=7,
+                            color="dimgray",
+                        )
+
+                legend_elements.append(line[0])
+        else:
+            # Original behavior for aggregate with combined score only
+            # Group only by explanation index and calculate aggregate statistics
+            grouped = df_results.groupby("explanation_idx")["combined_score"]
+            mean_scores = grouped.mean()
+            stds = grouped.std()
+            counts = grouped.count()
+            # Calculate standard error
+            errors = stds / np.sqrt(counts)
+
+            x = np.array(mean_scores.index)
+
+            # Plot aggregate line with error band
+            aggregate_color = "#1b9e77"  # First color in the palette
+            line = ax.plot(
+                x,
+                mean_scores.values,
+                marker="o",
+                color=aggregate_color,
+                linestyle="-",
+                linewidth=2.0,
+                markersize=6,
+                label="Aggregate (All Models)",
+            )
+
+            # Add error bands
+            ax.fill_between(
+                x,
+                mean_scores.to_numpy() - errors.to_numpy(),
+                mean_scores.to_numpy() + errors.to_numpy(),
+                color=aggregate_color,
+                alpha=0.2,
+            )
+
+            # Add data points count as annotations
+            for _, (idx, count) in enumerate(counts.items()):
+                ax.annotate(
+                    f"n={count}",
+                    xy=(idx, mean_scores[idx]),
+                    xytext=(0, 10),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=7,
+                    color="dimgray",
+                )
+
+            legend_elements.append(line[0])
+
+        num_models = len(legend_elements)  # Count of legend entries
+    else:
+        # Group by model for separate lines
+        if show_all_scores:
+            # When showing all score types, group by model and score type
+            model_score_groups = []
+
+            for model_name in df_results["gen_llm"].unique():
+                model_df = df_results[df_results["gen_llm"] == model_name]
+
+                for score_type in score_types:
+                    type_df = model_df[model_df["score_type"] == score_type]
+                    if not type_df.empty:
+                        model_score_groups.append((model_name, score_type, type_df))
+
+            if not model_score_groups:
+                logger.error("No data to plot after filtering")
+                return
+
+            # Plot each model and score type combination
+            for i, (model_name, score_type, group_df) in enumerate(model_score_groups):
+                # Get readable model name from mapping
+                readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+
+                # Get readable score type
+                score_label = score_type_labels.get(score_type, score_type)
+
+                # Choose colors based on model and line style based on score type
+                model_names = list(df_results["gen_llm"].unique())
+                score_names = list(score_types)
+
+                model_idx = model_names.index(model_name)
+                score_idx = score_names.index(score_type)
+
+                color_idx = model_idx % len(colors)
+                marker_idx = score_idx % len(markers)
+                line_idx = score_idx % len(linestyles)
+
+                # Group by explanation index and calculate statistics
+                grouped = group_df.groupby("explanation_idx")[f"{score_type}_score"]
+                mean_scores = grouped.mean()
+                stds = grouped.std()
+                counts = grouped.count()
+                # Calculate standard error
+                errors = stds / np.sqrt(counts)
+
+                x = np.array(mean_scores.index)
+
+                # Plot line with error band
+                line = ax.plot(
+                    x,
+                    mean_scores.values,
+                    marker=markers[marker_idx],
+                    color=colors[color_idx],
+                    linestyle=linestyles[line_idx],
+                    linewidth=1.5,
+                    markersize=5,
+                    label=f"{readable_name} - {score_label}",
+                )
+
+                # Add error bands
+                ax.fill_between(
+                    x,
+                    mean_scores.to_numpy() - errors.to_numpy(),
+                    mean_scores.to_numpy() + errors.to_numpy(),
+                    color=colors[color_idx],
+                    alpha=0.2,
+                )
+
+                legend_elements.append(line[0])
+        else:
+            # Original behavior - only plot combined scores by model
+            model_groups = df_results.groupby("gen_llm")
+
+            if len(model_groups) == 0:
+                logger.error("No data to plot after filtering")
+                return
+
+            # Plot each model with a different color/style
+            for i, (model_name, model_df) in enumerate(model_groups):
+                # Get readable model name from mapping
+                readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+                color_idx = i % len(colors)
+                marker_idx = i % len(markers)
+                line_idx = i % len(linestyles)
+
+                # Group by explanation index and calculate statistics
+                grouped = model_df.groupby("explanation_idx")["combined_score"]
+                mean_scores = grouped.mean()
+                stds = grouped.std()
+                counts = grouped.count()
+                # Calculate standard error
+                errors = stds / np.sqrt(counts)
+
+                x = np.array(mean_scores.index)
+
+                # Plot line with error band
+                line = ax.plot(
+                    x,
+                    mean_scores.values,
+                    marker=markers[marker_idx],
+                    color=colors[color_idx],
+                    linestyle=linestyles[line_idx],
+                    linewidth=1.5,
+                    markersize=5,
+                    label=readable_name,
+                )
+
+                # Add error bands
+                ax.fill_between(
+                    x,
+                    mean_scores.to_numpy() - errors.to_numpy(),
+                    mean_scores.to_numpy() + errors.to_numpy(),
+                    color=colors[color_idx],
+                    alpha=0.2,
+                )
+
+                legend_elements.append(line[0])
+
+        num_models = len(legend_elements)  # Count of legend entries
+
+    # Add labels and title
+    ax.set_xlabel("Explanation Round", fontweight="bold")
+
+    # Update y-label based on whether showing all scores
+    if show_all_scores:
+        ax.set_ylabel("Score Value", fontweight="bold")
+    else:
+        ax.set_ylabel("Combined Score", fontweight="bold")
+
+    # Format grid for better readability
+    ax.grid(visible=True, linestyle="--", alpha=0.7, linewidth=0.5)
+    ax.set_axisbelow(True)  # Place grid behind the data
+
+    # Make x-axis integers
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(int(i)) for i in x])
+
+    # Add a subtle box around the plot
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.5)
+
+    # Format title based on filters
+    title_parts = []
+    if scenario_id != -1:
+        title_parts.append(f"Scenario {scenario_id}")
+    if eval_model != "all":
+        eval_model_name = MODEL_NAME_MAP.get(eval_model, eval_model)
+        title_parts.append(f"Evaluator: {eval_model_name}")
+    if aggregate_all and not show_all_scores:
+        title_parts.append("Aggregate across all models")
+    if show_all_scores:
+        title_parts.append("All Score Types")
+
+    if title_parts:
+        ax.set_title(" | ".join(title_parts), fontsize=11)
+
+    # Add legend with positioning based on number of entries
+    if num_models > 0:
+        # Adjust legend position based on number of entries
+        if show_all_scores or num_models > 3:
+            # For many entries, position below the plot
+            legend_ncol = min(3, num_models)
+            legend = ax.legend(
+                handles=legend_elements,
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                frameon=True,
+                framealpha=0.9,
+                edgecolor="lightgray",
+                ncol=legend_ncol,
+            )
+            legend.get_title().set_fontweight("bold")
+
+            # Adjust figure to make room for legend below
+            plt.subplots_adjust(bottom=0.25)
+        else:
+            # For fewer entries, position on the right
+            legend_title = "Aggregate Data" if aggregate_all else "Generation Models"
+            legend = ax.legend(
+                handles=legend_elements,
+                loc="center left",
+                bbox_to_anchor=(1.05, 0.5),
+                frameon=True,
+                framealpha=0.9,
+                edgecolor="lightgray",
+                title=legend_title,
+            )
+            legend.get_title().set_fontweight("bold")
+
+            # Adjust figure to make room for the legend
+            plt.subplots_adjust(right=0.78)  # Leave space on the right for the legend
+
+    # Tight layout for proper spacing
+    plt.tight_layout(pad=0.5)
+
+    # Create directory if it doesn't exist
+    save_dir = Path("output", "igp2", "plots")
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create filename with relevant parameters
+    s_name = str(scenario_id) if scenario_id != -1 else "all"
+    gen_name = gen_model if gen_model != "all" else "all"
+    eval_name = eval_model if eval_model != "all" else "all"
+    agg_suffix = "_aggregate" if aggregate_all else ""
+    score_suffix = "_all_scores" if show_all_scores else ""
+    save_name = (
+        f"evolution_csv_s{s_name}_{eval_name}_{gen_name}{agg_suffix}{score_suffix}"
+    )
+
+    # Save the plot in high resolution for publication
+    plt.savefig(save_dir / f"{save_name}.png", dpi=600, bbox_inches="tight")
+    plt.savefig(
+        save_dir / f"{save_name}.pdf",
+        bbox_inches="tight",
+        metadata={"Creator": "AXS Analysis"},
+    )
+
+    logger.info("Plot saved to %s/%s.png and .pdf", save_dir, save_name)
     plt.close()
