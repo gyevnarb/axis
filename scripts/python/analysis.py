@@ -66,11 +66,26 @@ def extract_fluent_scores(fluent_data: list[dict[str, Any]]) -> list[dict[str, f
 
 def extract_correct_scores(
     correct_data: list[dict[str, Any]],
+    exclude_last: bool = False,
 ) -> list[dict[str, float]]:
-    """Extract correctness scores from the evaluation results for all explanations."""
+    """Extract correctness scores from the evaluation results for all explanations.
+
+    Args:
+        correct_data: List of dictionaries containing correctness evaluation data
+        exclude_last: Whether to exclude the final explanation from the extraction
+
+    Returns:
+        List of dictionaries containing extracted scores for each explanation
+
+    """
     scores_list = []
 
-    for idx, correct_item in enumerate(correct_data):
+    # If exclude_last is True and we have data, exclude the last item
+    data_to_process = (
+        correct_data[:-1] if exclude_last and correct_data else correct_data
+    )
+
+    for idx, correct_item in enumerate(data_to_process):
         scores = correct_item.get("scores", {})
 
         score_data = {
@@ -112,6 +127,7 @@ def load_results_to_dataframe(  # noqa: PLR0913
     features: bool | None = None,
     interrogation: bool | None = None,
     context: bool | None = None,
+    exclude_last: bool = False,
 ) -> pd.DataFrame:
     """Load all evaluation results into a pandas dataframe.
 
@@ -122,6 +138,7 @@ def load_results_to_dataframe(  # noqa: PLR0913
         features: Whether to filter by feature evaluation
         interrogation: Whether to filter by interrogation
         context: Whether to filter by context
+        exclude_last: Whether to exclude final explanation from correctness extraction
 
     Returns:
         A pandas dataframe with all results
@@ -188,6 +205,7 @@ def load_results_to_dataframe(  # noqa: PLR0913
                     fluent_scores_list = extract_fluent_scores(result.get("fluent", []))
                     correct_scores_list = extract_correct_scores(
                         result.get("correct", []),
+                        exclude_last=exclude_last,
                     )
 
                     # Extract actionable scores (with and without explanation)
@@ -328,7 +346,7 @@ def df(  # noqa: PLR0913
             "-f",
             help="Whether to filter by feature evaluation",
         ),
-    ] = None,
+    ] = False,
     interrogation: Annotated[
         bool | None,
         typer.Option(
@@ -336,11 +354,19 @@ def df(  # noqa: PLR0913
             "-i",
             help="Whether to filter by interrogation",
         ),
-    ] = None,
+    ] = False,
     context: Annotated[
         bool | None,
         typer.Option("--context", "-c", help="Whether to filter by context"),
-    ] = None,
+    ] = False,
+    exclude_last: Annotated[
+        bool,
+        typer.Option(
+            "--exclude-last",
+            "-x",
+            help="Whether to exclude the final explanation from correctness extraction",
+        ),
+    ] = False,
 ) -> pd.DataFrame:
     """Create a dataframe with all evaluation results and save to CSV."""
     eval_model = eval_model.value
@@ -360,6 +386,7 @@ def df(  # noqa: PLR0913
         features=features,
         interrogation=interrogation,
         context=context,
+        exclude_last=exclude_last,
     )
 
     # Save to CSV
@@ -392,7 +419,7 @@ def df(  # noqa: PLR0913
 
 
 @app.command()
-def all_df(
+def all_df(  # noqa: PLR0913
     output_path: Annotated[
         str,
         typer.Option(
@@ -419,7 +446,7 @@ def all_df(
             "-f",
             help="Whether to filter by feature evaluation",
         ),
-    ] = None,
+    ] = False,
     interrogation: Annotated[
         bool | None,
         typer.Option(
@@ -427,7 +454,7 @@ def all_df(
             "-i",
             help="Whether to filter by interrogation",
         ),
-    ] = None,
+    ] = False,
     context: Annotated[
         bool | None,
         typer.Option(
@@ -435,15 +462,23 @@ def all_df(
             "-c",
             help="Whether to filter by context",
         ),
-    ] = None,
+    ] = False,
+    exclude_last: Annotated[
+        bool,
+        typer.Option(
+            "--exclude-last",
+            "-x",
+            help="Whether to exclude the final explanation from correctness extraction",
+        ),
+    ] = False,
 ) -> pd.DataFrame:
     """Dataframe with all results from all scenarios and generation models.
 
     This command automatically finds all available scenarios and generation models,
     and creates a single dataframe containing all evaluation results across all configs.
-    
-    You can filter the results by specifying whether to include only entries with/without
-    features, interrogation, or context using the --features, --interrogation, and 
+
+    You can filter results by specifying whether to include only entries with/without
+    features, interrogation, or context using the --features, --interrogation, and
     --context flags.
     """
     if eval_models is None:
@@ -532,6 +567,7 @@ def all_df(
                         features=features,
                         interrogation=interrogation,
                         context=context,
+                        exclude_last=exclude_last,
                     )
 
                     if not df_results.empty:
@@ -664,20 +700,20 @@ def analyze(
     df_results = pd.read_csv(csv_file)
 
     console.print(
-        f"[bold green]Loaded dataframe with {len(df_results)} rows[/bold green]"
+        f"[bold green]Loaded dataframe with {len(df_results)} rows[/bold green]",
     )
 
     # Apply filters if specified
     if score_type:
         df_results = df_results[df_results["score_type"] == score_type]
         console.print(
-            f"[bold]Filtered to score_type '{score_type}': {len(df_results)} rows remaining[/bold]"
+            f"[bold]Filtered to score_type '{score_type}': {len(df_results)} rows remaining[/bold]",  # noqa: E501
         )
 
     if explanation_idx >= 0:
         df_results = df_results[df_results["explanation_idx"] == explanation_idx]
         console.print(
-            f"[bold]Filtered to explanation_idx {explanation_idx}: {len(df_results)} rows remaining[/bold]"
+            f"[bold]Filtered to explanation_idx {explanation_idx}: {len(df_results)} rows remaining[/bold]",  # noqa: E501
         )
 
     if df_results.empty:
@@ -714,11 +750,10 @@ def analyze(
 
     # Create groupwise analysis
     console.print(
-        f"\n[bold blue]===== ANALYSIS BY {group_by.upper()} =====[/bold blue]"
+        f"\n[bold blue]===== ANALYSIS BY {group_by.upper()} =====[/bold blue]",
     )
 
     # Detect numeric columns based on score type
-    numeric_columns = []
     score_prefixes = [
         "combined_score",
         "fluent_",
@@ -726,9 +761,11 @@ def analyze(
         "actionable_exp_",
         "actionable_no_exp_",
     ]
-    for col in df_results.columns:
-        if any(col.startswith(prefix) for prefix in score_prefixes):
-            numeric_columns.append(col)
+    numeric_columns = [
+        col
+        for col in df_results.columns
+        if any(col.startswith(prefix) for prefix in score_prefixes)
+    ]
 
     # For grouping by score_type, we need special handling
     if group_by == "score_type":
@@ -835,7 +872,7 @@ def analyze(
         # Create binary columns for each feature
         for feature in unique_features:
             df_results[f"has_{feature}"] = df_results["features"].apply(
-                lambda x: 1 if feature in str(x).split(",") else 0
+                lambda x, feature=feature: 1 if feature in str(x).split(",") else 0,
             )
 
         # Analyze impact of features on combined scores
@@ -864,7 +901,8 @@ def analyze(
 
             if feature_impact:
                 impact_df = pd.DataFrame(feature_impact).sort_values(
-                    "Difference", ascending=False
+                    "Difference",
+                    ascending=False,
                 )
 
                 impact_table = Table(
@@ -905,7 +943,9 @@ def analyze(
             for scenario_id, mean_score in scenario_means.items():
                 count = len(combined_df[combined_df["scenario_id"] == scenario_id])
                 scenario_table.add_row(
-                    str(scenario_id), f"{mean_score:.3f}", str(count)
+                    str(scenario_id),
+                    f"{mean_score:.3f}",
+                    str(count),
                 )
             console.print(scenario_table)
 
@@ -942,22 +982,23 @@ def analyze(
     # Return the transformed data for further programmatic analysis
     if group_by == "score_type":
         return pd.concat(
-            [stats for stats in group_results.values()], keys=group_results.keys()
+            list(group_results.values()),
+            keys=group_results.keys(),
         )
-    else:
-        # Create a multi-level DataFrame with hierarchical index
-        result_parts = []
-        for group_val, score_types in group_results.items():
-            group_part = pd.concat(
-                [stats for stats in score_types.values()],
-                keys=score_types.keys(),
-                names=["score_type"],
-            )
-            result_parts.append(group_part)
 
-        if result_parts:
-            return pd.concat(result_parts, keys=group_results.keys(), names=[group_by])
-        return pd.DataFrame()
+    # Create a multi-level DataFrame with hierarchical index
+    result_parts = []
+    for score_types in group_results.values():
+        group_part = pd.concat(
+            list(score_types.values()),
+            keys=score_types.keys(),
+            names=["score_type"],
+        )
+        result_parts.append(group_part)
+
+    if result_parts:
+        return pd.concat(result_parts, keys=group_results.keys(), names=[group_by])
+    return pd.DataFrame()
 
 
 if __name__ == "__main__":

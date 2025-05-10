@@ -23,7 +23,7 @@ app = typer.Typer()
 
 
 MODEL_NAME_MAP = {
-    "llama70b": "LLaMA-3.3-70B",
+    "llama70b": "LLama 3.3-70B",
     "qwen72b": "Qwen-2.5-72B",
     "gpt41": "GPT-4.1",
     "gpt4o": "GPT-4o",

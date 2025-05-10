@@ -234,7 +234,7 @@ def plot_shapley_waterfall(
     # Formatting for academic publication
     # Use a more descriptive, precise title
     ax.set_xlabel(
-        f"Contribution to Reward ({MODEL_NAME_MAP[gen_model]})",
+        f"Contribution to Correctness ({MODEL_NAME_MAP[gen_model]})",
         fontsize=12,
         fontweight="bold",
     )
@@ -599,6 +599,7 @@ def plot_evolution_from_csv(
     eval_model: str = "all",
     aggregate_all: bool = False,
     show_all_scores: bool = False,
+    baseline_path: str = None,
 ) -> None:
     """Plot the evolution of combined scores over explanation indices from a CSV file.
 
@@ -611,11 +612,30 @@ def plot_evolution_from_csv(
                               rather than separate lines per model.
         show_all_scores (bool): If True, display all score types as separate lines,
                                 not just the combined score.
+        baseline_path (str): Optional path to a CSV file containing baseline scores.
+                            If provided, horizontal baseline lines will be added.
 
     """
     # Load the CSV data
     logger.info("Loading data from %s", csv_path)
     df_results = pd.read_csv(csv_path)
+
+    # Load baseline data if provided
+    baseline_data = None
+    if baseline_path:
+        logger.info("Loading baseline data from %s", baseline_path)
+        try:
+            baseline_data = pd.read_csv(baseline_path)
+            # Apply the same filters as the main data
+            if scenario_id != -1:
+                baseline_data = baseline_data[
+                    baseline_data["scenario_id"] == scenario_id
+                ]
+            if eval_model != "all":
+                baseline_data = baseline_data[baseline_data["eval_llm"] == eval_model]
+        except Exception as e:
+            logger.error("Failed to load baseline data: %s", str(e))
+            baseline_data = None
 
     # Apply additional filters if specified
     if scenario_id != -1:
@@ -638,6 +658,13 @@ def plot_evolution_from_csv(
 
     # Get unique score types for plotting
     score_types = df_results["score_type"].unique()
+    score_types = score_types[
+        score_types != "actionable_no_exp"
+    ]  # Exclude actionable_no_exp
+    if show_all_scores:
+        score_types = score_types[
+            score_types != "combined"
+        ]  # Exclude actionable_no_exp
 
     # Set publication-quality plot styling
     plt.rcParams["font.family"] = "serif"
@@ -663,12 +690,10 @@ def plot_evolution_from_csv(
     if show_all_scores:
         # Create a separate dataframe for actionable data
         actionable_data = df_results[
-            df_results["score_type"].isin(["actionable_exp", "actionable_no_exp"])
+            df_results["score_type"] == "actionable_exp"
         ].copy()
         # Remove actionable data from main dataframe
-        df_results = df_results[
-            ~df_results["score_type"].isin(["actionable_exp", "actionable_no_exp"])
-        ]
+        df_results = df_results[df_results["score_type"] != "actionable_exp"]
 
         if actionable_data.empty:
             actionable_data = None
@@ -739,6 +764,8 @@ def plot_evolution_from_csv(
                 score_label = score_type_labels.get(score_type, score_type).capitalize()
                 if score_label == "Fluent":
                     score_label = "Preference"
+                if score_label == "Maneuver":
+                    score_label = "Action"
 
                 # Plot line with error band
                 line = ax_main.plot(
@@ -761,23 +788,28 @@ def plot_evolution_from_csv(
                     alpha=0.2,
                 )
 
-                # Add data point counts as bold annotations above the lines
+                # Add data point counts as bold annotations above the x-axis
                 if s_idx == 0:
+                    # Get y-axis limits to position counts properly
+                    y_min, y_max = ax_main.get_ylim()
+                    y_pos = y_min + (y_max - y_min) * 0.02  # Place at 2% of the y-axis height
+
                     for _, (idx, count) in enumerate(counts.items()):
                         ax_main.annotate(
-                            f"n={count}",
-                            xy=(idx, mean_scores[idx]),
-                            xytext=(0, -15),  # Place above the line
+                            f"{count}",
+                            xy=(idx, y_pos),
+                            xytext=(0, 0),
                             textcoords="offset points",
                             ha="center",
                             fontsize=8,
-                            fontweight="bold",  # Make bold as requested
-                            color="black",  # Color-code to match the line
+                            fontweight="bold",
+                            color="black",
                             bbox={
                                 "facecolor": "white",
-                                "alpha": 0.7,
-                                "edgecolor": "none",
-                                "pad": 1,
+                                "alpha": 0.8,
+                                "edgecolor": "gray",
+                                "boxstyle": "round,pad=0.3",
+                                "linewidth": 0.5,
                             },
                         )
 
@@ -816,16 +848,16 @@ def plot_evolution_from_csv(
                 alpha=0.2,
             )
 
-            # Add data point counts as bold annotations above the lines
+            # Add data point counts as bold annotations above the x-axis
             for _, (idx, count) in enumerate(counts.items()):
                 ax_main.annotate(
-                    f"n={count}",
-                    xy=(idx, mean_scores[idx]),
-                    xytext=(0, -15),  # Place above the line
+                    f"k={count}",
+                    xy=(idx, 0),  # Position at x-axis
+                    xytext=(0, 5),  # Place slightly above the x-axis
                     textcoords="offset points",
                     ha="center",
                     fontsize=8,
-                    fontweight="bold",  # Make bold as requested
+                    fontweight="bold",
                     color=aggregate_color,  # Match the line color
                     bbox={
                         "facecolor": "white",
@@ -836,167 +868,306 @@ def plot_evolution_from_csv(
                 )
 
             legend_elements_main.append(line[0])
+    elif show_all_scores:
+        # When showing all score types, group by model and score type
+        model_score_groups = []
+
+        for model_name in df_results["gen_llm"].unique():
+            model_df = df_results[df_results["gen_llm"] == model_name]
+
+            for score_type in score_types:
+                type_df = model_df[model_df["score_type"] == score_type]
+                if not type_df.empty:
+                    model_score_groups.append((model_name, score_type, type_df))
+
+        if not model_score_groups:
+            logger.error("No data to plot after filtering")
+            if not has_actionable:  # If no actionable data either, return
+                return
+
+        # Plot each model and score type combination
+        for i, (model_name, score_type, group_df) in enumerate(model_score_groups):
+            # Get readable model name from mapping
+            readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+
+            # Get readable score type
+            score_label = score_type_labels.get(score_type, score_type).capitalize()
+            if score_label == "Fluent":
+                score_label = "Preference"
+            if score_label == "Maneuver":
+                score_label = "Action"
+
+            # Choose colors based on model and line style based on score type
+            model_names = list(df_results["gen_llm"].unique())
+            score_names = list(score_types)
+
+            model_idx = model_names.index(model_name)
+            score_idx = score_names.index(score_type)
+
+            color_idx = model_idx % len(colors)
+            marker_idx = score_idx % len(markers)
+            line_idx = score_idx % len(linestyles)
+
+            # Group by explanation index and calculate statistics
+            grouped = group_df.groupby("explanation_idx")[f"{score_type}_score"]
+            mean_scores = grouped.mean()
+            stds = grouped.std()
+            counts = grouped.count()
+            # Calculate standard error
+            errors = stds / np.sqrt(counts)
+
+            x = np.array(mean_scores.index)
+
+            # Plot line with error band
+            line = ax_main.plot(
+                x,
+                mean_scores.values,
+                marker=markers[marker_idx],
+                color=colors[color_idx],
+                linestyle=linestyles[line_idx],
+                linewidth=1.5,
+                markersize=5,
+                label=f"{readable_name}-{score_label}",
+            )
+
+            # Add error bands
+            ax_main.fill_between(
+                x,
+                mean_scores.to_numpy() - errors.to_numpy(),
+                mean_scores.to_numpy() + errors.to_numpy(),
+                color=colors[color_idx],
+                alpha=0.2,
+            )
+
+            # Add data point counts as bold annotations above the x-axis
+            if i == 0:  # Only add counts for the first model
+                for _, (idx, count) in enumerate(counts.items()):
+                    ax_main.annotate(
+                        f"k={count}",
+                        xy=(idx, 0),  # Position at x-axis
+                        xytext=(0, 5),  # Place slightly above the x-axis
+                        textcoords="offset points",
+                        ha="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=colors[color_idx],
+                        bbox={
+                            "facecolor": "white",
+                            "alpha": 0.7,
+                            "edgecolor": "none",
+                            "pad": 1,
+                        },
+                    )
+
+            legend_elements_main.append(line[0])
     else:
-        # Group by model for separate lines
+        # Original behavior - only plot combined scores by model
+        model_groups = df_results.groupby("gen_llm")
+
+        if len(model_groups) == 0:
+            logger.error("No data to plot after filtering")
+            if not has_actionable:  # If no actionable data either, return
+                return
+
+        # Plot each model with a different color/style
+        for i, (model_name, model_df) in enumerate(model_groups):
+            # Get readable model name from mapping
+            readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+            color_idx = i % len(colors)
+            marker_idx = i % len(markers)
+            line_idx = i % len(linestyles)
+
+            # Group by explanation index and calculate statistics
+            grouped = model_df.groupby("explanation_idx")["combined_score"]
+            mean_scores = grouped.mean()
+            stds = grouped.std()
+            counts = grouped.count()
+            # Calculate standard error
+            errors = stds / np.sqrt(counts)
+
+            x = np.array(mean_scores.index)
+
+            # Plot line with error band
+            line = ax_main.plot(
+                x,
+                mean_scores.values,
+                marker=markers[marker_idx],
+                color=colors[color_idx],
+                linestyle=linestyles[line_idx],
+                linewidth=1.5,
+                markersize=5,
+                label=readable_name,
+            )
+
+            # Add error bands
+            ax_main.fill_between(
+                x,
+                mean_scores.to_numpy() - errors.to_numpy(),
+                mean_scores.to_numpy() + errors.to_numpy(),
+                color=colors[color_idx],
+                alpha=0.2,
+            )
+
+            # Add data point counts as bold annotations above the x-axis
+            if i == 0:
+                for _, (idx, count) in enumerate(counts.items()):
+                    ax_main.annotate(
+                        f"k={count}",
+                        xy=(idx, 0),  # Position at x-axis
+                        xytext=(0, 5),  # Place slightly above the x-axis
+                        textcoords="offset points",
+                        ha="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=colors[color_idx],
+                        bbox={
+                            "facecolor": "white",
+                            "alpha": 0.7,
+                            "edgecolor": "none",
+                            "pad": 1,
+                        },
+                    )
+
+            legend_elements_main.append(line[0])
+
+    # Draw baseline horizontal lines if baseline data is available
+    if baseline_data is not None and not baseline_data.empty:
+        # Process baselines for main plot
         if show_all_scores:
-            # When showing all score types, group by model and score type
-            model_score_groups = []
+            # For all score types, create a single aggregated baseline per score type
+            for s_idx, score_type in enumerate(score_types):
+                # Skip actionable baseline in the main plot
+                if score_type == "actionable_exp" or score_type == "actionable":
+                    continue
 
-            for model_name in df_results["gen_llm"].unique():
-                model_df = df_results[df_results["gen_llm"] == model_name]
+                type_baseline = baseline_data[baseline_data["score_type"] == score_type]
 
-                for score_type in score_types:
-                    type_df = model_df[model_df["score_type"] == score_type]
-                    if not type_df.empty:
-                        model_score_groups.append((model_name, score_type, type_df))
+                if not type_baseline.empty:
+                    # Calculate mean baseline score across all models
+                    baseline_value = type_baseline[f"{score_type}_score"].mean()
 
-            if not model_score_groups:
-                logger.error("No data to plot after filtering")
-                if not has_actionable:  # If no actionable data either, return
-                    return
+                    # Get readable score label
+                    score_label = score_type_labels.get(score_type, score_type).capitalize()
+                    if score_label == "Fluent":
+                        score_label = "Preference"
 
-            # Plot each model and score type combination
-            for i, (model_name, score_type, group_df) in enumerate(model_score_groups):
-                # Get readable model name from mapping
-                readable_name = MODEL_NAME_MAP.get(model_name, model_name)
+                    # Use consistent colors for different score types
+                    score_color = colors[s_idx % len(colors)]
 
-                # Get readable score type
-                score_label = score_type_labels.get(score_type, score_type).capitalize()
-                if score_label == "Fluent":
-                    score_label = "Preference"
+                    # Add horizontal line (without adding to the legend)
+                    ax_main.axhline(
+                        y=baseline_value,
+                        color=score_color,
+                        linestyle=":",
+                        linewidth=2.0,
+                        alpha=0.8,
+                    )
 
-                # Choose colors based on model and line style based on score type
-                model_names = list(df_results["gen_llm"].unique())
-                score_names = list(score_types)
-
-                model_idx = model_names.index(model_name)
-                score_idx = score_names.index(score_type)
-
-                color_idx = model_idx % len(colors)
-                marker_idx = score_idx % len(markers)
-                line_idx = score_idx % len(linestyles)
-
-                # Group by explanation index and calculate statistics
-                grouped = group_df.groupby("explanation_idx")[f"{score_type}_score"]
-                mean_scores = grouped.mean()
-                stds = grouped.std()
-                counts = grouped.count()
-                # Calculate standard error
-                errors = stds / np.sqrt(counts)
-
-                x = np.array(mean_scores.index)
-
-                # Plot line with error band
-                line = ax_main.plot(
-                    x,
-                    mean_scores.values,
-                    marker=markers[marker_idx],
-                    color=colors[color_idx],
-                    linestyle=linestyles[line_idx],
-                    linewidth=1.5,
-                    markersize=5,
-                    label=f"{readable_name}-{score_label}",
-                )
-
-                # Add error bands
-                ax_main.fill_between(
-                    x,
-                    mean_scores.to_numpy() - errors.to_numpy(),
-                    mean_scores.to_numpy() + errors.to_numpy(),
-                    color=colors[color_idx],
-                    alpha=0.2,
-                )
-
-                # Add data point counts as bold annotations above the lines
-                if i == 0:  # Only add counts for the first model
-                    for _, (idx, count) in enumerate(counts.items()):
-                        ax_main.annotate(
-                            f"n={count}",
-                            xy=(idx, mean_scores[idx]),
-                            xytext=(0, -15),  # Place above the line
-                            textcoords="offset points",
-                            ha="center",
-                            fontsize=8,
-                            fontweight="bold",
-                            color=colors[color_idx],
-                            bbox={
-                                "facecolor": "white",
-                                "alpha": 0.7,
-                                "edgecolor": "none",
-                                "pad": 1,
-                            },
-                        )
-
-                legend_elements_main.append(line[0])
+                    # Add annotation for the baseline value
+                    ax_main.annotate(
+                        f"{baseline_value:.2f}",
+                        xy=(x[-1] + 0.1, baseline_value),
+                        xytext=(2, 0),
+                        textcoords='offset points',
+                        ha="left",
+                        va="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=score_color,
+                        bbox={"facecolor": "white", "alpha": 0.7, "pad": 1}
+                    )
         else:
-            # Original behavior - only plot combined scores by model
-            model_groups = df_results.groupby("gen_llm")
+            # For combined scores only, create a single aggregated baseline
+            combined_baseline = baseline_data[baseline_data["score_type"] == "combined"]
+            if not combined_baseline.empty:
+                # Calculate mean baseline score across all models
+                baseline_value = combined_baseline["combined_score"].mean()
 
-            if len(model_groups) == 0:
-                logger.error("No data to plot after filtering")
-                if not has_actionable:  # If no actionable data either, return
-                    return
+                # Use a distinctive color for the baseline
+                baseline_color = "#7570b3"  # A purple color from ColorBrewer
 
-            # Plot each model with a different color/style
-            for i, (model_name, model_df) in enumerate(model_groups):
-                # Get readable model name from mapping
-                readable_name = MODEL_NAME_MAP.get(model_name, model_name)
-                color_idx = i % len(colors)
-                marker_idx = i % len(markers)
-                line_idx = i % len(linestyles)
-
-                # Group by explanation index and calculate statistics
-                grouped = model_df.groupby("explanation_idx")["combined_score"]
-                mean_scores = grouped.mean()
-                stds = grouped.std()
-                counts = grouped.count()
-                # Calculate standard error
-                errors = stds / np.sqrt(counts)
-
-                x = np.array(mean_scores.index)
-
-                # Plot line with error band
-                line = ax_main.plot(
-                    x,
-                    mean_scores.values,
-                    marker=markers[marker_idx],
-                    color=colors[color_idx],
-                    linestyle=linestyles[line_idx],
-                    linewidth=1.5,
-                    markersize=5,
-                    label=readable_name,
+                # Add horizontal line (without adding to the legend)
+                ax_main.axhline(
+                    y=baseline_value,
+                    color=baseline_color,
+                    linestyle=":",
+                    linewidth=2.0,
+                    alpha=0.8,
                 )
 
-                # Add error bands
-                ax_main.fill_between(
-                    x,
-                    mean_scores.to_numpy() - errors.to_numpy(),
-                    mean_scores.to_numpy() + errors.to_numpy(),
-                    color=colors[color_idx],
-                    alpha=0.2,
+                # Add annotation
+                ax_main.annotate(
+                    f"{baseline_value:.2f}",
+                    xy=(x[-1] + 0.1, baseline_value),
+                    xytext=(2, 0),
+                    textcoords='offset points',
+                    ha="left",
+                    va="center",
+                    fontsize=9,
+                    fontweight="bold",
+                    color=baseline_color,
+                    bbox={"facecolor": "white", "alpha": 0.7, "pad": 1}
                 )
 
-                # Add data point counts as bold annotations above the lines
-                if i == 0:
-                    for _, (idx, count) in enumerate(counts.items()):
-                        ax_main.annotate(
-                            f"n={count}",
-                            xy=(idx, mean_scores[idx]),
-                            xytext=(0, -15),  # Place above the line
-                            textcoords="offset points",
-                            ha="center",
-                            fontsize=8,
-                            fontweight="bold",
-                            color=colors[color_idx],
-                            bbox={
-                                "facecolor": "white",
-                                "alpha": 0.7,
-                                "edgecolor": "none",
-                                "pad": 1,
-                            },
-                        )
+        # Process baselines for actionable plot if it exists
+        if has_actionable:
+            actionable_baselines = baseline_data[baseline_data["score_type"] == "actionable_exp"]
+            if not actionable_baselines.empty:
+                # Aggregate goal baseline across all models
+                if "actionable_exp_goal" in actionable_baselines.columns:
+                    goal_value = actionable_baselines["actionable_exp_goal"].mean()
+                    goal_color = "#2173c5"  # Blue for goal
 
-                legend_elements_main.append(line[0])
+                    # Add horizontal line for goal (without adding to the legend)
+                    ax_actionable.axhline(
+                        y=goal_value,
+                        color=goal_color,
+                        linestyle=":",
+                        linewidth=2.0,
+                        alpha=0.8,
+                    )
+
+                    # Add annotation
+                    ax_actionable.annotate(
+                        f"{goal_value:.2f}",
+                        xy=(x[-1] + 0.1, goal_value - 0.01), # Adjusted for visibility
+                        xytext=(2, 0),
+                        textcoords='offset points',
+                        ha="left",
+                        va="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=goal_color,
+                        bbox={"facecolor": "white", "alpha": 0.7, "pad": 1}
+                    )
+
+                # Aggregate maneuver baseline across all models
+                if "actionable_exp_maneuver" in actionable_baselines.columns:
+                    maneuver_value = actionable_baselines["actionable_exp_maneuver"].mean()
+                    maneuver_color = "#910f2d"  # Red for maneuver/action
+
+                    # Add horizontal line for maneuver (without adding to the legend)
+                    ax_actionable.axhline(
+                        y=maneuver_value,
+                        color=maneuver_color,
+                        linestyle=":",
+                        linewidth=2.0,
+                        alpha=0.8,
+                    )
+
+                    # Add annotation
+                    ax_actionable.annotate(
+                        f"{maneuver_value:.2f}",
+                        xy=(x[-1] + 0.1, maneuver_value + 0.01), # Adjusted for visibility
+                        xytext=(2, 0),
+                        textcoords='offset points',
+                        ha="left",
+                        va="center",
+                        fontsize=8,
+                        fontweight="bold",
+                        color=maneuver_color,
+                        bbox={"facecolor": "white", "alpha": 0.7, "pad": 1}
+                    )
 
     # Format main plot
     # ax_main.set_xlabel("Explanation Round", fontweight="bold")
@@ -1013,7 +1184,7 @@ def plot_evolution_from_csv(
 
     # Make x-axis integers
     ax_main.set_xticks(x)
-    ax_main.set_xticklabels([str(int(i)) for i in x])
+    ax_main.set_xticklabels([str(int(i) + 1) for i in x])
 
     # Add a subtle box around the plot
     for spine in ax_main.spines.values():
@@ -1038,8 +1209,8 @@ def plot_evolution_from_csv(
     # Now process actionable data for the second subplot if available
     if has_actionable:
         if aggregate_all:
-            for actionable_score_name in ["actionable_exp", "actionable_no_exp"]:
-                for j, score_type in enumerate(["goal", "maneuver"]):
+            for actionable_score_name in ["actionable_exp"]:
+                for s_idx, score_type in enumerate(["goal", "maneuver"]):
                     # Group by explanation index for aggregate view
                     grouped = actionable_data.groupby("explanation_idx")[
                         actionable_score_name + f"_{score_type}"
@@ -1053,16 +1224,16 @@ def plot_evolution_from_csv(
                     x_act = np.array(mean_scores.index)
 
                     # Plot actionable data
-                    actionable_color = ["#FF2C2C", "#80EF80"][j]  # Use a distinct color for actionable data
+                    actionable_color = ["#2173c5", "#910f2d"][s_idx]
                     line = ax_actionable.plot(
                         x_act,
                         mean_scores.values,
-                        marker=markers[(3 + j) % len(markers)],  # Different marker shape for actionable
+                        marker=markers[(3 + s_idx) % len(markers)],
                         color=actionable_color,
-                        linestyle=linestyles[(3 + j) % len(linestyles)],  # Different linestyle to distinguish from main plot
+                        linestyle=linestyles[(s_idx + 4) % len(linestyles)],
                         linewidth=2.0,
                         markersize=6,
-                        label=["Goal", "Maneuver"][j],
+                        label=["Goal", "Action"][s_idx],
                     )
 
                     # Add error bands
@@ -1074,27 +1245,32 @@ def plot_evolution_from_csv(
                         alpha=0.2,
                     )
 
-                    if j == 1:
-                        # Add data point counts as bold annotations above the lines
-                        for _, (idx, count) in enumerate(counts.items()):
-                            ax_actionable.annotate(
-                                f"n={count}",
-                                xy=(idx, mean_scores[idx]),
-                                xytext=(0, -15),  # Place above the line
-                                textcoords="offset points",
-                                ha="center",
-                                fontsize=8,
-                                fontweight="bold",
-                                color="black",
-                                bbox={
-                                    "facecolor": "white",
-                                    "alpha": 0.7,
-                                    "edgecolor": "none",
-                                    "pad": 1,
-                                },
-                            )
-
                     legend_elements_actionable.append(line[0])
+
+
+            # Add data point counts as bold annotations above the x-axis
+            # Get y-axis limits to position counts properly
+            y_min, y_max = ax_actionable.get_ylim()
+            y_pos = y_min + (y_max - y_min) * 0.035  # Place at 2% of the y-axis height
+
+            for _, (idx, count) in enumerate(counts.items()):
+                ax_actionable.annotate(
+                    f"{count}",
+                    xy=(idx, y_pos),
+                    xytext=(0, 0),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=8,
+                    fontweight="bold",
+                    color="black",
+                    bbox={
+                        "facecolor": "white",
+                        "alpha": 0.8,
+                        "edgecolor": "gray",
+                        "boxstyle": "round,pad=0.3",
+                        "linewidth": 0.5,
+                    },
+                )
         else:
             # Plot actionable data by model
             model_groups = actionable_data.groupby("gen_llm")
@@ -1135,12 +1311,12 @@ def plot_evolution_from_csv(
                     alpha=0.2,
                 )
 
-                # Add data point counts as bold annotations above the lines
-                for j, (idx, count) in enumerate(counts.items()):
+                # Add data point counts as bold annotations above the x-axis
+                for s_idx, (idx, count) in enumerate(counts.items()):
                     ax_actionable.annotate(
-                        f"n={count}",
-                        xy=(idx, mean_scores[idx]),
-                        xytext=(0, -15),  # Place above the line
+                        f"k={count}",
+                        xy=(idx, 0),  # Position at x-axis
+                        xytext=(0, 5),  # Place slightly above the x-axis
                         textcoords="offset points",
                         ha="center",
                         fontsize=8,
@@ -1158,18 +1334,20 @@ def plot_evolution_from_csv(
 
         # Format actionable plot
         # ax_actionable.set_xlabel("Explanation Round", fontweight="bold")
-        ax_actionable.set_ylabel("Actionability Score", fontweight="bold", fontsize=12)
+        ax_actionable.set_ylabel(
+            "Actionability Accuracy", fontweight="bold", fontsize=12
+        )
         # ax_actionable.set_title("Actionability", fontsize=11)
         ax_actionable.grid(visible=True, linestyle="--", alpha=0.7, linewidth=0.5)
         ax_actionable.set_axisbelow(True)
 
         # Make x-axis integers
-        x_act_adjusted = x_act.copy()
+        # x_act_adjusted = x_act.copy()
         # x_act_adjusted[0] -= 1.0
-        ax_actionable.set_xticks(x_act_adjusted)
-        xtickslabels = [str(int(i)) for i in x_act]
-        xtickslabels[0] = "NoExp"
-        ax_actionable.set_xticklabels(xtickslabels)
+        ax_actionable.set_xticks(x_act)
+        # xtickslabels = [str(int(i)) for i in x_act]
+        # xtickslabels[0] = "NoExp"
+        ax_actionable.set_xticklabels([str(int(i) + 1) for i in x_act])
 
         # Add a subtle box around the plot
         for spine in ax_actionable.spines.values():
@@ -1231,9 +1409,9 @@ def plot_evolution_from_csv(
     eval_name = eval_model if eval_model != "all" else "all"
     agg_suffix = "_aggregate" if aggregate_all else ""
     score_suffix = "_all_scores" if show_all_scores else ""
-    save_name = (
-        f"evolution_csv_s{s_name}_{eval_name}_{gen_name}{agg_suffix}{score_suffix}"
-    )
+    baseline_suffix = "_with_baseline" if baseline_path else ""
+
+    save_name = f"evolution_s{s_name}_{gen_name}{agg_suffix}{score_suffix}{baseline_suffix}"
 
     # Save the plot in high resolution for publication
     plt.savefig(save_dir / f"{save_name}.png", dpi=600, bbox_inches="tight")

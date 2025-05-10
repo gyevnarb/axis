@@ -43,7 +43,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-SCENARIOS=$(seq 2 9)  # Scenarios 0 to 9
+SCENARIOS=$(seq 0 9)  # Scenarios 0 to 9
 LOG_FILE="eval_success.log"
 
 # Check if the log file exists
