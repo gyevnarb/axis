@@ -23,7 +23,7 @@ app = typer.Typer()
 
 
 MODEL_NAME_MAP = {
-    "llama70b": "LLama 3.3-70B",
+    "llama70b": "Llama 3.3-70B",
     "qwen72b": "Qwen-2.5-72B",
     "gpt41": "GPT-4.1",
     "gpt4o": "GPT-4o",
@@ -263,6 +263,28 @@ def extract_all_explanations(messages: list[dict[str, str]]) -> list[str]:
     return ret
 
 
+def extract_all_queries(messages: list[dict[str, str]]) -> list[str]:
+    """Extract all queries from the messages.
+
+    Args:
+        messages (list): List of messages. passed to the LLM.
+
+    """
+    ret = []
+    rex = re.compile(r"^(?P<query>add|remove|whatif|what)\(.*\)$")
+    for current_message, next_message in pairwise(messages):
+        if current_message["role"] != "assistant":
+            continue
+        rem = rex.match(current_message["content"])
+        if (
+            rem is not None
+            and next_message["role"] == "user"
+            and "Explanation Stage" in next_message["content"]
+        ):
+            ret.append(rem.group("query"))
+    return ret
+
+
 def random_order_string(items: dict[str, str]) -> str:
     """Return a random order string from a dictionary."""
     items_list = list(items.items())
@@ -369,4 +391,9 @@ def get_actionable_accuracy(eval_result: dict[str, Any]) -> tuple[int, int]:
 
 
 if __name__ == "__main__":
-    app()
+    import pickle
+
+    a = pickle.load(
+        open("output/igp2/scenario1/results/llama70b_interrogation_context.pkl", "rb")
+    )
+    extract_all_queries(a[0]["messages"])

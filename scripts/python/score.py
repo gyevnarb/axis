@@ -460,15 +460,29 @@ def llm_table(
 
         # Aggregate over the best explanation index (usually the last one)
         axs_best_index = (
-            axs_data.sort_values("combined_score", ascending=False)
+            axs_data
+            .drop("explanation", axis=1)
+            .sort_values("combined_score", ascending=False)
             .groupby(["scenario_id", "result_id"])
-            .max()
+            .max(numeric_only=True)
         )["explanation_idx"]
 
         axs_data_best = axs_data.merge(
             axs_best_index.reset_index(),
             on=["scenario_id", "result_id", "explanation_idx"],
             how="inner",
+        )
+
+        # Save best explanations for each scenario
+        logger.info(
+            "Saving best explanations for %s (%s): %s",
+            model_name,
+            model_key,
+            axs_data_best[["scenario_id", "result_id", "explanation_idx"]],
+        )
+        axs_data_best.to_csv(
+            f"best_explanations_{model_key}.csv",
+            index=False,
         )
 
         # Calculate mean and SEM for combined scores
@@ -605,7 +619,7 @@ def llm_table(
             delta_action_str = "-"
 
         table_rows.append(
-            f"$+$AXIS & "
+            f"+AXIS & "
             # f"{axs_combined_mean:.2f}$^{{{delta_combined_str}}}\\pm${axs_combined_sem:.2f} & "
             f"{axs_fluent_mean:.2f}$\\pm${axs_fluent_sem:.2f}$^{{{delta_fluent_stars}}}_{{{delta_fluent_str}}}$ & "
             f"{axs_correct_mean:.2f}$\\pm${axs_correct_sem:.2f}$^{{{delta_correct_stars}}}_{{{delta_correct_str}}}$ & "
@@ -625,19 +639,14 @@ def llm_table(
 \\textbf{{Model}} & \\textbf{{Preference}} & \\textbf{{Correctness}} & \\textbf{{Goal Acc.}} & \\textbf{{Action Acc.}} \\\\
 \\midrule
 {table_rows[0]}
-\\midrule
 {table_rows[1]}
 {table_rows[2]}
-\\addlinespace[0.5ex]
 {table_rows[3]}
 {table_rows[4]}
-\\addlinespace[0.5ex]
 {table_rows[5]}
 {table_rows[6]}
-\\midrule
 {table_rows[7]}
 {table_rows[8]}
-\\addlinespace[0.5ex]
 {table_rows[9]}
 {table_rows[10]}
 \\bottomrule

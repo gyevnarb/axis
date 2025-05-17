@@ -3,13 +3,21 @@
 import logging
 import pickle
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import Annotated
 
+import matplotlib.pyplot as plt
+import numpy as np
 import typer
 from rich.console import Console
 from rich.table import Table
-from util import MODEL_NAME_MAP, LLMModels, extract_all_explanations
+from util import (
+    MODEL_NAME_MAP,
+    LLMModels,
+    extract_all_explanations,
+    extract_all_queries,
+)
 
 import axs
 
@@ -136,7 +144,8 @@ def files(
                         )
                     else:
                         n_explanations = tuple(
-                            len(extract_all_explanations(r["messages"])) for r in results
+                            len(extract_all_explanations(r["messages"]))
+                            for r in results
                         )
 
             if parsed_data:
@@ -340,6 +349,563 @@ def models() -> None:
 
     # Print the table
     console.print(table)
+
+
+@app.command()
+def queries_by_scenario(
+    scenario: Annotated[
+        int,
+        typer.Option(
+            "--scenario",
+            "-s",
+            help="Scenario to filter by (-1 for all scenarios)",
+        ),
+    ] = -1,
+    output_path: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Path to save the plot"),
+    ] = "output/igp2/plots/query_types_by_scenario.pdf",
+) -> None:
+    """Plot the aggregated count of query types by scenario.
+
+    This command analyzes result files and counts the occurrences of different query
+    types (add, remove, whatif, what) for each scenario, aggregating across all LLMs.
+    Results are displayed in a bar plot with scenarios on the x-axis, counts on the
+    y-axis, and different colors for each query type.
+    """
+    # Base directory containing scenario results
+    base_dir = Path("output", "igp2")
+
+    # Check if the base directory exists
+    if not base_dir.exists():
+        logger.error("Base directory '%s' does not exist.", base_dir)
+        raise typer.Exit(code=1)
+
+    # Dictionary to store query counts by scenario and query type
+    # Structure: {scenario_id: {query_type: count}}
+    scenario_query_counts = defaultdict(lambda: defaultdict(int))
+
+    # List to keep track of unique query types and scenarios found
+    query_types_found = set()
+    scenarios_found = set()
+
+    # Get all scenario directories
+    scenario_dirs = list(base_dir.glob("scenario*/results"))
+    scenario_dirs.sort(key=lambda x: int(x.parent.name.replace("scenario", "")))
+
+    # Filter by scenario if specified
+    if scenario != -1:
+        scenario_dirs = [
+            d for d in scenario_dirs if d.parent.name == f"scenario{scenario}"
+        ]
+
+    if not scenario_dirs:
+        logger.error("No matching scenario directories found.")
+        raise typer.Exit(code=1)
+
+    # Process each scenario directory
+    for scenario_dir in scenario_dirs:
+        scenario_id = int(scenario_dir.parent.name.replace("scenario", ""))
+        scenarios_found.add(scenario_id)
+
+        # Look for result files
+        result_files = list(scenario_dir.glob("*.pkl"))
+
+        # Skip if no result files found
+        if not result_files:
+            logger.warning("No result files found in %s", scenario_dir)
+            continue
+
+        # Process each result file
+        for file_path in result_files:
+            # Skip evaluation files
+            if "evaluate" in file_path.name or "features" in file_path.name:
+                continue
+
+            try:
+                # Load the results file
+                with file_path.open("rb") as f:
+                    results = pickle.load(f)
+
+                # Process each result
+                for result in results:
+                    # Skip if no messages
+                    if "messages" not in result:
+                        continue
+
+                    # Extract queries from messages
+                    queries = extract_all_queries(result["messages"])
+
+                    # Count each query type for this scenario
+                    for query in queries:
+                        scenario_query_counts[scenario_id][query] += 1
+                        query_types_found.add(query)
+
+            except Exception as e:
+                logger.exception("Error processing file %s: %s", file_path, e)
+
+    # Sort the found scenarios and query types for consistent plotting
+    scenarios_sorted = sorted(scenarios_found)
+    query_types_sorted = sorted(query_types_found)
+
+    # Check if we found any queries
+    if not scenario_query_counts:
+        logger.error("No queries found in the results.")
+        raise typer.Exit(code=1)
+
+    # Calculate error bars based on standard deviation across models
+    # This requires running a separate collection per model
+    model_scenario_query_counts = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
+
+    # Get all model names
+    model_names = set()
+
+    # Process each scenario directory again to collect data per model
+    for scenario_dir in scenario_dirs:
+        scenario_id = int(scenario_dir.parent.name.replace("scenario", ""))
+
+        # Look for result files
+        result_files = list(scenario_dir.glob("*.pkl"))
+
+        # Process each result file
+        for file_path in result_files:
+            # Skip evaluation files
+            if "evaluate" in file_path.name or "features" in file_path.name:
+                continue
+
+            # Extract model name from filename
+            model_name = file_path.stem.split("_")[0]
+            model_names.add(model_name)
+
+            try:
+                # Load the results file
+                with file_path.open("rb") as f:
+                    results = pickle.load(f)
+
+                # Process each result
+                for result in results:
+                    # Skip if no messages
+                    if "messages" not in result:
+                        continue
+
+                    # Extract queries from messages
+                    queries = extract_all_queries(result["messages"])
+
+                    # Count each query type for this scenario and model
+                    for query in queries:
+                        model_scenario_query_counts[model_name][scenario_id][query] += 1
+
+            except Exception as e:
+                logger.exception(
+                    "Error processing file %s for error bars: %s", file_path, e
+                )
+
+    # Set publication-ready style for the plot
+    plt.style.use("seaborn-v0_8-whitegrid")
+
+    # Set up the figure and axes - using NeurIPS single column width (approx 3.5 inches)
+    fig, ax = plt.subplots(figsize=(4.5, 2))
+
+    # Define a color-blind friendly palette (better for print)
+    # Using a colorblind-friendly palette from ColorBrewer
+    color_palette = ["#66a61e", "#d95f02", "#e7298a", "#1b9e77", "#7570b3", "#e6ab02"]
+    # Ensure we have enough colors
+    if len(query_types_sorted) > len(color_palette):
+        # Fall back to a colormap if we have more query types than colors
+        color_map = plt.cm.tab10(np.arange(len(query_types_sorted)))
+    else:
+        # Use our defined palette
+        color_map = [color_palette[i] for i in range(len(query_types_sorted))]
+
+    # Set bar width - slightly thinner for better appearance in small figure
+    bar_width = 0.7 / len(query_types_sorted)
+
+    # Set up x-axis positions
+    x = np.arange(len(scenarios_sorted))
+
+    # Plot bars for each query type
+    for i, query_type in enumerate(query_types_sorted):
+        # Get counts for this query type across all scenarios
+        counts = [
+            scenario_query_counts[scenario_id].get(query_type, 0)
+            for scenario_id in scenarios_sorted
+        ]
+
+        # Calculate error bars (standard deviation across different models)
+        errors = []
+        for scenario_id in scenarios_sorted:
+            # Get counts for this query type and scenario across all models
+            model_counts = [
+                model_scenario_query_counts[model][scenario_id].get(query_type, 0)
+                for model in model_names
+                if model
+            ]
+            # Calculate standard error of mean (SEM) instead of standard deviation
+            if len(model_counts) > 1:
+                # SEM = standard deviation / sqrt(n)
+                error = np.std(model_counts, ddof=1) / np.sqrt(len(model_counts))
+            else:
+                error = 0
+            errors.append(error)
+
+        # Calculate position for this group of bars
+        positions = (
+            x
+            + bar_width * i
+            - (len(query_types_sorted) * bar_width / 2)
+            + bar_width / 2
+        )
+
+        # Plot the bars with hatch patterns and error bars
+        ax.bar(
+            positions,
+            counts,
+            width=bar_width,
+            label=query_type.capitalize(),
+            color=color_map[i] if isinstance(color_map[i], str) else color_map[i],
+            edgecolor="black",
+            linewidth=0.5,
+            alpha=0.8,
+            hatch=["", "x", "+", ".", "/", "\\"][
+                i % 6
+            ],  # Add hatches for print differentiation
+            yerr=errors,
+            capsize=2,  # Size of error bar caps
+            error_kw={
+                "elinewidth": 0.7,
+                "capthick": 0.7,
+            },  # Thinner error bars for publication
+        )
+
+    # No title for academic publication
+    # ax.set_title("Query Type Distribution by Scenario", fontsize=9)
+
+    # Set labels with appropriate font sizes for publication
+    # ax.set_xlabel("Scenario ID", fontsize=8)
+    # ax.set_ylabel("Count", fontsize=8)
+
+    # Refined grid for academic publication
+    ax.grid(True, alpha=0.3, linestyle="--", linewidth=0.5)
+
+    # Set x-tick positions and labels with smaller font size
+    ax.set_xticks(x)
+    ax.set_xticklabels(["#" + str(s) for s in scenarios_sorted], fontsize=7)
+    ax.tick_params(axis="y", labelsize=7)
+
+    # Add legend above the figure with multiple columns
+    legend = ax.legend(
+        fontsize=6,
+        title_fontsize=7,
+        title="Query Types",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.3),  # Position above the plot
+        ncol=len(
+            query_types_sorted
+        ),  # Use multiple columns to fit all query types horizontally
+        frameon=True,
+        framealpha=1,
+        edgecolor="black",
+    )
+
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.85)  # Make room for the legend on top
+
+    # Save the figure - increase DPI for print quality
+    plt.savefig(output_path, dpi=600, bbox_inches="tight", format="pdf")
+    logger.info("Plot saved to %s", output_path)
+
+    # Show some statistics
+    total_queries = sum(
+        sum(counts.values()) for counts in scenario_query_counts.values()
+    )
+
+    logger.info("Total queries found: %d", total_queries)
+    logger.info("Query types: %s", query_types_sorted)
+    logger.info("Scenarios: %s", scenarios_sorted)
+
+    # Output per-scenario statistics
+    for scenario_id in scenarios_sorted:
+        scenario_total = sum(scenario_query_counts[scenario_id].values())
+        logger.info(
+            "Scenario %d: %d total queries - %s",
+            scenario_id,
+            scenario_total,
+            {k: v for k, v in scenario_query_counts[scenario_id].items()},
+        )
+
+
+@app.command()
+def queries_by_model(
+    scenario: Annotated[
+        int,
+        typer.Option(
+            "--scenario",
+            "-s",
+            help="Scenario to filter by (-1 for all scenarios)",
+        ),
+    ] = -1,
+    output_path: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Path to save the plot"),
+    ] = "output/igp2/plots/query_types_by_model.pdf",
+) -> None:
+    """Plot the aggregated count of query types by model.
+
+    This command analyzes result files and counts the occurrences of different query
+    types (add, remove, whatif, what) for each model, aggregating across all scenarios.
+    Results are displayed in a bar plot with models on the x-axis, counts on the
+    y-axis, and different colors for each query type. Standard error of mean (SEM)
+    error bars are included to show variability across scenarios.
+    """
+    # Base directory containing scenario results
+    base_dir = Path("output", "igp2")
+
+    # Check if the base directory exists
+    if not base_dir.exists():
+        logger.error("Base directory '%s' does not exist.", base_dir)
+        raise typer.Exit(code=1)
+
+    # Dictionary to store query counts by model and query type
+    # Structure: {model_name: {query_type: count}}
+    model_query_counts = defaultdict(lambda: defaultdict(int))
+
+    # Dictionary to store per-scenario query counts by model and query type
+    # Structure: {model_name: {scenario_id: {query_type: count}}}
+    model_scenario_query_counts = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
+
+    # List to keep track of unique query types and models found
+    query_types_found = set()
+    models_found = set()
+    scenarios_found = set()
+
+    # Get all scenario directories
+    scenario_dirs = list(base_dir.glob("scenario*/results"))
+    scenario_dirs.sort(key=lambda x: int(x.parent.name.replace("scenario", "")))
+
+    # Filter by scenario if specified
+    if scenario != -1:
+        scenario_dirs = [
+            d for d in scenario_dirs if d.parent.name == f"scenario{scenario}"
+        ]
+
+    if not scenario_dirs:
+        logger.error("No matching scenario directories found.")
+        raise typer.Exit(code=1)
+
+    # Process each scenario directory
+    for scenario_dir in scenario_dirs:
+        scenario_id = int(scenario_dir.parent.name.replace("scenario", ""))
+        scenarios_found.add(scenario_id)
+
+        # Look for result files
+        result_files = list(scenario_dir.glob("*.pkl"))
+
+        # Skip if no result files found
+        if not result_files:
+            logger.warning("No result files found in %s", scenario_dir)
+            continue
+
+        # Process each result file
+        for file_path in result_files:
+            # Skip evaluation files
+            if "evaluate" in file_path.name or "features" in file_path.name:
+                continue
+
+            # Extract model name from filename
+            model_name = file_path.stem.split("_")[0]
+            models_found.add(model_name)
+
+            try:
+                # Load the results file
+                with file_path.open("rb") as f:
+                    results = pickle.load(f)
+
+                # Process each result
+                for result in results:
+                    # Skip if no messages
+                    if "messages" not in result:
+                        continue
+
+                    # Extract queries from messages
+                    queries = extract_all_queries(result["messages"])
+
+                    # Count each query type for this model
+                    for query in queries:
+                        model_query_counts[model_name][query] += 1
+                        model_scenario_query_counts[model_name][scenario_id][query] += 1
+                        query_types_found.add(query)
+
+            except Exception as e:
+                logger.exception("Error processing file %s: %s", file_path, e)
+
+    # Sort the found models and query types for consistent plotting
+    models_found.remove("qwen72b")  # Remove qwen72b from the list
+    models_sorted = sorted(models_found)
+    query_types_sorted = sorted(query_types_found)
+
+    # Check if we found any queries
+    if not model_query_counts:
+        logger.error("No queries found in the results.")
+        raise typer.Exit(code=1)
+
+    # Set publication-ready style for the plot
+    plt.style.use("seaborn-v0_8-whitegrid")
+
+    # Set up the figure and axes - using NeurIPS single column width (approx 3.5 inches)
+    fig, ax = plt.subplots(figsize=(4.5, 1.5))
+
+    # Define a color-blind friendly palette (better for print)
+    # Using a colorblind-friendly palette from ColorBrewer
+    color_palette = ["#66a61e", "#d95f02", "#e7298a", "#7570b3", "#1b9e77", "#e6ab02"]
+    # Ensure we have enough colors
+    if len(query_types_sorted) > len(color_palette):
+        # Fall back to a colormap if we have more query types than colors
+        color_map = plt.cm.tab10(np.arange(len(query_types_sorted)))
+    else:
+        # Use our defined palette
+        color_map = [color_palette[i] for i in range(len(query_types_sorted))]
+
+    # Set bar width - slightly thinner for better appearance in small figure
+    bar_width = 0.7 / len(query_types_sorted)
+
+    # Set up x-axis positions
+    x = np.arange(len(models_sorted))
+
+    # Calculate total counts per model for normalization
+    model_totals = {
+        model_name: sum(model_query_counts[model_name].values())
+        for model_name in models_sorted
+    }
+
+    # Plot bars for each query type
+    for i, query_type in enumerate(query_types_sorted):
+        # Get proportions (instead of raw counts) for this query type across all models
+        proportions = []
+        for model_name in models_sorted:
+            count = model_query_counts[model_name].get(query_type, 0)
+            total = model_totals[model_name]
+            proportion = (
+                (count / total) * 100 if total > 0 else 0
+            )  # Convert to percentage
+            proportions.append(proportion)
+
+        # Calculate error bars (standard error of mean across different scenarios)
+        errors = []
+        for model_name in models_sorted:
+            # Get proportional counts for this query type and model across all scenarios
+            scenario_proportions = []
+            for scenario_id in scenarios_found:
+                query_count = model_scenario_query_counts[model_name][scenario_id].get(
+                    query_type, 0
+                )
+                scenario_total = sum(
+                    model_scenario_query_counts[model_name][scenario_id].values()
+                )
+                if scenario_total > 0:
+                    proportion = (
+                        query_count / scenario_total
+                    ) * 100  # Convert to percentage
+                    scenario_proportions.append(proportion)
+
+            # Calculate standard error of mean (SEM)
+            if len(scenario_proportions) > 1:
+                # SEM = standard deviation / sqrt(n)
+                error = np.std(scenario_proportions, ddof=1) / np.sqrt(
+                    len(scenario_proportions)
+                )
+            else:
+                error = 0
+            errors.append(error)
+
+        # Calculate position for this group of bars
+        positions = (
+            x
+            + bar_width * i
+            - (len(query_types_sorted) * bar_width / 2)
+            + bar_width / 2
+        )
+
+        # Plot the bars with hatch patterns and error bars
+        ax.bar(
+            positions,
+            proportions,  # Use the proportions list calculated above
+            width=bar_width,
+            label=query_type.capitalize(),
+            color=color_map[i] if isinstance(color_map[i], str) else color_map[i],
+            edgecolor="black",
+            linewidth=0.5,
+            alpha=0.8,
+            hatch=["", "x", "+", ".", "/", "\\"][
+                i % 6
+            ],  # Add hatches for print differentiation
+            yerr=errors,
+            capsize=2,  # Size of error bar caps
+            error_kw={
+                "elinewidth": 0.7,
+                "capthick": 0.7,
+            },  # Thinner error bars for publication
+        )
+
+    # Refined grid for academic publication
+    ax.grid(True, alpha=0.8, linestyle="--", linewidth=0.5)
+
+    # Set x-tick positions and labels with smaller font size
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [MODEL_NAME_MAP.get(m, m) for m in models_sorted],
+        fontsize=7,
+        # rotation=45,
+        ha="center",
+    )
+    ax.tick_params(axis="y", labelsize=7)
+
+    # Format y-axis with percentage symbols
+    from matplotlib.ticker import PercentFormatter
+
+    ax.yaxis.set_major_formatter(PercentFormatter())
+
+    # Add legend above the figure with multiple columns
+    ax.legend(
+        fontsize=6,
+        title_fontsize=7,
+        title="Query Types",
+        loc="center right",
+        bbox_to_anchor=(1.2, 0.5),  # Position above the plot
+        # ncol=len(query_types_sorted),
+        frameon=True,
+        framealpha=0.25,
+        edgecolor="black",
+    )
+
+    # Adjust layout to make room for the legend
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.95)  # Make room for the legend on top
+
+    # Save the figure - increase DPI for print quality
+    plt.savefig(output_path, dpi=600, bbox_inches="tight", format="pdf")
+    logger.info("Plot saved to %s", output_path)
+
+    # Show some statistics
+    total_queries = sum(sum(counts.values()) for counts in model_query_counts.values())
+
+    logger.info("Total queries found: %d", total_queries)
+    logger.info("Query types: %s", query_types_sorted)
+    logger.info("Models: %s", models_sorted)
+
+    # Output per-model statistics
+    for model_name in models_sorted:
+        model_total = sum(model_query_counts[model_name].values())
+        logger.info(
+            "Model %s: %d total queries - %s",
+            model_name,
+            model_total,
+            dict(model_query_counts[model_name].items()),
+        )
 
 
 if __name__ == "__main__":

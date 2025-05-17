@@ -251,10 +251,10 @@ def load_results_to_dataframe(  # noqa: PLR0913
                     }
 
                     # Create separate rows for combined scores as their own score type
-                    for idx, combined_score in enumerate(combined_scores):
+                    for row_idx, combined_score in enumerate(combined_scores):
                         row_data = {
                             **base_data,
-                            "explanation_idx": idx,
+                            "explanation_idx": row_idx,
                             "score_type": "combined",
                             "combined_score": combined_score,
                         }
@@ -310,8 +310,19 @@ def load_results_to_dataframe(  # noqa: PLR0913
                         }
                         all_data.append(row_data)
 
-            except (FileNotFoundError, EOFError) as e:
-                logger.exception("Error loading file %s: %s", result_file, e)  # noqa: TRY401
+                # Uncomment to add explanation data to results
+                # for data in all_data:
+                #     explanation_idx = data["explanation_idx"]
+                #     rid = data["result_id"] - 1
+                #     if explanation_idx == -1:
+                #         data["explanation"] = "NA"
+                #     else:
+                #         data["explanation"] = eval_results[rid]["fluent"][
+                #             explanation_idx
+                #         ]["explanation"]
+
+            except (FileNotFoundError, EOFError):
+                logger.exception("Error loading file %s", result_file)
                 continue
 
     # Create dataframe from all data

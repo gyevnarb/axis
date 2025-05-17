@@ -17,8 +17,10 @@ uv.lock
 
 # Other files
 output/
+paper/
 playground.*
 nohup.out
 .env
 .DS_Store
 *.log
+*.tex
