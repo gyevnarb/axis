@@ -1,17 +1,33 @@
-# Codebase for Agentic Explanations via Interrogative Simulations (AXIS)
+# Supplementary Materials for Agentic Explanations via Interrogative Simulations (AXIS)
 
 This file is the documentation for the AXIS codebase. The folder hierarchy of the codebase is given at the bottom of this README under section [Hierarchy](#hierarchy).
+
+You can find the appendix to the paper at [`appendix.pdf`](appendix.pdf).
 
 _Note 1: For legacy reasons, the package command names in the codebase are `axs` rather than ~~`axis`~~._
 
 _Note 2: This is a research project. The code here has not been extensively tested for all edge-cases and bugs, and it is likely not the most efficient implementation of the underlying ideas. If you find any problems that are hard to debug, please open a new issue on Github._
 
 ## Table of Contents
+- [Citation](#citation)
 - [Installation](#installation)
 - [AXIS Structure and Implementation](#axis-structure-and-implementation)
 - [Reproducing IGP2 results](#reproducing-axis-experiments-with-igp2)
 - [Folder hierarchy](#hierarchy)
-- [Citation](#citation)
+
+## Citation
+
+If you use or build on our codebase, please cite the following pre-print:
+
+```latex
+@misc{gyevnar2025axis,
+  title = {Integrating Counterfactual Simulations with Language Models for Explaining Multi-Agent Behaviour},
+  author = {Gyevnár, Bálint and Lucas, Christopher G. and Albrecht, Stefano V. and Cohen, Shay B.},
+  year = {2025},
+  month = may,
+  url = {https://arxiv.org/abs/2505.17801},
+}
+```
 
 ## Installation
 
@@ -170,18 +186,4 @@ output/                     # (Only present if generation/evaluation has been do
 │       ├── agents/         # Save files for agents and explanation cache
 │       ├── logs/           # Logging files for the scenario
 │       └── results/        # Results files for each scenario
-```
-
-## Citation
-
-If you use or build on our codebase, please cite the following pre-print:
-
-```latex
-@misc{gyevnar2025axis,
-  title = {Integrating Counterfactual Simulations with Language Models for Explaining Multi-Agent Behaviour},
-  author = {Gyevnár, Bálint and Lucas, Christopher G. and Albrecht, Stefano V. and Cohen, Shay B.},
-  year = {2025},
-  month = may,
-  url = {https://arxiv.org/abs/2505.17801},
-}
 ```
