@@ -1,78 +1,187 @@
-# Agentic Explanations with Simulations
+# Codebase for Agentic Explanations via Interrogative Simulations (AXIS)
 
-Welcome to the code repository of the AXS framework: an agentic system to generate causal explanations for any multi-agent system.
+This file is the documentation for the AXIS codebase. The folder hierarchy of the codebase is given at the bottom of this README under section [Hierarchy](#hierarchy).
 
-AXS comes with out-of-the-box support for existing RL environments that are implemented in either `gymansium` or `pettingzoo`. To get started in these environments, see [Usage](#usage).
+_Note 1: For legacy reasons, the package command names in the codebase are `axs` rather than ~~`axis`~~._
 
-While the AXS framework may work out-of-the box, it is best to use the object-oriented abstractions to override built-in behaviour, so you can customise your explanations to your need. For more on this, [Customisation](#customisation).
+_Note 2: This is a research project. The code here has not been extensively tested for all edge-cases and bugs, and it is likely not the most efficient implementation of the underlying ideas. If you find any problems that are hard to debug, please open a new issue on Github._
 
-For our implementation and experiments with autonomous driving and the [IGP2](https://github.com/uoe-agents/IGP2)  planner, see [Autonomous driving](#autonomous-driving).
-
-## Requirements
-
-The AXS framework requires Python>=3.9 and various additional dependencies as described in the [pyproject.toml](pyproject.toml) file.
+## Table of Contents
+- [Installation](#installation)
+- [AXIS Structure and Implementation](#axis-structure-and-implementation)
+- [Reproducing IGP2 results](#reproducing-axis-experiments-with-igp2)
+- [Folder hierarchy](#hierarchy)
+- [Citation](#citation)
 
 ## Installation
 
-_Note: to install dependencies for autonomous driving, use the [igp2] dependency flag after `axs`, such as `pip install axs[igp2]`._
+To use our codebase, you must install the necessary dependencies. The below instructions assume the use of `uv` for package installation and command running.
 
-You can install the current stable version of AXS with:
-```bash
-pip install axs
+#### 0. Install `uv`:
+The software `uv` is a manager for Python environments and projects and is orders of magnitued faster than `pip`.
+To install `uv`, please follow the instructions on their webpage [here](https://docs.astral.sh/uv/getting-started/installation/).
+
+#### 1. Install AXIS:
+From the root folder, run the command `uv sync` to download and create a virtual environment for running the approporiate commands. If you wish to run LLMs localy using vLLM then instead run the command `uv sync --extra vllm`. If you wish to reproduce the results of the paper using [IGP2](https://github.com/uoe-agents/IGP2) then use the command `uv sync --extra igp2`.
+
+#### 2. Test it works:
+To make sure that your install has succeeded, from the you can now run the command `uv run axs --help`, which should return the help message for the `axs` command.
+
+## AXIS Structure and Implementation
+
+This section describes how AXIS is structured and how to implement AXIS for your own use case.
+We assume in our implementation that the simulator is defined using [`gymnasium`](https://github.com/Farama-Foundation/Gymnasium) or [`pettingzoo`](https://github.com/Farama-Foundation/PettingZoo).
+
+_Note: we haven't extensively tested the pettingzoo implementation, so bugs are likely._
+
+AXIS is defined in an object-oriented way using heavy polymorphism, with abstract classes defining high-level procedural patterns, and subclasses implementing the actual logic.
+To get an idea of how to override the functions in the abstract classes, you can browse the `src/axs_igp2` folder, which contains the implementation for the IGP2-based experiments.
+
+The backbone of AXIS is defined in the `src/axs` folder. The main files to pay attention to are:
+- `agent.py`: The core implementation of the AXIS algorithm (Algorithm 1. in the paper). Ideally, you will not have to touch this file.
+- `macroaction.py`: Abstract class for macro actions. Inherit the abstract class `MacroAction` to define your own macro actions. The field `MacroAction.macro_names` should define the names of your macro actions, while the rest of the methods should define the procedures to convert action sequences to macro actions and back.
+- `policy.py`: Abstract class for wrapping trained agent policies to work with AXIS. Inherit the abstarct class `Policy` to enable interfacing between AXIS and the simulator.
+- `prompt.py`: Contains the class `Prompt` which parses prompt templates and, when requested, formats them with the given data. You can define your own prompts using standard Python formatting syntax, placing the prompt templates into the folder `data/xxx/prompts`, where xxx is your project's name.
+- `query.py`: Contains the class `Query` which defines the four interrogation queries used in AXIS. Inherit this class to define how queries are used in the simulator.
+- `verbalize.py`: Defines the abstract class `Verbalizer` which describes the methods used for verbalizing environmental representations. Inherit the class `Verbalizer` to define your own verbalization logic.
+- `wrapper.py`: The classes in this file act as the communication channel between AXIS and the external simulator. Inherit the class `QueryableWrapper` or `QueryableAECWrapper` to define how queries are applied to the simulation and how the simulation-returned data is processed for AXIS.
+
+
+The following files are also a part of the implementation, but are less important to adapting AXIS to a new domain:
+- `config.py`: The configuration class hiearchy, used to parse configuration files. You can either read the class hiearchy in this file to understand how to structure your JSON configs, or look at example configs in the `data/igp2/configs` folder. Ideally, you will not have to touch this file, but you can extend the abstract `ConfigBase` class to define your own configuration setup.
+- `llm.py`: A lightweight LLM wrapper to support interaction with hosted (either locally or online) LLMs.
+- `memory.py`: Memory modules to store different longer term data.
+- `simulator.py`: Defines the `Simulator` class which provides a fixed API to interact with external simulators.
+
+
+## Reproducing AXIS Experiments with IGP2
+Please follow the below steps to reproduce our work.
+
+#### 1. Run the scenario/scenarios
+
+Before generating explanations for the scenarios, you must run the scenarios to save the scenario execution data to disk.
+You can do this by calling the command `uv run axs-igp2 --help` and specifying the command line arguments as necessary.
+Scenario configuration files are found under the `data/igp2/configs/` folder.
+Results will be saved into an `output/` folder.
+
+**Example:** To generate a scenario run for scenario #1, run the following command: `uv run axs-igp2 -c data/igp2/configs/scenario1.json --save-results run`.
+
+#### 2. (Optional) Run all scenarios and evaluations automatically
+
+If you prefer to just start a script and leave it running, you can run the below scripts with various levels of customization:
+
+1. Basic usage (with defaults):
+`bash scripts/bash/generate_all.sh` followed by `bash scripts/bash/evaluate_all.sh`
+    - GPT-4.1 for generation
+    - Claude 3.5 for evaluation
+    - With interrogation and context
+    - Evaluating only "final" explanations
+    - Specifying a generation model:
+
+2. To specify a generation / evaluation model, for exapmle use:
+`bash scripts/bash/generate_all.sh llama70b` and `bash scripts/bash/evaluate_all.sh qwen72b`
+
+3. To specify whether to use interrogation or to test all feature combinations use:
+`bash scripts/bash/generate_all.sh llama70b --no-interrogation --use-context"` and similarly for the evaluation script.
+
+The bash script experiments call Python scripts located in the `scripts/python` directory.
+These Python scripts may also be called individually, following their Command Line Interface (CLI).
+The below stages 1-4 explains how to do this, in order to run things on a controlled, step-by-step level:
+
+#### 3A. Decide which LLM to use:
+In order to run experiments, you need to specify the LLM to use. The file [`llm_configs.json`](scripts/python/llm_configs.json) contains all LLMs used in the paper, and you may add your own to this file. It currently contains the following LLMs:
+
+- gpt41 (GPT-4.1)
+- gpt4o (GPT-4o)
+- o4mini (o4 Mini)
+- gpt41mini (GPT-4.1 Mini)
+- deepseekv3 (DeepSeek Chat)
+- deepseekr1 (DeepSeek Reasoner)
+- claude35 (Claude 3.5 Haiku)
+- claude37 (Claude 3.7 Sonnet)
+- llama70b (Llama 3.3-70B Instruct)
+- qwen72b (Qwen 2.5-72B Instruct)
+
+If using an API-based LLM, you must set the API key in the corresponding environment variable. We use the standard API variable names of each company, which you can also find in the [`llm_configs.json`](scripts/python/llm_configs.json).
+
+#### 3B. Generate explanations
+
+You can perform this step once the scenario data is saved for the scenario for which you would like to generate explanations.
+To generate explanations for a given LLM, scenario, and user prompt, you can run the command `uv run python scripts/python/generate.py --help` and specify the command line arguments as necessary.
+
+**Example:** To generate explanations for scenario #1 with GPT-4.1 for all prompts with the vebalised features macro actions and observations and a concise linguistic complexity, run: `uv run python scripts/python/generate.py -s 1 -m gpt41 -c 1 --features '["add_macro_actions", "add_observations"]'`.
+
+Results will be saved into the `output/` folder, and will override existing results there.
+The save name will contain information about the specific arguments used for generating explanations.
+For example, the file name `gpt41_interrogation_context.pkl` means that the GPT-4.1 model was used with interrogagtion and initial context given.
+
+*Note: This command assumes that either the API key is given for the selected LLM, or that the LLM is running on localhost.*
+
+#### 4. Evaluate explanations
+
+Once explanations have been generated for a given scenario, you can evaluate it with an LLM by calling `uv run python scripts/python/evaluate.py --help` and specifyin the command line arguments as necessary.
+
+**Example:** To evaluate all results for the above generation command with Claude 3.5, run: `uv run python scripts/python/evaluate.py -s 1 -m claude35 -r gpt41_interrogation_context.pkl -e all`.
+
+Results will be saved to the `output/` folder, and the file name will contain the word 'evaluate' and the name of the LLM used for evaluation.
+For example, the name `evaluate_gpt41_claude35_interrogation_context.pkl` contains the evaluation results for the above explanation file and using Claude 3.5 as an external reward model.
+
+#### 5. Analysis and Generate Figures
+
+Finally, using the generated explanations and their evaluations, we can recreate the plots and tables from the paper by running the command `uv run python/scripts/analysis.py --help` and specifying the command line arguments as necessary.
+The results will be saved into the `output/analysis/` or `output/plots/` folders.
+
+To inspect the generated explanations, the command `uv run python/scripts/summary.py --help` may also be used.
+
+## Hierarchy
+
+Below is the folder hierarchy of the AXIS codebase.
+
+```
+src/
+├── axs/                    # Abstract classes and algorithm implementations; may be overriden for specialising to environments
+├── envs/                   # Environment implementations overriding abstract classes in the axs folder
+│   └── axs_igp2/           # AXIS implementation for IGP2 and GOFI autonomous driving environments
+│
+├── scripts/
+│   ├── bash/                   # Shell scripts for running experiments
+│   │   ├── TODO.py            # Scoring and ranking scripts
+│   │   └── TODO2.py          # Summary generation for generation and evaluation result files
+│   │
+│   └── python/                 # Python scripts for analysis and visualization with IGP2
+│       ├── analysis.py         # Data analysis utilities
+│       ├── evaluate.py         # Explanation evaluation scripts
+│       ├── generate.py         # Explanation generation script
+│       ├── plot.py             # Plotting utilities (shapley waterfall, barplots, etc.)
+│       ├── score.py            # Scoring and ranking scripts
+│       └── summary.py          # Summary generation for generation and evaluation result files
+│
+data/
+├── igp2/                   # Data for IGP2 autonomous driving scenarios
+│   ├── configs/            # Configuration files for scenarios
+│   ├── evaluation/         # Evaluation data and prompts for external reward model
+│   ├── maps/               # Map definitions using OpenDRIVE standard
+│   └── prompts/            # AXIS prompt templates for IGP2
+│
+output/                     # (Only present if generation/evaluation has been done)
+├── igp2/                   # Output directory for IGP2 results
+│   ├── plots/              # Generated plots and visualizations
+│   └── scenarioN/...       # Results for each scenario (N in 0-9)
+│       ├── agents/         # Save files for agents and explanation cache
+│       ├── logs/           # Logging files for the scenario
+│       └── results/        # Results files for each scenario
 ```
 
-If you prefer to use the latest version, we recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) to install AXS.
-If you are using uv, then the following command installs the latest version into your current virutal environment:
+## Citation
 
-```bash
-uv add git+https://github.com/gyevnarb/axs
+If you use or build on our codebase, please cite the following pre-print:
+
+```latex
+@misc{gyevnar2025axis,
+  title = {Integrating Counterfactual Simulations with Language Models for Explaining Multi-Agent Behaviour},
+  author = {Gyevnár, Bálint and Lucas, Christopher G. and Albrecht, Stefano V. and Cohen, Shay B.},
+  year = {2025},
+  month = may,
+  url = {https://arxiv.org/abs/2505.17801},
+}
 ```
-
-You can alternatively clone the repository then install the package into your environment using `pip` and the following command:
-
-```bash
-pip install git+https://github.com/gyevnarb/axs
-```
-
-## Usage
-
-To use AXS, you will need an environment and some working agents in the environment. If you are using the `gymnasium` or the `pettingzoo` libraries then you can follow the snippets to get started with AXS.
-
-### Use with `gymnasium`
-
-### Use with `pettingzoo`
-
-## Customisation
-
-## Autonomous driving
-
-### Scenarios
-
-The AXS framework comes with 10 unique driving scenarios based on the [IGP2](https://github.com/uoe-agents/IGP2) planning algorithm.
-These may be categorised into three types:
-
-- Rational: in which all vehicles plan and act rationally.
-- Irrational: in which a non-ego agent is acting irrationally or erratically.
-- Occluded: in which some vehicles are ocluded from the ego's viewpoint.
-
-The scenario road layout are defined in the [maps](data/igp2/maps/) folder using the [OpenDRIVE](https://www.asam.net/standards/detail/opendrive/) standard.
-Some scenarios might share the same map.
-The scenario behaviour are defined in the [configuration](data/igp2/configs/) using a non-standard description format collected into a JSON-file.
-The behaviour description format is described in detail in the IGP2 [documentation](https://uoe-agents.github.io/IGP2/).
-
-In each scenario, the ego vehicle, i.e. the agent being explained, is Vehicle 0.
-The table below gives a full description summary of each scenario:
-
-|ID|Road Layout|Description|Category|
-|---|---|---|---|
-|0|Road with two parallel lanes and a T-junction coming up ahead.|Two vehicles. The ego vehicle starts in the left lane then changes lanes right to prepare for an exit right. Vehicle 1 in the left lane continues, maintaining its speed.|Rational|
-|1|Same as Scenario 0|Three vehicles. The ego vehicle starts in right lane, when Vehicle 1 cuts in front of it from the left lane and begins to slow down rapidly, indicating its intention to exit right at the junction. In response, the ego vehicle changes lanes left to continue to its goal unimpeded and more safely. Vehicle 2 is giving way at the T-junction to both the ego vehicle and vehicle 1|Rational|
-|2|Four-way crossroads between a main road and two lower-priority roads. Each road has two lanes, with one lane in each driving direction. The roads are perpendicular to one another.|Three vehicles. The ego vehicle is approaching the crossroads from a low-priority road. Vehicle 1 is on the main road, slowing down to a stop as it approaches the crossroads. Vehicle 2 is going down the main road in the opposite direction of vehicle 1 while mainting its speed close to the speed limit. The ego vehicle realises that vehicle 1 is trying to turn left and is giving way to vehicle 2 on the main road. The ego vehicle can use this opportunity to turn right early without waiting for vehicle 1 to turn.|Rational|
-|3|Roundabout with three exits and two lans.|Two vehicles. The ego vehicle is approaching the roundabout from the south. Vehicle 1 is in the roundabout in the inner lane at the start but changes lanes to the left. The ego vehicle in reaction enters the rounadbout without giving way to vehicle 1 as it infers the intention of vehicle 1 to exit the roundabout which was indiciated by vehicle 1's left lane change.|Rational|
-|4|T-junction followed by a four-way crossroads.|Five vehicles. Two vehicles are waiting in line at the four-way crossroads at a traffic light. Vehicle 3 is approaching behind. Vehicle 4 is passing through the four-way crossroads in the opposite direction of the waiting cars. The ego vehicle is approaching from the T-junction and is aiming to merge behind the waiting line of cars. Vehicle 3 sees this and slows down to stop, leaving a gap for the ego vehicle to merge. The ego vehicle realises this and uses the gap to merge behind the waiting line of cars.|Rational|
-|5|Same as scenario 2.|The scenario is the same as scenario 2, however vehicle 1 after slowing down decided to speed back and head straight which results in a collision with the turining ego vehicle, which thought vehicle 1 is about to turn left.|Irrational|
-|6|Same as scenario 1.|The scenario is the same as scenario 1, however vehicle 1 is changing lanes back and forth on the main road. In response, the ego vehicle stays in the right lane instead of changing lane to the left and keeps some distance from vehicle 1.|Irrational|
-|7|Same as scenario 1.|Three vehicles. There is a parked vehicle 2 in the left lane of the two-lane main road. Behind it is vehicle 1 and then the ego vehicle. Vehicle 1 is blocking the view of vehicle 2 from the perspective of the ego vehicle. However, the ego vehicle observes vehicle 1 changing lanes to the right which would otherwise not be rational unless vehicle 2 were present, so to avoid the inferred parked vehicle, the ego vehicle also changes lanes.|Occlusion|
-|8|Same as scenario 2 with the addition of a large building that blocks the view of the ego vehicle to the left.|Three vehicles. The ego vehicle is approaching from a low-priority road and can observe vehicle 1 on the main road from the right coming to a rolling stop. However, ego vehicle cannot see what is on the left because the building blocks its view. Still, from the actions of vehicle 1, it infers that there is a oncoming vehicle on the main road from the left. Therefore, the ego vehicle stops to give way to the inferred vehicle.|Occlusion|
-|9|Same as scenario 2 with the addition of a large building that blocks the view of the ego vehicle to the right.|Three vehicles. The ego vehicle is approaching the main road from a low-priority road. It observes vehicle 1 on the main road from the left coming to a full stop for a longer amount of time. As vehicle 1 does not seem to want to turn and there is no vehicle appearing from the right side of the main road, the ego vehicle infers that the only rational reason for vehicle 1 to stop would be that there is a vehicle blocking its path occluded by the building on the right. Once the ego inferrs this, it decides to turn left, using the gap that vehicle 1 has left at the crossroads.|Occlusion|
-

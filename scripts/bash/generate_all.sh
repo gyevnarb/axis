@@ -11,7 +11,7 @@ source .env
 # Check if the model argument is provided
 if [ -z "$1" ]; then
   echo "Usage: $0 <model> [--use-interrogation|--no-interrogation] [--use-context|--no-context]"
-  echo "Example: $0 llama70b 3 --no-interrogation --use-context"
+  echo "Example: $0 llama70b --no-interrogation --use-context"
   exit 1
 fi
 
